@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../widgets/product_image_widget.dart';
 
 class BuyerProductsPage extends StatefulWidget {
   const BuyerProductsPage({super.key});
@@ -90,9 +91,12 @@ class _BuyerProductsPageState extends State<BuyerProductsPage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Center(
-                                child: (product['imageUrl'] != null && (product['imageUrl'] as String).isNotEmpty)
-                                    ? Image.network(product['imageUrl'], width: 64, height: 64, fit: BoxFit.cover)
-                                    : Icon(Icons.shopping_basket, size: 48, color: green),
+                                child: ProductImageWidget(
+                                  imagePath: product['imageUrl'] ?? '',
+                                  width: 64,
+                                  height: 64,
+                                  placeholder: Icon(Icons.shopping_basket, size: 48, color: green),
+                                ),
                               ),
                               const SizedBox(height: 8),
                               Text(product['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),

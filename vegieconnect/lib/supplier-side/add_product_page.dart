@@ -8,6 +8,8 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import '../services/image_storage_service.dart';
+import '../widgets/product_image_widget.dart';
 
 class AddProductPage extends StatefulWidget {
   final Map<String, dynamic>? product;
@@ -23,7 +25,7 @@ class _AddProductPageState extends State<AddProductPage> {
   final _nameController = TextEditingController();
   final _descController = TextEditingController();
   final _priceController = TextEditingController();
-  final _quantityController = TextEditingController();
+  int _quantity = 0;
   String _unit = 'kg';
   String _category = 'Vegetable';
   bool _isActive = true;
@@ -39,7 +41,7 @@ class _AddProductPageState extends State<AddProductPage> {
       _nameController.text = widget.product!['name'] ?? '';
       _descController.text = widget.product!['description'] ?? '';
       _priceController.text = widget.product!['price']?.toString() ?? '';
-      _quantityController.text = widget.product!['quantity']?.toString() ?? '';
+      _quantity = widget.product!['quantity'] ?? 0;
       _unit = widget.product!['unit'] ?? 'kg';
       _category = widget.product!['category'] ?? 'Vegetable';
       _isActive = widget.product!['isActive'] ?? true;
@@ -52,54 +54,60 @@ class _AddProductPageState extends State<AddProductPage> {
     _nameController.dispose();
     _descController.dispose();
     _priceController.dispose();
-    _quantityController.dispose();
     super.dispose();
   }
 
   Future<void> _pickImage() async {
-    if (kIsWeb) {
-      // Web: Use file_picker
-      FilePickerResult? result = await FilePicker.platform.pickFiles(
-        type: FileType.image,
-        withData: true,
+    try {
+      if (kIsWeb) {
+        // Web: Use file_picker
+        final imageBytes = await ImageStorageService.pickImageFromWeb();
+        if (imageBytes != null) {
+          setState(() {
+            _webImageBytes = imageBytes;
+            _imageFile = null;
+          });
+        }
+      } else {
+        // Mobile: Use image_picker
+        final imageFile = await ImageStorageService.pickImageFromGallery();
+        if (imageFile != null) {
+          setState(() {
+            _imageFile = imageFile;
+            _webImageBytes = null;
+          });
+        }
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error picking image: $e')),
       );
-      if (result != null && result.files.single.bytes != null) {
-        setState(() {
-          _webImageBytes = result.files.single.bytes;
-          _imageFile = null;
-        });
-      }
-    } else {
-      // Mobile: Use image_picker
-      final picker = ImagePicker();
-      final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 75);
-      if (picked != null) {
-        setState(() {
-          _imageFile = File(picked.path);
-          _webImageBytes = null;
-        });
-      }
     }
   }
 
-  Future<String?> _uploadImage(String productId) async {
-    const imgbbApiKey = '624d224505d2d7ed98eb474772d79015';
-    Uint8List? imageBytes;
-    if (kIsWeb && _webImageBytes != null) {
-      imageBytes = _webImageBytes;
-    } else if (_imageFile != null) {
-      imageBytes = await _imageFile!.readAsBytes();
-    } else {
-      return _imageUrl;
-    }
-    final base64Image = base64Encode(imageBytes!);
-    final url = Uri.parse('https://api.imgbb.com/1/upload?key=$imgbbApiKey');
-    final response = await http.post(url, body: {'image': base64Image});
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      return data['data']['url'];
-    } else {
-      debugPrint('imgbb upload failed: \\${response.body}');
+  Future<String?> _saveImageLocally(String productId) async {
+    try {
+      if (kIsWeb && _webImageBytes != null) {
+        // For web, we'll still use imgbb as fallback since local storage isn't supported
+        const imgbbApiKey = '624d224505d2d7ed98eb474772d79015';
+        final base64Image = base64Encode(_webImageBytes!);
+        final url = Uri.parse('https://api.imgbb.com/1/upload?key=$imgbbApiKey');
+        final response = await http.post(url, body: {'image': base64Image});
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+          return data['data']['url'];
+        } else {
+          debugPrint('imgbb upload failed: ${response.body}');
+          return null;
+        }
+      } else if (_imageFile != null) {
+        // For mobile, save to local storage
+        return await ImageStorageService.saveImageFromFile(_imageFile!, productId);
+      } else {
+        return _imageUrl;
+      }
+    } catch (e) {
+      debugPrint('Error saving image: $e');
       return null;
     }
   }
@@ -121,27 +129,15 @@ class _AddProductPageState extends State<AddProductPage> {
               Center(
                 child: GestureDetector(
                   onTap: _pickImage,
-                  child: kIsWeb
-                      ? (_webImageBytes != null
-                          ? Image.memory(_webImageBytes!, width: 120, height: 120, fit: BoxFit.cover)
-                          : (_imageUrl != null && _imageUrl!.isNotEmpty)
-                              ? Image.network(_imageUrl!, width: 120, height: 120, fit: BoxFit.cover)
-                              : Container(
-                                  width: 120,
-                                  height: 120,
-                                  color: Colors.grey[200],
-                                  child: const Icon(Icons.camera_alt, size: 40, color: Colors.grey),
-                                ))
-                      : (_imageFile != null
+                  child: _webImageBytes != null
+                      ? Image.memory(_webImageBytes!, width: 120, height: 120, fit: BoxFit.cover)
+                      : _imageFile != null
                           ? Image.file(_imageFile!, width: 120, height: 120, fit: BoxFit.cover)
-                          : (_imageUrl != null && _imageUrl!.isNotEmpty)
-                              ? Image.network(_imageUrl!, width: 120, height: 120, fit: BoxFit.cover)
-                              : Container(
-                                  width: 120,
-                                  height: 120,
-                                  color: Colors.grey[200],
-                                  child: const Icon(Icons.camera_alt, size: 40, color: Colors.grey),
-                                )),
+                          : ProductImageWidget(
+                              imagePath: _imageUrl ?? '',
+                              width: 120,
+                              height: 120,
+                            ),
                 ),
               ),
               const SizedBox(height: 12),
@@ -159,16 +155,44 @@ class _AddProductPageState extends State<AddProductPage> {
               const SizedBox(height: 12),
               TextFormField(
                 controller: _priceController,
-                decoration: const InputDecoration(labelText: 'Price'),
+                decoration: const InputDecoration(
+                  labelText: 'Price',
+                  prefixText: '₱ ',
+                ),
                 keyboardType: TextInputType.number,
                 validator: (value) => value == null || value.isEmpty ? 'Enter price' : null,
               ),
               const SizedBox(height: 12),
-              TextFormField(
-                controller: _quantityController,
-                decoration: const InputDecoration(labelText: 'Quantity'),
-                keyboardType: TextInputType.number,
-                validator: (value) => value == null || value.isEmpty ? 'Enter quantity' : null,
+              Row(
+                children: [
+                  const Text('Quantity', style: TextStyle(fontSize: 16)),
+                  const SizedBox(width: 16),
+                  Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.blue),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.remove),
+                          onPressed: _quantity > 0
+                              ? () => setState(() => _quantity--)
+                              : null,
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                          child: Text('$_quantity', style: const TextStyle(fontSize: 18)),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.add),
+                          onPressed: () => setState(() => _quantity++),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
@@ -212,6 +236,27 @@ class _AddProductPageState extends State<AddProductPage> {
                         ? null
                         : () async {
                             if (_formKey.currentState!.validate()) {
+                              if (widget.product != null) {
+                                // Show confirmation dialog before updating
+                                final confirm = await showDialog<bool>(
+                                  context: context,
+                                  builder: (context) => AlertDialog(
+                                    title: const Text('Update Product'),
+                                    content: const Text('Are you sure you want to update this product?'),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(context, false),
+                                        child: const Text('Cancel'),
+                                      ),
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(context, true),
+                                        child: const Text('Update'),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                                if (confirm != true) return;
+                              }
                               setState(() => _isUploading = true);
                               final user = FirebaseAuth.instance.currentUser;
                               if (user == null) {
@@ -221,46 +266,53 @@ class _AddProductPageState extends State<AddProductPage> {
                                 setState(() => _isUploading = false);
                                 return;
                               }
-                              if (widget.product == null) {
-                                // Add new product
-                                final docRef = await FirebaseFirestore.instance.collection('products').add({
-                                  'sellerId': user.uid,
-                                  'name': _nameController.text.trim(),
-                                  'description': _descController.text.trim(),
-                                  'price': double.tryParse(_priceController.text.trim()) ?? 0,
-                                  'quantity': int.tryParse(_quantityController.text.trim()) ?? 0,
-                                  'unit': _unit,
-                                  'category': _category,
-                                  'isActive': _isActive,
-                                  'createdAt': FieldValue.serverTimestamp(),
-                                  'updatedAt': FieldValue.serverTimestamp(),
-                                  'imageUrl': '',
-                                });
-                                final imageUrl = await _uploadImage(docRef.id);
-                                if (imageUrl != null) {
-                                  await docRef.update({'imageUrl': imageUrl});
+                              try {
+                                if (widget.product == null) {
+                                  // Add new product
+                                  final docRef = await FirebaseFirestore.instance.collection('products').add({
+                                    'sellerId': user.uid,
+                                    'name': _nameController.text.trim(),
+                                    'description': _descController.text.trim(),
+                                    'price': double.tryParse(_priceController.text.trim()) ?? 0,
+                                    'quantity': _quantity,
+                                    'unit': _unit,
+                                    'category': _category,
+                                    'isActive': _isActive,
+                                    'createdAt': FieldValue.serverTimestamp(),
+                                    'updatedAt': FieldValue.serverTimestamp(),
+                                    'imageUrl': '',
+                                  });
+                                  final imagePath = await _saveImageLocally(docRef.id);
+                                  if (imagePath != null) {
+                                    await docRef.update({'imageUrl': imagePath});
+                                  }
+                                } else {
+                                  // Edit existing product
+                                  final imagePath = await _saveImageLocally(widget.docId!);
+                                  await FirebaseFirestore.instance.collection('products').doc(widget.docId!).update({
+                                    'name': _nameController.text.trim(),
+                                    'description': _descController.text.trim(),
+                                    'price': double.tryParse(_priceController.text.trim()) ?? 0,
+                                    'quantity': _quantity,
+                                    'unit': _unit,
+                                    'category': _category,
+                                    'isActive': _isActive,
+                                    'updatedAt': FieldValue.serverTimestamp(),
+                                    'imageUrl': imagePath ?? _imageUrl ?? '',
+                                  });
                                 }
-                              } else {
-                                // Edit existing product
-                                final imageUrl = await _uploadImage(widget.docId!);
-                                await FirebaseFirestore.instance.collection('products').doc(widget.docId!).update({
-                                  'name': _nameController.text.trim(),
-                                  'description': _descController.text.trim(),
-                                  'price': double.tryParse(_priceController.text.trim()) ?? 0,
-                                  'quantity': int.tryParse(_quantityController.text.trim()) ?? 0,
-                                  'unit': _unit,
-                                  'category': _category,
-                                  'isActive': _isActive,
-                                  'updatedAt': FieldValue.serverTimestamp(),
-                                  'imageUrl': imageUrl ?? '',
-                                });
+                                if (!mounted) return;
+                                setState(() => _isUploading = false);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text(widget.product == null ? 'Product added!' : 'Product updated!')),
+                                );
+                                Navigator.pop(context);
+                              } catch (e) {
+                                setState(() => _isUploading = false);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Failed to ${widget.product == null ? 'add' : 'update'} product: $e')),
+                                );
                               }
-                              if (!mounted) return;
-                              setState(() => _isUploading = false);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text(widget.product == null ? 'Product added!' : 'Product updated!')),
-                              );
-                              Navigator.pop(context);
                             }
                           },
                     style: ElevatedButton.styleFrom(backgroundColor: green),

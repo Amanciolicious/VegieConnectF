@@ -5,6 +5,8 @@ import 'package:vegieconnect/supplier-side/farm_map_page.dart';
 import '../authentication/login_page.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import '../widgets/product_image_widget.dart';
+import '../services/image_storage_service.dart';
 
 class SupplierDashboard extends StatefulWidget {
   const SupplierDashboard({super.key});
@@ -330,14 +332,14 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
   }
 
   Widget _buildProductList() {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      return const Center(child: Text('Not logged in.'));
-    }
+    // final user = FirebaseAuth.instance.currentUser;
+    // if (user == null) {
+    //   return const Center(child: Text('Not logged in.'));
+    // }
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('products')
-          .where('sellerId', isEqualTo: user.uid)
+          // .where('sellerId', isEqualTo: user.uid)
           .orderBy('createdAt', descending: true)
           .snapshots(),
       builder: (context, snapshot) {
@@ -364,150 +366,146 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
             return Card(
               elevation: 4,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    flex: 3,
-                    child: Container(
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFA7C957).withOpacity(0.1),
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(12),
-                          topRight: Radius.circular(12),
-                        ),
-                      ),
-                      child: Center(
-                        child: (product['imageUrl'] != null && (product['imageUrl'] as String).isNotEmpty)
-                            ? Image.network(product['imageUrl'], width: 64, height: 64, fit: BoxFit.cover)
-                            : Icon(Icons.shopping_basket, size: 48, color: const Color(0xFFA7C957)),
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: ProductImageWidget(
+                        imagePath: product['imageUrl'] ?? '',
+                        width: 64,
+                        height: 64,
+                        placeholder: Icon(Icons.shopping_basket, size: 48, color: const Color(0xFFA7C957)),
                       ),
                     ),
-                  ),
-                  Expanded(
-                    flex: 2,
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            product['name'] ?? '',
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '₱${product['price']?.toStringAsFixed(2) ?? '0.00'}',
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFFA7C957),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Stock:',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey,
-                            ),
-                          ),
-                          Row(
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.remove_circle_outline, size: 20),
-                                onPressed: (product['quantity'] ?? 0) > 0
-                                    ? () async {
-                                        final newQty = (product['quantity'] ?? 0) - 1;
-                                        await FirebaseFirestore.instance.collection('products').doc(docId).update({'quantity': newQty});
-                                      }
-                                    : null,
-                              ),
-                              Text(
-                                '${product['quantity'] ?? 0}',
-                                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.add_circle_outline, size: 20),
-                                onPressed: () async {
-                                  final newQty = (product['quantity'] ?? 0) + 1;
+                    const SizedBox(height: 8),
+                    Text(
+                      product['name'] ?? '',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '₱${product['price']?.toStringAsFixed(2) ?? '0.00'}',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFFA7C957),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Stock:',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey,
+                      ),
+                    ),
+                    Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.remove_circle_outline, size: 20),
+                          onPressed: (product['quantity'] ?? 0) > 0
+                              ? () async {
+                                  final newQty = (product['quantity'] ?? 0) - 1;
                                   await FirebaseFirestore.instance.collection('products').doc(docId).update({'quantity': newQty});
-                                },
-                              ),
-                              Text(
-                                product['unit'] ?? '',
-                                style: const TextStyle(fontSize: 12, color: Colors.grey),
-                              ),
-                            ],
-                          ),
-                          const Spacer(),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.edit, color: Colors.blue),
-                                onPressed: () {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => AddProductPage(
-                                        product: product,
-                                        docId: docId,
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.delete, color: Colors.red),
-                                onPressed: () async {
-                                  final confirm = await showDialog<bool>(
-                                    context: context,
-                                    builder: (context) => AlertDialog(
-                                      title: const Text('Delete Product'),
-                                      content: const Text('Are you sure you want to delete this product?'),
-                                      actions: [
-                                        TextButton(
-                                          onPressed: () => Navigator.pop(context, false),
-                                          child: const Text('Cancel'),
-                                        ),
-                                        TextButton(
-                                          onPressed: () => Navigator.pop(context, true),
-                                          child: const Text('Delete', style: TextStyle(color: Colors.red)),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                  if (confirm == true) {
-                                    // Delete associated image from Firebase Storage if it is a storage URL
-                                    final imageUrl = product['imageUrl'] ?? '';
-                                    if (imageUrl.isNotEmpty && imageUrl.startsWith('http')) {
-                                      try {
-                                        final ref = FirebaseStorage.instance.refFromURL(imageUrl);
-                                        await ref.delete();
-                                      } catch (e) {
-                                        // Handle error (e.g., file not found)
-                                      }
-                                    }
-                                    await FirebaseFirestore.instance.collection('products').doc(docId).delete();
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Product deleted.')),
-                                    );
-                                  }
-                                },
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
+                                }
+                              : null,
+                        ),
+                        Text(
+                          '${product['quantity'] ?? 0}',
+                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.add_circle_outline, size: 20),
+                          onPressed: () async {
+                            final newQty = (product['quantity'] ?? 0) + 1;
+                            await FirebaseFirestore.instance.collection('products').doc(docId).update({'quantity': newQty});
+                          },
+                        ),
+                        Text(
+                          product['unit'] ?? '',
+                          style: const TextStyle(fontSize: 12, color: Colors.grey),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
+                    const Spacer(),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.edit, color: Colors.blue),
+                          onPressed: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => AddProductPage(
+                                  product: product,
+                                  docId: docId,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.red),
+                          onPressed: () async {
+                            final confirm = await showDialog<bool>(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: const Text('Delete Product'),
+                                content: const Text('Are you sure you want to delete this product?'),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context, false),
+                                    child: const Text('Cancel'),
+                                  ),
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context, true),
+                                    child: const Text('Delete', style: TextStyle(color: Colors.red)),
+                                  ),
+                                ],
+                              ),
+                            );
+                            if (confirm == true) {
+                              try {
+                                // Delete associated image
+                                final imageUrl = product['imageUrl'] ?? '';
+                                if (imageUrl.isNotEmpty) {
+                                  if (ImageStorageService.isLocalPath(imageUrl)) {
+                                    // Delete local image
+                                    await ImageStorageService.deleteImage(imageUrl);
+                                  } else if (ImageStorageService.isNetworkUrl(imageUrl)) {
+                                    // Delete from Firebase Storage if it's a storage URL
+                                    try {
+                                      final ref = FirebaseStorage.instance.refFromURL(imageUrl);
+                                      await ref.delete();
+                                    } catch (e) {
+                                      // Handle error (e.g., file not found)
+                                    }
+                                  }
+                                }
+                                await FirebaseFirestore.instance.collection('products').doc(docId).delete();
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Product deleted.')),
+                                );
+                              } catch (e) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Failed to delete product: $e')),
+                                );
+                              }
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             );
           },
