@@ -25,6 +25,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
     FavoritePage(),
     CartPage(),
     ProfilePage(),
+    BuyerProductsPage(), // Added for Browse tab
   ];
 
   void _onItemTapped(int index) {
@@ -200,6 +201,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
           BottomNavigationBarItem(icon: Icon(Icons.favorite_border), label: 'Favorite'),
           BottomNavigationBarItem(icon: Icon(Icons.shopping_cart_outlined), label: 'Cart'),
           BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Profile'),
+          BottomNavigationBarItem(icon: Icon(Icons.store), label: 'Browse'), // Added Browse tab
         ],
       ),
     );

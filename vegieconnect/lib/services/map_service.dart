@@ -57,7 +57,20 @@ class MapService {
 
       if (placemarks.isNotEmpty) {
         Placemark place = placemarks[0];
-        return '${place.street}, ${place.locality}, ${place.administrativeArea}';
+        // Compose a more detailed address
+        String address = '';
+        if (place.name != null && place.name!.isNotEmpty) address += '${place.name}, ';
+        if (place.street != null && place.street!.isNotEmpty) address += '${place.street}, ';
+        if (place.subLocality != null && place.subLocality!.isNotEmpty) address += '${place.subLocality}, ';
+        if (place.locality != null && place.locality!.isNotEmpty) address += '${place.locality}, ';
+        if (place.subAdministrativeArea != null && place.subAdministrativeArea!.isNotEmpty) address += '${place.subAdministrativeArea}, ';
+        if (place.administrativeArea != null && place.administrativeArea!.isNotEmpty) address += '${place.administrativeArea}, ';
+        if (place.postalCode != null && place.postalCode!.isNotEmpty) address += '${place.postalCode}, ';
+        if (place.country != null && place.country!.isNotEmpty) address += '${place.country}';
+        // Remove trailing comma and space
+        address = address.trim();
+        if (address.endsWith(',')) address = address.substring(0, address.length - 1);
+        return address;
       }
       return 'Unknown location';
     } catch (e) {

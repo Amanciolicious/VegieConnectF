@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../authentication/login_page.dart';
+import 'admin_farm_map_page.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -85,12 +87,23 @@ class _AdminDashboardState extends State<AdminDashboard> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.settings),
-              title: const Text('Settings'),
+              leading: const Icon(Icons.location_on),
+              title: const Text('Farm Locations'),
               selected: _selectedIndex == 3,
               onTap: () {
                 setState(() {
                   _selectedIndex = 3;
+                });
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.settings),
+              title: const Text('Settings'),
+              selected: _selectedIndex == 4,
+              onTap: () {
+                setState(() {
+                  _selectedIndex = 4;
                 });
                 Navigator.pop(context);
               },
@@ -118,6 +131,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
           _buildOverviewTab(),
           _buildUsersTab(),
           _buildAnalyticsTab(),
+          _buildFarmLocationsTab(),
           _buildSettingsTab(),
         ],
       ),
@@ -143,6 +157,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
           BottomNavigationBarItem(
             icon: Icon(Icons.analytics),
             label: 'Analytics',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.location_on),
+            label: 'Farms',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.settings),
@@ -511,6 +529,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
     );
   }
 
+  Widget _buildFarmLocationsTab() {
+    return const AdminFarmMapPage();
+  }
+
   Widget _buildAnalyticsItem(String label, String value, String change) {
     final isPositive = change.startsWith('+');
     return Column(
@@ -547,97 +569,100 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }
 
   Widget _buildSettingsTab() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'System Settings',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 20),
-          Card(
-            elevation: 2,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            child: Column(
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.notifications),
-                  title: const Text('Push Notifications'),
-                  subtitle: const Text('Manage notification settings'),
-                  trailing: Switch(
-                    value: true,
-                    onChanged: (value) {},
-                    activeColor: const Color(0xFFA7C957),
+    final user = FirebaseAuth.instance.currentUser;
+    return FutureBuilder<DocumentSnapshot>(
+      future: FirebaseFirestore.instance.collection('users').doc(user!.uid).get(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (!snapshot.hasData || !snapshot.data!.exists) {
+          return const Center(child: Text('No profile data found.'));
+        }
+        final data = snapshot.data!.data() as Map<String, dynamic>;
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'System Settings',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 20),
+              Card(
+                elevation: 2,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Name: ${data['name'] ?? ''}',
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Email: ${data['email'] ?? ''}',
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Role: ${data['role'] ?? ''}',
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                    ],
                   ),
                 ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.security),
-                  title: const Text('Security Settings'),
-                  subtitle: const Text('Password and authentication'),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () {},
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.notifications),
+                title: const Text('Push Notifications'),
+                subtitle: const Text('Manage notification settings'),
+                trailing: Switch(
+                  value: true,
+                  onChanged: (value) {},
+                  activeColor: const Color(0xFFA7C957),
                 ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.backup),
-                  title: const Text('Backup & Restore'),
-                  subtitle: const Text('Data backup settings'),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () {},
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.language),
-                  title: const Text('Language'),
-                  subtitle: const Text('English'),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () {},
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.info),
-                  title: const Text('About'),
-                  subtitle: const Text('App version and information'),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () {},
-                ),
-              ],
-            ),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.security),
+                title: const Text('Security Settings'),
+                subtitle: const Text('Password and authentication'),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                onTap: () {},
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.backup),
+                title: const Text('Backup & Restore'),
+                subtitle: const Text('Data backup settings'),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                onTap: () {},
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.language),
+                title: const Text('Language'),
+                subtitle: const Text('English'),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                onTap: () {},
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.info),
+                title: const Text('About'),
+                subtitle: const Text('App version and information'),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                onTap: () {},
+              ),
+            ],
           ),
-          const SizedBox(height: 20),
-          Card(
-            elevation: 2,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            child: Column(
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.help, color: Colors.blue),
-                  title: const Text('Help & Support'),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () {},
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.feedback, color: Colors.orange),
-                  title: const Text('Send Feedback'),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () {},
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.privacy_tip, color: Colors.green),
-                  title: const Text('Privacy Policy'),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () {},
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 } 

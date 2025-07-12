@@ -171,6 +171,10 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
   }
 
   Widget _buildOverviewTab() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      return const Center(child: Text('Not logged in.'));
+    }
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -181,19 +185,82 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
             style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 20),
-          GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 2,
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 16,
-            childAspectRatio: 1.5,
-            children: [
-              _buildStatCard('Total Products', '45', Icons.inventory, Colors.blue),
-              _buildStatCard('Active Orders', '12', Icons.shopping_cart, Colors.green),
-              _buildStatCard('Revenue', '\$2,345', Icons.attach_money, Colors.orange),
-              _buildStatCard('Rating', '4.8', Icons.star, Colors.purple),
-            ],
+          // Fix: Wrap GridView in SizedBox to prevent overflow
+          SizedBox(
+            height: 220, // Adjust as needed for your UI
+            child: GridView.count(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: 2,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+              childAspectRatio: 1.5,
+              children: [
+                // Total Products
+                StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('products')
+                      .where('sellerId', isEqualTo: user.uid)
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    final count = snapshot.hasData ? snapshot.data!.docs.length : 0;
+                    return _buildStatCard('Total Products', '$count', Icons.inventory, Colors.blue);
+                  },
+                ),
+                // Active Orders
+                StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('orders')
+                      .where('sellerId', isEqualTo: user.uid)
+                      .where('status', isNotEqualTo: 'completed')
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    final count = snapshot.hasData ? snapshot.data!.docs.length : 0;
+                    return _buildStatCard('Active Orders', '$count', Icons.shopping_cart, Colors.green);
+                  },
+                ),
+                // Revenue
+                StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('orders')
+                      .where('sellerId', isEqualTo: user.uid)
+                      .where('status', isEqualTo: 'completed')
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    double revenue = 0;
+                    if (snapshot.hasData) {
+                      for (var doc in snapshot.data!.docs) {
+                        final data = doc.data() as Map<String, dynamic>;
+                        revenue += (data['price'] ?? 0) is int
+                          ? (data['price'] ?? 0).toDouble()
+                          : (data['price'] ?? 0);
+                      }
+                    }
+                    return _buildStatCard('Revenue', '₱${revenue.toStringAsFixed(2)}', Icons.attach_money, Colors.orange);
+                  },
+                ),
+                // Rating
+                StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('supplier_ratings')
+                      .where('supplierId', isEqualTo: user.uid)
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    double avg = 0;
+                    if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
+                      double sum = 0;
+                      for (var doc in snapshot.data!.docs) {
+                        sum += (doc['rating'] ?? 0) is int
+                          ? (doc['rating'] ?? 0).toDouble()
+                          : (doc['rating'] ?? 0);
+                      }
+                      avg = sum / snapshot.data!.docs.length;
+                    }
+                    return _buildStatCard('Rating', avg > 0 ? avg.toStringAsFixed(1) : 'N/A', Icons.star, Colors.purple);
+                  },
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 24),
           const Text(
@@ -201,7 +268,11 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
             style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
-          _buildRecentOrders(),
+          // Fix: Wrap _buildRecentOrders in SizedBox to prevent overflow
+          SizedBox(
+            height: 320, // Adjust as needed for your UI
+            child: _buildRecentOrders(),
+          ),
         ],
       ),
     );
@@ -239,60 +310,69 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
   }
 
   Widget _buildRecentOrders() {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: ListView.separated(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        itemCount: 5,
-        separatorBuilder: (context, index) => const Divider(height: 1),
-        itemBuilder: (context, index) {
-          final orders = [
-            {'id': '#1234', 'customer': 'John Doe', 'amount': '\$45.00', 'status': 'Pending'},
-            {'id': '#1235', 'customer': 'Jane Smith', 'amount': '\$67.50', 'status': 'Processing'},
-            {'id': '#1236', 'customer': 'Bob Johnson', 'amount': '\$23.00', 'status': 'Delivered'},
-            {'id': '#1237', 'customer': 'Alice Brown', 'amount': '\$89.00', 'status': 'Pending'},
-            {'id': '#1238', 'customer': 'Charlie Wilson', 'amount': '\$34.50', 'status': 'Processing'},
-          ];
-          
-          final order = orders[index];
-          final statusColor = order['status'] == 'Delivered' ? Colors.green : 
-                            order['status'] == 'Processing' ? Colors.orange : Colors.grey;
-          
-          return ListTile(
-            leading: CircleAvatar(
-              // ignore: deprecated_member_use
-              backgroundColor: const Color(0xFFA7C957).withOpacity(0.1),
-              child: Text(
-                order['id']!.substring(1),
-                style: const TextStyle(
-                  color: Color(0xFFA7C957),
-                  fontWeight: FontWeight.bold,
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      return const Center(child: Text('Not logged in.'));
+    }
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('orders')
+          .where('sellerId', isEqualTo: user.uid)
+          .orderBy('createdAt', descending: true)
+          .limit(5)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return const Center(child: Text('No recent orders.'));
+        }
+        final orders = snapshot.data!.docs;
+        return ListView.separated(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: orders.length,
+          separatorBuilder: (context, index) => const Divider(height: 1),
+          itemBuilder: (context, index) {
+            final order = orders[index].data() as Map<String, dynamic>;
+            final status = order['status'] ?? 'pending';
+            final statusColor = status == 'Delivered'
+                ? Colors.green
+                : status == 'Processing'
+                    ? Colors.orange
+                    : Colors.grey;
+            return ListTile(
+              leading: CircleAvatar(
+                backgroundColor: const Color(0xFFA7C957).withOpacity(0.1),
+                child: Text(
+                  order['id'] != null && order['id'].toString().isNotEmpty
+                      ? order['id'].toString().replaceAll(RegExp(r'[^0-9]'), '')
+                      : '?',
+                  style: const TextStyle(
+                    color: Color(0xFFA7C957),
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
-            ),
-            title: Text('Order ${order['id']}'),
-            subtitle: Text('${order['customer']} • ${order['amount']}'),
-            trailing: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                // ignore: deprecated_member_use
-                color: statusColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                order['status']!,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: statusColor,
-                  fontWeight: FontWeight.bold,
+              title: Text('Order #${order['id'] ?? ''}'),
+              subtitle: Text('${order['customer'] ?? ''} • ₱${(order['price'] ?? 0).toStringAsFixed(2)}'),
+              trailing: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: statusColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  status,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: statusColor,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
-            ),
-          );
-        },
-      ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -332,19 +412,22 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
   }
 
   Widget _buildProductList() {
-    // final user = FirebaseAuth.instance.currentUser;
-    // if (user == null) {
-    //   return const Center(child: Text('Not logged in.'));
-    // }
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      return const Center(child: Text('Not logged in.'));
+    }
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('products')
-          // .where('sellerId', isEqualTo: user.uid)
+          .where('sellerId', isEqualTo: user.uid)
           .orderBy('createdAt', descending: true)
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(child: Text('Error: \n${snapshot.error}'));
         }
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
           return const Center(child: Text('No products yet.'));
@@ -369,18 +452,20 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
               child: Padding(
                 padding: const EdgeInsets.all(8.0),
                 child: Column(
-                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Center(
-                      child: ProductImageWidget(
-                        imagePath: product['imageUrl'] ?? '',
-                        width: 64,
-                        height: 64,
-                        placeholder: Icon(Icons.shopping_basket, size: 48, color: const Color(0xFFA7C957)),
+                      child: SizedBox(
+                        height: 50,
+                        child: ProductImageWidget(
+                          imagePath: product['imageUrl'] ?? '',
+                          width: 64,
+                          height: 50,
+                          placeholder: Icon(Icons.shopping_basket, size: 32, color: const Color(0xFFA7C957)),
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 4),
                     Text(
                       product['name'] ?? '',
                       style: const TextStyle(
@@ -390,7 +475,7 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 2),
                     Text(
                       '₱${product['price']?.toStringAsFixed(2) ?? '0.00'}',
                       style: const TextStyle(
@@ -399,48 +484,28 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
                         color: Color(0xFFA7C957),
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 2),
                     Text(
-                      'Stock:',
+                      'Stock: ${product['quantity'] ?? 0} ${product['unit'] ?? ''}',
                       style: const TextStyle(
                         fontSize: 12,
                         color: Colors.grey,
                       ),
                     ),
-                    Row(
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.remove_circle_outline, size: 20),
-                          onPressed: (product['quantity'] ?? 0) > 0
-                              ? () async {
-                                  final newQty = (product['quantity'] ?? 0) - 1;
-                                  await FirebaseFirestore.instance.collection('products').doc(docId).update({'quantity': newQty});
-                                }
-                              : null,
-                        ),
-                        Text(
-                          '${product['quantity'] ?? 0}',
-                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.add_circle_outline, size: 20),
-                          onPressed: () async {
-                            final newQty = (product['quantity'] ?? 0) + 1;
-                            await FirebaseFirestore.instance.collection('products').doc(docId).update({'quantity': newQty});
-                          },
-                        ),
-                        Text(
-                          product['unit'] ?? '',
-                          style: const TextStyle(fontSize: 12, color: Colors.grey),
-                        ),
-                      ],
+                    const SizedBox(height: 2),
+                    Text(
+                      'Supplier: ${product['supplierName'] ?? 'Unknown'}',
+                      style: const TextStyle(fontSize: 12, color: Colors.blueGrey),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     const Spacer(),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
                         IconButton(
-                          icon: const Icon(Icons.edit, color: Colors.blue),
+                          icon: const Icon(Icons.edit, color: Colors.blue, size: 18),
+                          tooltip: 'Edit',
                           onPressed: () {
                             Navigator.of(context).push(
                               MaterialPageRoute(
@@ -453,7 +518,8 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
                           },
                         ),
                         IconButton(
-                          icon: const Icon(Icons.delete, color: Colors.red),
+                          icon: const Icon(Icons.delete, color: Colors.red, size: 18),
+                          tooltip: 'Delete',
                           onPressed: () async {
                             final confirm = await showDialog<bool>(
                               context: context,
@@ -474,20 +540,15 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
                             );
                             if (confirm == true) {
                               try {
-                                // Delete associated image
                                 final imageUrl = product['imageUrl'] ?? '';
                                 if (imageUrl.isNotEmpty) {
                                   if (ImageStorageService.isLocalPath(imageUrl)) {
-                                    // Delete local image
                                     await ImageStorageService.deleteImage(imageUrl);
                                   } else if (ImageStorageService.isNetworkUrl(imageUrl)) {
-                                    // Delete from Firebase Storage if it's a storage URL
                                     try {
                                       final ref = FirebaseStorage.instance.refFromURL(imageUrl);
                                       await ref.delete();
-                                    } catch (e) {
-                                      // Handle error (e.g., file not found)
-                                    }
+                                    } catch (e) {}
                                   }
                                 }
                                 await FirebaseFirestore.instance.collection('products').doc(docId).delete();
@@ -683,98 +744,163 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
   }
 
   Widget _buildProfileTab() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Profile & Settings',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 20),
-          Card(
-            elevation: 2,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                children: [
-                  CircleAvatar(
-                    radius: 50,
-                    // ignore: deprecated_member_use
-                    backgroundColor: const Color(0xFFA7C957).withOpacity(0.1),
-                    child: const Icon(
-                      Icons.store,
-                      size: 50,
-                      color: Color(0xFFA7C957),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Fresh Farms Co.',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                  const Text(
-                    'Premium Supplier',
-                    style: TextStyle(fontSize: 14, color: Colors.grey),
-                  ),
-                  const SizedBox(height: 20),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+    final user = FirebaseAuth.instance.currentUser;
+    return FutureBuilder<DocumentSnapshot>(
+      future: FirebaseFirestore.instance.collection('users').doc(user!.uid).get(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (!snapshot.hasData || !snapshot.data!.exists) {
+          return const Center(child: Text('No profile data found.'));
+        }
+        final data = snapshot.data!.data() as Map<String, dynamic>;
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Profile & Settings',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 20),
+              Card(
+                elevation: 2,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
                     children: [
-                      _buildProfileStat('Products', '45'),
-                      _buildProfileStat('Orders', '234'),
-                      _buildProfileStat('Rating', '4.8'),
+                      CircleAvatar(
+                        radius: 50,
+                        backgroundColor: const Color(0xFFA7C957).withOpacity(0.1),
+                        child: const Icon(
+                          Icons.store,
+                          size: 50,
+                          color: Color(0xFFA7C957),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        data['name'] ?? '',
+                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                      ),
+                      Text(
+                        data['email'] ?? '',
+                        style: const TextStyle(fontSize: 14, color: Colors.grey),
+                      ),
+                      Text(
+                        'Role: ${data['role'] ?? ''}',
+                        style: const TextStyle(fontSize: 14, color: Colors.grey),
+                      ),
+                      const SizedBox(height: 20),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          _buildProfileStat('Products', '45'),
+                          _buildProfileStat('Orders', '234'),
+                          _buildProfileStat('Rating', '4.8'),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      // Farm location info
+                      if (user != null)
+                        FutureBuilder<QuerySnapshot>(
+                          future: FirebaseFirestore.instance
+                              .collection('farm_locations')
+                              .where('supplierId', isEqualTo: user.uid)
+                              .where('isActive', isEqualTo: true)
+                              .limit(1)
+                              .get(),
+                          builder: (context, snapshot) {
+                            if (snapshot.connectionState == ConnectionState.waiting) {
+                              return const Center(child: CircularProgressIndicator());
+                            }
+                            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                              return const Text(
+                                'No farm location set.',
+                                style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
+                              );
+                            }
+                            final farm = snapshot.data!.docs.first.data() as Map<String, dynamic>;
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Divider(height: 32),
+                                Row(
+                                  children: const [
+                                    Icon(Icons.location_on, color: Colors.green),
+                                    SizedBox(width: 8),
+                                    Text('Farm Location', style: TextStyle(fontWeight: FontWeight.bold)),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  farm['name'] ?? 'Unnamed Farm',
+                                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                ),
+                                Text(
+                                  'Lat: 9${(farm['latitude'] ?? 0.0).toStringAsFixed(6)}',
+                                  style: const TextStyle(fontSize: 14, color: Colors.grey),
+                                ),
+                                Text(
+                                  'Lng: 9${(farm['longitude'] ?? 0.0).toStringAsFixed(6)}',
+                                  style: const TextStyle(fontSize: 14, color: Colors.grey),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
                     ],
                   ),
-                ],
+                ),
               ),
-            ),
+              const SizedBox(height: 20),
+              Card(
+                elevation: 2,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                child: Column(
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.edit),
+                      title: const Text('Edit Profile'),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                      onTap: () {},
+                    ),
+                    const Divider(height: 1),
+                    ListTile(
+                      leading: const Icon(Icons.notifications),
+                      title: const Text('Notifications'),
+                      subtitle: const Text('Manage notification settings'),
+                      trailing: Switch(
+                        value: true,
+                        onChanged: (value) {},
+                        activeColor: const Color(0xFFA7C957),
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    ListTile(
+                      leading: const Icon(Icons.security),
+                      title: const Text('Security'),
+                      subtitle: const Text('Password and authentication'),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                      onTap: () {},
+                    ),
+                    const Divider(height: 1),
+                    ListTile(
+                      leading: const Icon(Icons.help),
+                      title: const Text('Help & Support'),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                      onTap: () {},
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 20),
-          Card(
-            elevation: 2,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            child: Column(
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.edit),
-                  title: const Text('Edit Profile'),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () {},
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.notifications),
-                  title: const Text('Notifications'),
-                  subtitle: const Text('Manage notification settings'),
-                  trailing: Switch(
-                    value: true,
-                    onChanged: (value) {},
-                    activeColor: const Color(0xFFA7C957),
-                  ),
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.security),
-                  title: const Text('Security'),
-                  subtitle: const Text('Password and authentication'),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () {},
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.help),
-                  title: const Text('Help & Support'),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () {},
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 

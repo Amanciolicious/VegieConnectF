@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../services/image_storage_service.dart';
@@ -267,10 +265,14 @@ class _AddProductPageState extends State<AddProductPage> {
                                 return;
                               }
                               try {
+                                // Fetch supplier name from Firestore
+                                final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+                                final supplierName = userDoc.data()?['name'] ?? 'Unknown Supplier';
                                 if (widget.product == null) {
                                   // Add new product
                                   final docRef = await FirebaseFirestore.instance.collection('products').add({
                                     'sellerId': user.uid,
+                                    'supplierName': supplierName,
                                     'name': _nameController.text.trim(),
                                     'description': _descController.text.trim(),
                                     'price': double.tryParse(_priceController.text.trim()) ?? 0,
@@ -290,6 +292,8 @@ class _AddProductPageState extends State<AddProductPage> {
                                   // Edit existing product
                                   final imagePath = await _saveImageLocally(widget.docId!);
                                   await FirebaseFirestore.instance.collection('products').doc(widget.docId!).update({
+                                    'sellerId': user.uid,
+                                    'supplierName': supplierName,
                                     'name': _nameController.text.trim(),
                                     'description': _descController.text.trim(),
                                     'price': double.tryParse(_priceController.text.trim()) ?? 0,

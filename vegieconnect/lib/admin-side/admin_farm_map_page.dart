@@ -7,14 +7,14 @@ import '../models/farm_location.dart';
 import '../services/farm_location_service.dart';
 import '../services/map_service.dart';
 
-class FarmMapPage extends StatefulWidget {
-  const FarmMapPage({super.key});
+class AdminFarmMapPage extends StatefulWidget {
+  const AdminFarmMapPage({super.key});
 
   @override
-  State<FarmMapPage> createState() => _FarmMapPageState();
+  State<AdminFarmMapPage> createState() => _AdminFarmMapPageState();
 }
 
-class _FarmMapPageState extends State<FarmMapPage> {
+class _AdminFarmMapPageState extends State<AdminFarmMapPage> {
   final MapController _mapController = MapController();
   final FarmLocationService _farmLocationService = FarmLocationService();
   final MapService _mapService = MapService();
@@ -22,8 +22,9 @@ class _FarmMapPageState extends State<FarmMapPage> {
   List<FarmLocation> _farmLocations = [];
   LatLng? _selectedLocation;
   bool _isLoading = true;
-  bool _isAddingPin = false; // Track if user is in pin addition mode
-  bool _isEditingPin = false; // Track if user is in pin editing mode
+  bool _isAddingPin = false;
+  String _selectedSupplierFilter = 'All Suppliers';
+  List<String> _supplierNames = ['All Suppliers'];
 
   @override
   void initState() {
@@ -33,14 +34,17 @@ class _FarmMapPageState extends State<FarmMapPage> {
 
   Future<void> _loadFarmLocations() async {
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user != null) {
-        final locations = await _farmLocationService.getFarmLocationsBySupplier(user.uid);
-        setState(() {
-          _farmLocations = locations;
-          _isLoading = false;
-        });
-      }
+      final locations = await _farmLocationService.getAllFarmLocations();
+      
+      // Extract unique supplier names for filter
+      final supplierNames = locations.map((loc) => loc.supplierName).toSet().toList();
+      supplierNames.sort();
+      
+      setState(() {
+        _farmLocations = locations;
+        _supplierNames = ['All Suppliers', ...supplierNames];
+        _isLoading = false;
+      });
     } catch (e) {
       setState(() {
         _isLoading = false;
@@ -49,6 +53,13 @@ class _FarmMapPageState extends State<FarmMapPage> {
         SnackBar(content: Text('Error loading farm locations: $e')),
       );
     }
+  }
+
+  List<FarmLocation> get _filteredFarmLocations {
+    if (_selectedSupplierFilter == 'All Suppliers') {
+      return _farmLocations;
+    }
+    return _farmLocations.where((farm) => farm.supplierName == _selectedSupplierFilter).toList();
   }
 
   void _onMapTap(TapPosition tapPosition, LatLng point) {
@@ -74,83 +85,27 @@ class _FarmMapPageState extends State<FarmMapPage> {
         _isAddingPin = false; // Exit pin addition mode
       });
       _showAddFarmDialog(point);
-    } else if (_isEditingPin) {
-      // If in editing mode, update the existing pin location
-      setState(() {
-        _selectedLocation = point;
-        _isEditingPin = false; // Exit editing mode
-      });
-      _showEditLocationDialog(point);
     } else {
       // Show a hint to enable pin addition mode
-      if (_farmLocations.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Tap the "Add Pin" button to add your farm location'),
-            duration: Duration(seconds: 2),
-          ),
-        );
-      } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text('Tap the "Edit Location" button to move your farm location'),
+          content: Text('Tap the "Add Pin" button to add a new farm location'),
           duration: Duration(seconds: 2),
         ),
       );
-      }
     }
   }
 
   void _enablePinAdditionMode() {
-    // Check if supplier already has a farm location
-    if (_farmLocations.isNotEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('You already have a farm location. Use "Edit Location" to modify it.'),
-          backgroundColor: Colors.orange,
-          duration: Duration(seconds: 3),
-        ),
-      );
-      return;
-    }
-    
     setState(() {
       _isAddingPin = true;
-      _isEditingPin = false;
       _selectedLocation = null; // Clear any existing selection
     });
     
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Tap anywhere on the map to add your farm location'),
+        content: Text('Tap anywhere on the map to add a farm pin'),
         backgroundColor: Colors.green,
-        duration: Duration(seconds: 3),
-      ),
-    );
-  }
-
-  void _enablePinEditingMode() {
-    if (_farmLocations.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('You need to add a farm location first.'),
-          backgroundColor: Colors.orange,
-          duration: Duration(seconds: 2),
-        ),
-      );
-      return;
-    }
-    
-    setState(() {
-      _isEditingPin = true;
-      _isAddingPin = false;
-      _selectedLocation = null; // Clear any existing selection
-    });
-    
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Tap anywhere on the map to move your farm location'),
-        backgroundColor: Colors.blue,
         duration: Duration(seconds: 3),
       ),
     );
@@ -159,13 +114,12 @@ class _FarmMapPageState extends State<FarmMapPage> {
   void _cancelPinAdditionMode() {
     setState(() {
       _isAddingPin = false;
-      _isEditingPin = false;
       _selectedLocation = null;
     });
     
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Pin mode cancelled'),
+        content: Text('Pin addition mode cancelled'),
         duration: Duration(seconds: 2),
       ),
     );
@@ -174,6 +128,8 @@ class _FarmMapPageState extends State<FarmMapPage> {
   void _showAddFarmDialog(LatLng location) {
     final TextEditingController nameController = TextEditingController();
     final TextEditingController descriptionController = TextEditingController();
+    String selectedSupplierId = '';
+    String selectedSupplierName = '';
 
     showDialog(
       context: context,
@@ -206,6 +162,44 @@ class _FarmMapPageState extends State<FarmMapPage> {
                 maxLines: 3,
               ),
               const SizedBox(height: 16),
+              // Supplier selection dropdown
+              StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('users')
+                    .where('role', isEqualTo: 'supplier')
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const CircularProgressIndicator();
+                  }
+                  
+                  final suppliers = snapshot.data?.docs ?? [];
+                  
+                  return DropdownButtonFormField<String>(
+                    decoration: const InputDecoration(
+                      labelText: 'Select Supplier',
+                      border: OutlineInputBorder(),
+                    ),
+                    value: selectedSupplierId.isEmpty ? null : selectedSupplierId,
+                    items: suppliers.map((supplier) {
+                      final data = supplier.data() as Map<String, dynamic>;
+                      return DropdownMenuItem(
+                        value: supplier.id,
+                        child: Text(data['name'] ?? 'Unknown Supplier'),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      if (value != null) {
+                        final supplier = suppliers.firstWhere((s) => s.id == value);
+                        final data = supplier.data() as Map<String, dynamic>;
+                        selectedSupplierId = value;
+                        selectedSupplierName = data['name'] ?? 'Unknown Supplier';
+                      }
+                    },
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
               FutureBuilder<String>(
                 future: _mapService.getAddressFromCoordinates(location),
                 builder: (context, snapshot) {
@@ -234,12 +228,14 @@ class _FarmMapPageState extends State<FarmMapPage> {
             ),
             ElevatedButton(
               onPressed: () async {
-                if (nameController.text.isNotEmpty) {
+                if (nameController.text.isNotEmpty && selectedSupplierId.isNotEmpty) {
                   Navigator.of(context).pop();
                   await _addFarmLocation(
                     nameController.text,
                     descriptionController.text,
                     location,
+                    selectedSupplierId,
+                    selectedSupplierName,
                   );
                 }
               },
@@ -251,80 +247,8 @@ class _FarmMapPageState extends State<FarmMapPage> {
     );
   }
 
-  void _showEditLocationDialog(LatLng newLocation) {
-    if (_farmLocations.isEmpty) return;
-    
-    final existingFarm = _farmLocations.first;
-    
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Row(
-            children: [
-              const Icon(Icons.edit_location, color: Colors.blue),
-              const SizedBox(width: 8),
-              const Text('Move Farm Location'),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Current Farm: ${existingFarm.name}'),
-              const SizedBox(height: 16),
-              FutureBuilder<String>(
-                future: _mapService.getAddressFromCoordinates(newLocation),
-                builder: (context, snapshot) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'New Location: ${newLocation.latitude.toStringAsFixed(6)}, ${newLocation.longitude.toStringAsFixed(6)}',
-                        style: const TextStyle(fontSize: 12, color: Colors.grey),
-                      ),
-                      if (snapshot.hasData && snapshot.data!.isNotEmpty)
-                        Text(
-                          'New Address: ${snapshot.data}',
-                          style: const TextStyle(fontSize: 12, color: Colors.grey),
-                        ),
-                    ],
-                  );
-                },
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                Navigator.of(context).pop();
-                await _updateFarmLocation(existingFarm, newLocation);
-              },
-              child: const Text('Move Location'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Future<void> _addFarmLocation(String name, String description, LatLng location) async {
+  Future<void> _addFarmLocation(String name, String description, LatLng location, String supplierId, String supplierName) async {
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
-
-      // Get user data for supplier name
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .get();
-      
-      final supplierName = userDoc.data()?['name'] ?? 'Unknown Supplier';
-      
       // Get address from coordinates
       final address = await _mapService.getAddressFromCoordinates(location);
 
@@ -334,7 +258,7 @@ class _FarmMapPageState extends State<FarmMapPage> {
         description: description,
         latitude: location.latitude,
         longitude: location.longitude,
-        supplierId: user.uid,
+        supplierId: supplierId,
         supplierName: supplierName,
         address: address,
         createdAt: DateTime.now(),
@@ -355,33 +279,6 @@ class _FarmMapPageState extends State<FarmMapPage> {
     }
   }
 
-  Future<void> _updateFarmLocation(FarmLocation existingFarm, LatLng newLocation) async {
-    try {
-      // Get new address from coordinates
-      final newAddress = await _mapService.getAddressFromCoordinates(newLocation);
-
-      // Create updated farm location
-      final updatedFarm = existingFarm.copyWith(
-        latitude: newLocation.latitude,
-        longitude: newLocation.longitude,
-        address: newAddress,
-      );
-
-      await _farmLocationService.updateFarmLocation(updatedFarm);
-      
-      // Reload farm locations
-      await _loadFarmLocations();
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Farm location moved successfully!')),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error moving farm location: $e')),
-      );
-    }
-  }
-
   void _showFarmDetails(FarmLocation farm) {
     showDialog(
       context: context,
@@ -392,6 +289,8 @@ class _FarmMapPageState extends State<FarmMapPage> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Text('Supplier: ${farm.supplierName}'),
+              const SizedBox(height: 8),
               Text('Description: ${farm.description}'),
               const SizedBox(height: 8),
               Text('Address: ${farm.address}'),
@@ -407,13 +306,6 @@ class _FarmMapPageState extends State<FarmMapPage> {
               child: const Text('Close'),
             ),
             TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                _showEditFarmDialog(farm);
-              },
-              child: const Text('Edit', style: TextStyle(color: Colors.blue)),
-            ),
-            TextButton(
               onPressed: () async {
                 Navigator.of(context).pop();
                 await _deleteFarmLocation(farm.id);
@@ -424,88 +316,6 @@ class _FarmMapPageState extends State<FarmMapPage> {
         );
       },
     );
-  }
-
-  void _showEditFarmDialog(FarmLocation farm) {
-    final TextEditingController nameController = TextEditingController(text: farm.name);
-    final TextEditingController descriptionController = TextEditingController(text: farm.description);
-
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Row(
-            children: [
-              const Icon(Icons.edit, color: Colors.blue),
-              const SizedBox(width: 8),
-              const Text('Edit Farm Details'),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Farm Name',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: descriptionController,
-                decoration: const InputDecoration(
-                  labelText: 'Description',
-                  border: OutlineInputBorder(),
-                ),
-                maxLines: 3,
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                if (nameController.text.isNotEmpty) {
-                  Navigator.of(context).pop();
-                  await _updateFarmDetails(
-                    farm,
-                    nameController.text,
-                    descriptionController.text,
-                  );
-                }
-              },
-              child: const Text('Update'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Future<void> _updateFarmDetails(FarmLocation farm, String newName, String newDescription) async {
-    try {
-      final updatedFarm = farm.copyWith(
-        name: newName,
-        description: newDescription,
-      );
-
-      await _farmLocationService.updateFarmLocation(updatedFarm);
-      
-      // Reload farm locations
-      await _loadFarmLocations();
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Farm details updated successfully!')),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error updating farm details: $e')),
-      );
-    }
   }
 
   Future<void> _deleteFarmLocation(String farmId) async {
@@ -530,9 +340,26 @@ class _FarmMapPageState extends State<FarmMapPage> {
     
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Farm Locations - Bogo City'),
+        title: const Text('Admin Farm Locations - Bogo City'),
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
+        actions: [
+          // Filter dropdown
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.filter_list),
+            onSelected: (value) {
+              setState(() {
+                _selectedSupplierFilter = value;
+              });
+            },
+            itemBuilder: (context) => _supplierNames.map((supplier) {
+              return PopupMenuItem(
+                value: supplier,
+                child: Text(supplier),
+              );
+            }).toList(),
+          ),
+        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -566,7 +393,7 @@ class _FarmMapPageState extends State<FarmMapPage> {
                 ),
                 // Show existing farm locations
                 MarkerLayer(
-                  markers: _farmLocations.map((farm) {
+                  markers: _filteredFarmLocations.map((farm) {
                     return Marker(
                       point: LatLng(farm.latitude, farm.longitude),
                       width: 40,
@@ -648,7 +475,7 @@ class _FarmMapPageState extends State<FarmMapPage> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
-                      color: _farmLocations.isNotEmpty ? Colors.green.withOpacity(0.9) : Colors.orange.withOpacity(0.9),
+                      color: Colors.green.withOpacity(0.9),
                       borderRadius: BorderRadius.circular(20),
                       boxShadow: [
                         BoxShadow(
@@ -659,9 +486,7 @@ class _FarmMapPageState extends State<FarmMapPage> {
                       ],
                     ),
                     child: Text(
-                      _farmLocations.isNotEmpty 
-                          ? '🌾 Farm Location Set'
-                          : '🌾 No Farm Location',
+                      '🌾 ${_filteredFarmLocations.length} Farms',
                       style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
@@ -670,6 +495,34 @@ class _FarmMapPageState extends State<FarmMapPage> {
                     ),
                   ),
                 ),
+                // Filter indicator
+                if (_selectedSupplierFilter != 'All Suppliers')
+                  Positioned(
+                    top: 104,
+                    left: 16,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withOpacity(0.9),
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.2),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Text(
+                        '👤 $_selectedSupplierFilter',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ),
                 // Pin addition mode indicator
                 if (_isAddingPin)
                   Positioned(
@@ -678,7 +531,7 @@ class _FarmMapPageState extends State<FarmMapPage> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
-                        color: Colors.green.withOpacity(0.9),
+                        color: Colors.orange.withOpacity(0.9),
                         borderRadius: BorderRadius.circular(20),
                         boxShadow: [
                           BoxShadow(
@@ -689,35 +542,7 @@ class _FarmMapPageState extends State<FarmMapPage> {
                         ],
                       ),
                       child: const Text(
-                        '📍 Adding Farm Mode',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
-                  ),
-                // Pin editing mode indicator
-                if (_isEditingPin)
-                  Positioned(
-                    top: 16,
-                    right: 16,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: Colors.blue.withOpacity(0.9),
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.2),
-                            blurRadius: 4,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: const Text(
-                        '📍 Moving Farm Mode',
+                        '📍 Adding Pin Mode',
                         style: TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
@@ -742,20 +567,12 @@ class _FarmMapPageState extends State<FarmMapPage> {
                 ),
               ],
             ),
-      floatingActionButton: _farmLocations.isEmpty
-          ? FloatingActionButton.extended(
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: _isAddingPin ? _cancelPinAdditionMode : _enablePinAdditionMode,
         backgroundColor: _isAddingPin ? Colors.red : Colors.green,
         foregroundColor: Colors.white,
         icon: Icon(_isAddingPin ? Icons.close : Icons.add_location),
-              label: Text(_isAddingPin ? 'Cancel' : 'Add Farm'),
-            )
-          : FloatingActionButton.extended(
-              onPressed: _isEditingPin ? _cancelPinAdditionMode : _enablePinEditingMode,
-              backgroundColor: _isEditingPin ? Colors.red : Colors.blue,
-              foregroundColor: Colors.white,
-              icon: Icon(_isEditingPin ? Icons.close : Icons.edit_location),
-              label: Text(_isEditingPin ? 'Cancel' : 'Move Location'),
+        label: Text(_isAddingPin ? 'Cancel' : 'Add Pin'),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
