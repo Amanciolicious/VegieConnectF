@@ -1,8 +1,13 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../authentication/login_page.dart';
 import 'admin_farm_map_page.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'admin_verify_listings_page.dart';
+import 'admin_reports_page.dart';
+import 'admin_manage_accounts_page.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -98,6 +103,39 @@ class _AdminDashboardState extends State<AdminDashboard> {
               },
             ),
             ListTile(
+              leading: const Icon(Icons.verified),
+              title: const Text('Verify Listings'),
+              selected: _selectedIndex == 5,
+              onTap: () {
+                setState(() {
+                  _selectedIndex = 5;
+                });
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.report),
+              title: const Text('Reports'),
+              selected: _selectedIndex == 6,
+              onTap: () {
+                setState(() {
+                  _selectedIndex = 6;
+                });
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.manage_accounts),
+              title: const Text('Manage Accounts'),
+              selected: _selectedIndex == 7,
+              onTap: () {
+                setState(() {
+                  _selectedIndex = 7;
+                });
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.settings),
               title: const Text('Settings'),
               selected: _selectedIndex == 4,
@@ -133,6 +171,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
           _buildAnalyticsTab(),
           _buildFarmLocationsTab(),
           _buildSettingsTab(),
+          // New admin pages
+          AdminVerifyListingsPage(),
+          AdminReportsPage(),
+          AdminManageAccountsPage(),
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
@@ -190,10 +232,74 @@ class _AdminDashboardState extends State<AdminDashboard> {
             mainAxisSpacing: 16,
             childAspectRatio: 1.5,
             children: [
-              _buildStatCard('Total Users', '1,234', Icons.people, Colors.blue),
-              _buildStatCard('Active Suppliers', '89', Icons.store, Colors.green),
-              _buildStatCard('Total Orders', '5,678', Icons.shopping_cart, Colors.orange),
-              _buildStatCard('Revenue', '\$12,345', Icons.attach_money, Colors.purple),
+              // Total Users (suppliers and buyers only)
+              StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance.collection('users').where('role', whereIn: ['supplier', 'buyer']).snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    return _buildStatCard('Total Users', 'ERR', Icons.people, Colors.blue);
+                  }
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return _buildStatCard('Total Users', '...', Icons.people, Colors.blue);
+                  }
+                  final count = snapshot.hasData ? snapshot.data!.docs.length : 0;
+                  debugPrint('DEBUG: Total Users count: $count');
+                  return _buildStatCard('Total Users', '$count', Icons.people, Colors.blue);
+                },
+              ),
+              // Active Suppliers
+              StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance.collection('users').where('role', isEqualTo: 'supplier').where('status', isEqualTo: 'active').snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    return _buildStatCard('Active Suppliers', 'ERR', Icons.store, Colors.green);
+                  }
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return _buildStatCard('Active Suppliers', '...', Icons.store, Colors.green);
+                  }
+                  final count = snapshot.hasData ? snapshot.data!.docs.length : 0;
+                  debugPrint('DEBUG: Active Suppliers count: $count');
+                  return _buildStatCard('Active Suppliers', '$count', Icons.store, Colors.green);
+                },
+              ),
+              // Total Orders
+              StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance.collection('orders').snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    return _buildStatCard('Total Orders', 'ERR', Icons.shopping_cart, Colors.orange);
+                  }
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return _buildStatCard('Total Orders', '...', Icons.shopping_cart, Colors.orange);
+                  }
+                  final count = snapshot.hasData ? snapshot.data!.docs.length : 0;
+                  debugPrint('DEBUG: Total Orders count: $count');
+                  return _buildStatCard('Total Orders', '$count', Icons.shopping_cart, Colors.orange);
+                },
+              ),
+              // Revenue (sum of completed orders)
+              StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance.collection('orders').where('status', isEqualTo: 'completed').snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    return _buildStatCard('Revenue', 'ERR', Icons.attach_money, Colors.purple);
+                  }
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return _buildStatCard('Revenue', '...', Icons.attach_money, Colors.purple);
+                  }
+                  double revenue = 0;
+                  if (snapshot.hasData) {
+                    for (var doc in snapshot.data!.docs) {
+                      final data = doc.data() as Map<String, dynamic>;
+                      revenue += (data['price'] ?? 0) is int
+                        ? (data['price'] ?? 0).toDouble()
+                        : (data['price'] ?? 0);
+                    }
+                  }
+                  debugPrint('DEBUG: Revenue: $revenue');
+                  return _buildStatCard('Revenue', '\u20b1${revenue.toStringAsFixed(2)}', Icons.attach_money, Colors.purple);
+                },
+              ),
             ],
           ),
           const SizedBox(height: 24),
@@ -202,7 +308,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
             style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
-          _buildActivityList(),
+          _buildRecentActivityList(),
         ],
       ),
     );
@@ -239,44 +345,131 @@ class _AdminDashboardState extends State<AdminDashboard> {
     );
   }
 
-  Widget _buildActivityList() {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: ListView.separated(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        itemCount: 5,
-        separatorBuilder: (context, index) => const Divider(height: 1),
-        itemBuilder: (context, index) {
-          final activities = [
-            {'action': 'New user registered', 'user': 'john.doe@email.com', 'time': '2 minutes ago'},
-            {'action': 'Order completed', 'user': 'Order #1234', 'time': '5 minutes ago'},
-            {'action': 'Supplier added', 'user': 'Fresh Farms Co.', 'time': '10 minutes ago'},
-            {'action': 'Payment received', 'user': '\$150.00', 'time': '15 minutes ago'},
-            {'action': 'User verified', 'user': 'jane.smith@email.com', 'time': '20 minutes ago'},
-          ];
-          
-          return ListTile(
-            leading: CircleAvatar(
-              // ignore: deprecated_member_use
-              backgroundColor: const Color(0xFFA7C957).withOpacity(0.1),
-              child: Icon(
-                Icons.notifications,
-                color: const Color(0xFFA7C957),
-                size: 20,
-              ),
-            ),
-            title: Text(activities[index]['action']!),
-            subtitle: Text(activities[index]['user']!),
-            trailing: Text(
-              activities[index]['time']!,
-              style: const TextStyle(fontSize: 12, color: Colors.grey),
+  Widget _buildRecentActivityList() {
+    // Fetch and merge latest activities from users and orders collections (no flicker)
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: _fetchRecentActivities(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Card(
+            elevation: 2,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
+            child: Padding(
+              padding: EdgeInsets.all(24),
+              child: Center(child: CircularProgressIndicator()),
             ),
           );
-        },
-      ),
+        }
+        if (snapshot.hasError) {
+          return const Card(
+            elevation: 2,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
+            child: Padding(
+              padding: EdgeInsets.all(24),
+              child: Center(child: Text('Error loading activity.')),
+            ),
+          );
+        }
+        final activities = snapshot.data ?? [];
+        if (activities.isEmpty) {
+          return const Card(
+            elevation: 2,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
+            child: Padding(
+              padding: EdgeInsets.all(24),
+              child: Center(child: Text('No recent activity.')),
+            ),
+          );
+        }
+        return Card(
+          elevation: 2,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: activities.length,
+            separatorBuilder: (context, index) => const Divider(height: 1),
+            itemBuilder: (context, index) {
+              final activity = activities[index];
+              final isUser = activity['type'] == 'user';
+              final time = activity['time'] is Timestamp ? (activity['time'] as Timestamp).toDate() : DateTime.now();
+              final now = DateTime.now();
+              final diff = now.difference(time);
+              String timeAgo;
+              if (diff.inMinutes < 1) {
+                timeAgo = 'just now';
+              } else if (diff.inMinutes < 60) {
+                timeAgo = '${diff.inMinutes} minutes ago';
+              } else if (diff.inHours < 24) {
+                timeAgo = '${diff.inHours} hours ago';
+              } else {
+                timeAgo = '${diff.inDays} days ago';
+              }
+              return ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: const Color(0xFFA7C957).withOpacity(0.1),
+                  child: Icon(
+                    isUser ? Icons.person : Icons.shopping_cart,
+                    color: const Color(0xFFA7C957),
+                    size: 20,
+                  ),
+                ),
+                title: Text(activity['action']),
+                subtitle: Text(activity['user']),
+                trailing: Text(
+                  timeAgo,
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              );
+            },
+          ),
+        );
+      },
     );
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchRecentActivities() async {
+    // Fetch latest 5 user registrations and order completions
+    final userSnap = await FirebaseFirestore.instance
+        .collection('users')
+        .orderBy('createdAt', descending: true)
+        .limit(3)
+        .get();
+    final orderSnap = await FirebaseFirestore.instance
+        .collection('orders')
+        .where('status', isEqualTo: 'completed')
+        .orderBy('createdAt', descending: true)
+        .limit(3)
+        .get();
+    List<Map<String, dynamic>> activities = [];
+    for (var doc in userSnap.docs) {
+      final data = doc.data();
+      activities.add({
+        'type': 'user',
+        'action': 'New user registered',
+        'user': data['email'] ?? '',
+        'time': data['createdAt'],
+      });
+    }
+    for (var doc in orderSnap.docs) {
+      final data = doc.data();
+      activities.add({
+        'type': 'order',
+        'action': 'Order completed',
+        'user': 'Order #${doc.id}',
+        'time': data['createdAt'],
+      });
+    }
+    // Sort by time descending
+    activities.sort((a, b) {
+      final aTime = a['time'] is Timestamp ? (a['time'] as Timestamp).toDate() : DateTime.now();
+      final bTime = b['time'] is Timestamp ? (b['time'] as Timestamp).toDate() : DateTime.now();
+      return bTime.compareTo(aTime);
+    });
+    // Limit to 5
+    activities = activities.take(5).toList();
+    debugPrint('DEBUG: Recent Activities: ${activities.map((a) => a.toString()).join(', ')}');
+    return activities;
   }
 
   Widget _buildUsersTab() {
@@ -352,7 +545,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
           
           return ListTile(
             leading: CircleAvatar(
-              // ignore: deprecated_member_use
+  
               backgroundColor: const Color(0xFFA7C957).withOpacity(0.1),
               child: Text(
                 user['name']!.substring(0, 1),
@@ -372,7 +565,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
-                        // ignore: deprecated_member_use
+             
                         color: user['role'] == 'Supplier' ? Colors.blue.withOpacity(0.1) : Colors.green.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -388,7 +581,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
-                        // ignore: deprecated_member_use
+                
                         color: isActive ? Colors.green.withOpacity(0.1) : Colors.orange.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),

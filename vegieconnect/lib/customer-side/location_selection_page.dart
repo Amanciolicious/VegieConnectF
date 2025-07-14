@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
@@ -233,7 +235,7 @@ class _LocationSelectionPageState extends State<LocationSelectionPage> {
                         ),
                         const SizedBox(height: 8),
                         const Text(
-                          'Choose how you want to set your location for finding nearby farms',
+                          'Choose how you want to set your location for finding nearby suppliers',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: Colors.grey,

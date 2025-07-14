@@ -1,3 +1,5 @@
+// ignore_for_file: avoid_print, use_build_context_synchronously
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/scheduler.dart';
@@ -148,6 +150,7 @@ class _PinVerifyPageState extends State<PinVerifyPage> {
       });
       _ticker.stop();
       _ticker.start();
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('A new PIN has been sent to your email!')),
       );

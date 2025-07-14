@@ -1,11 +1,13 @@
+// ignore_for_file: use_build_context_synchronously, deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../models/farm_location.dart';
 import '../services/farm_location_service.dart';
 import '../services/map_service.dart';
+import 'admin_supplier_location_page.dart';
 
 class AdminFarmMapPage extends StatefulWidget {
   const AdminFarmMapPage({super.key});
@@ -266,6 +268,23 @@ class _AdminFarmMapPageState extends State<AdminFarmMapPage> {
 
       await _farmLocationService.addFarmLocation(farmLocation);
       
+      // Sync to supplier_locations for supplier map
+      await FirebaseFirestore.instance
+        .collection('supplier_locations')
+        .doc(farmLocation.supplierId)
+        .set({
+          'id': farmLocation.supplierId,
+          'supplierId': farmLocation.supplierId,
+          'supplierName': farmLocation.supplierName,
+          'locationName': farmLocation.name,
+          'description': farmLocation.description,
+          'latitude': farmLocation.latitude,
+          'longitude': farmLocation.longitude,
+          'address': farmLocation.address,
+          'createdAt': farmLocation.createdAt,
+          'isActive': true,
+        });
+      
       // Reload farm locations
       await _loadFarmLocations();
 
@@ -320,7 +339,23 @@ class _AdminFarmMapPageState extends State<AdminFarmMapPage> {
 
   Future<void> _deleteFarmLocation(String farmId) async {
     try {
+      // Fetch the farm location to get the supplierId
+      final farmDoc = await FirebaseFirestore.instance
+          .collection('farm_locations')
+          .doc(farmId)
+          .get();
+      final supplierId = farmDoc.data()?['supplierId'];
+
       await _farmLocationService.deleteFarmLocation(farmId);
+
+      // Also delete from supplier_locations
+      if (supplierId != null) {
+        await FirebaseFirestore.instance
+            .collection('supplier_locations')
+            .doc(supplierId)
+            .delete();
+      }
+
       await _loadFarmLocations();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Farm location deleted successfully!')),
@@ -336,11 +371,11 @@ class _AdminFarmMapPageState extends State<AdminFarmMapPage> {
   Widget build(BuildContext context) {
     // Bogo City, Cebu, Philippines coordinates
     const LatLng bogoCityCenter = LatLng(11.0474, 124.0051);
-    const double bogoCityRadius = 0.05; // Approximately 5km radius
+
     
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Admin Farm Locations - Bogo City'),
+        title: const Text('Admin Farm Management - Bogo City'),
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
         actions: [
@@ -358,6 +393,18 @@ class _AdminFarmMapPageState extends State<AdminFarmMapPage> {
                 child: Text(supplier),
               );
             }).toList(),
+          ),
+          // Add supplier location management button
+          IconButton(
+            icon: const Icon(Icons.person_pin),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const AdminSupplierLocationPage(),
+                ),
+              );
+            },
+            tooltip: 'Manage Supplier Locations',
           ),
         ],
       ),

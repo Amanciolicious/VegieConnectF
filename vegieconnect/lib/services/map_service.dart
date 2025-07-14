@@ -1,4 +1,3 @@
-import 'package:open_route_service/open_route_service.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:latlong2/latlong.dart';
 import 'dart:math';
@@ -7,11 +6,8 @@ import 'package:http/http.dart' as http;
 
 class MapService {
   static const String _apiKey = 'eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImUzNDFmOTFmNGJlODQxOWRiNDY2M2UxNWE3N2VhMWI2IiwiaCI6Im11cm11cjY0In0='; // Replace with your actual API key
-  late final OpenRouteService _openRouteService;
 
-  MapService() {
-    _openRouteService = OpenRouteService(apiKey: _apiKey);
-  }
+  MapService();
 
   // Get route between two points
   Future<Map<String, dynamic>> getRoute({

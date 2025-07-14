@@ -1,12 +1,15 @@
+// ignore_for_file: deprecated_member_use, empty_catches, use_build_context_synchronously
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:vegieconnect/supplier-side/add_product_page.dart';
-import 'package:vegieconnect/supplier-side/farm_map_page.dart';
+import 'package:vegieconnect/supplier-side/farm_map_page.dart' show SupplierLocationPage;
 import '../authentication/login_page.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import '../widgets/product_image_widget.dart';
 import '../services/image_storage_service.dart';
+import '../customer-side/product_details_page.dart';
 
 class SupplierDashboard extends StatefulWidget {
   const SupplierDashboard({super.key});
@@ -38,7 +41,7 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
             onPressed: () async {
               await FirebaseAuth.instance.signOut();
               if (!mounted) return;
-              // ignore: use_build_context_synchronously
+
               Navigator.of(context).pushAndRemoveUntil(
                 MaterialPageRoute(builder: (_) => const LoginPage()),
                 (route) => false,
@@ -102,13 +105,13 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.location_on),
-              title: const Text('Farm Locations'),
+              leading: const Icon(Icons.person_pin),
+              title: const Text('Supplier Location'),
               onTap: () {
                 Navigator.pop(context);
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const FarmMapPage()),
+                  MaterialPageRoute(builder: (context) => const SupplierLocationPage()),
                 );
               },
             ),
@@ -119,7 +122,7 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
               onTap: () async {
                 await FirebaseAuth.instance.signOut();
                 if (!mounted) return;
-                // ignore: use_build_context_synchronously
+           
                 Navigator.of(context).pushAndRemoveUntil(
                   MaterialPageRoute(builder: (_) => const LoginPage()),
                   (route) => false,
@@ -446,126 +449,138 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
           itemBuilder: (context, index) {
             final product = products[index].data() as Map<String, dynamic>;
             final docId = products[index].id;
-            return Card(
-              elevation: 4,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              child: Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Center(
-                      child: SizedBox(
-                        height: 50,
-                        child: ProductImageWidget(
-                          imagePath: product['imageUrl'] ?? '',
-                          width: 64,
+            return GestureDetector(
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => ProductDetailsPage(
+                      product: product,
+                      productId: docId,
+                    ),
+                  ),
+                );
+              },
+              child: Card(
+                elevation: 4,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                child: Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(
+                        child: SizedBox(
                           height: 50,
-                          placeholder: Icon(Icons.shopping_basket, size: 32, color: const Color(0xFFA7C957)),
+                          child: ProductImageWidget(
+                            imagePath: product['imageUrl'] ?? '',
+                            width: 64,
+                            height: 50,
+                            placeholder: Icon(Icons.shopping_basket, size: 32, color: const Color(0xFFA7C957)),
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      product['name'] ?? '',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
+                      const SizedBox(height: 4),
+                      Text(
+                        product['name'] ?? '',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '₱${product['price']?.toStringAsFixed(2) ?? '0.00'}',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFFA7C957),
+                      const SizedBox(height: 2),
+                      Text(
+                        '₱${product['price']?.toStringAsFixed(2) ?? '0.00'}',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFFA7C957),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Stock: ${product['quantity'] ?? 0} ${product['unit'] ?? ''}',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey,
+                      const SizedBox(height: 2),
+                      Text(
+                        'Stock: ${product['quantity'] ?? 0} ${product['unit'] ?? ''}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Supplier: ${product['supplierName'] ?? 'Unknown'}',
-                      style: const TextStyle(fontSize: 12, color: Colors.blueGrey),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const Spacer(),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.edit, color: Colors.blue, size: 18),
-                          tooltip: 'Edit',
-                          onPressed: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => AddProductPage(
-                                  product: product,
-                                  docId: docId,
+                      const SizedBox(height: 2),
+                      Text(
+                        'Supplier: ${product['supplierName'] ?? 'Unknown'}',
+                        style: const TextStyle(fontSize: 12, color: Colors.blueGrey),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const Spacer(),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.edit, color: Colors.blue, size: 18),
+                            tooltip: 'Edit',
+                            onPressed: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => AddProductPage(
+                                    product: product,
+                                    docId: docId,
+                                  ),
                                 ),
-                              ),
-                            );
-                          },
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.delete, color: Colors.red, size: 18),
-                          tooltip: 'Delete',
-                          onPressed: () async {
-                            final confirm = await showDialog<bool>(
-                              context: context,
-                              builder: (context) => AlertDialog(
-                                title: const Text('Delete Product'),
-                                content: const Text('Are you sure you want to delete this product?'),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(context, false),
-                                    child: const Text('Cancel'),
-                                  ),
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(context, true),
-                                    child: const Text('Delete', style: TextStyle(color: Colors.red)),
-                                  ),
-                                ],
-                              ),
-                            );
-                            if (confirm == true) {
-                              try {
-                                final imageUrl = product['imageUrl'] ?? '';
-                                if (imageUrl.isNotEmpty) {
-                                  if (ImageStorageService.isLocalPath(imageUrl)) {
-                                    await ImageStorageService.deleteImage(imageUrl);
-                                  } else if (ImageStorageService.isNetworkUrl(imageUrl)) {
-                                    try {
-                                      final ref = FirebaseStorage.instance.refFromURL(imageUrl);
-                                      await ref.delete();
-                                    } catch (e) {}
+                              );
+                            },
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.red, size: 18),
+                            tooltip: 'Delete',
+                            onPressed: () async {
+                              final confirm = await showDialog<bool>(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  title: const Text('Delete Product'),
+                                  content: const Text('Are you sure you want to delete this product?'),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(context, false),
+                                      child: const Text('Cancel'),
+                                    ),
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(context, true),
+                                      child: const Text('Delete', style: TextStyle(color: Colors.red)),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (confirm == true) {
+                                try {
+                                  final imageUrl = product['imageUrl'] ?? '';
+                                  if (imageUrl.isNotEmpty) {
+                                    if (ImageStorageService.isLocalPath(imageUrl)) {
+                                      await ImageStorageService.deleteImage(imageUrl);
+                                    } else if (ImageStorageService.isNetworkUrl(imageUrl)) {
+                                      try {
+                                        final ref = FirebaseStorage.instance.refFromURL(imageUrl);
+                                        await ref.delete();
+                                      } catch (e) {}
+                                    }
                                   }
+                                  await FirebaseFirestore.instance.collection('products').doc(docId).delete();
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Product deleted.')),
+                                  );
+                                } catch (e) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Failed to delete product: $e')),
+                                  );
                                 }
-                                await FirebaseFirestore.instance.collection('products').doc(docId).delete();
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Product deleted.')),
-                                );
-                              } catch (e) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Failed to delete product: $e')),
-                                );
                               }
-                            }
-                          },
-                        ),
-                      ],
-                    ),
-                  ],
+                            },
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             );
@@ -798,60 +813,98 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
-                          _buildProfileStat('Products', '45'),
-                          _buildProfileStat('Orders', '234'),
-                          _buildProfileStat('Rating', '4.8'),
+                          // Products count
+                          StreamBuilder<QuerySnapshot>(
+                            stream: FirebaseFirestore.instance
+                                .collection('products')
+                                .where('sellerId', isEqualTo: user.uid)
+                                .snapshots(),
+                            builder: (context, snapshot) {
+                              final count = snapshot.hasData ? snapshot.data!.docs.length : 0;
+                              return _buildProfileStat('Products', '$count');
+                            },
+                          ),
+                          // Orders count
+                          StreamBuilder<QuerySnapshot>(
+                            stream: FirebaseFirestore.instance
+                                .collection('orders')
+                                .where('sellerId', isEqualTo: user.uid)
+                                .snapshots(),
+                            builder: (context, snapshot) {
+                              final count = snapshot.hasData ? snapshot.data!.docs.length : 0;
+                              return _buildProfileStat('Orders', '$count');
+                            },
+                          ),
+                          // Rating average
+                          StreamBuilder<QuerySnapshot>(
+                            stream: FirebaseFirestore.instance
+                                .collection('supplier_ratings')
+                                .where('supplierId', isEqualTo: user.uid)
+                                .snapshots(),
+                            builder: (context, snapshot) {
+                              double avg = 0;
+                              if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
+                                double sum = 0;
+                                for (var doc in snapshot.data!.docs) {
+                                  sum += (doc['rating'] ?? 0) is int
+                                    ? (doc['rating'] ?? 0).toDouble()
+                                    : (doc['rating'] ?? 0);
+                                }
+                                avg = sum / snapshot.data!.docs.length;
+                              }
+                              return _buildProfileStat('Rating', avg > 0 ? avg.toStringAsFixed(1) : 'N/A');
+                            },
+                          ),
                         ],
                       ),
                       const SizedBox(height: 20),
                       // Farm location info
-                      if (user != null)
-                        FutureBuilder<QuerySnapshot>(
-                          future: FirebaseFirestore.instance
-                              .collection('farm_locations')
-                              .where('supplierId', isEqualTo: user.uid)
-                              .where('isActive', isEqualTo: true)
-                              .limit(1)
-                              .get(),
-                          builder: (context, snapshot) {
-                            if (snapshot.connectionState == ConnectionState.waiting) {
-                              return const Center(child: CircularProgressIndicator());
-                            }
-                            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                              return const Text(
-                                'No farm location set.',
-                                style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
-                              );
-                            }
-                            final farm = snapshot.data!.docs.first.data() as Map<String, dynamic>;
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Divider(height: 32),
-                                Row(
-                                  children: const [
-                                    Icon(Icons.location_on, color: Colors.green),
-                                    SizedBox(width: 8),
-                                    Text('Farm Location', style: TextStyle(fontWeight: FontWeight.bold)),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  farm['name'] ?? 'Unnamed Farm',
-                                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                                ),
-                                Text(
-                                  'Lat: 9${(farm['latitude'] ?? 0.0).toStringAsFixed(6)}',
-                                  style: const TextStyle(fontSize: 14, color: Colors.grey),
-                                ),
-                                Text(
-                                  'Lng: 9${(farm['longitude'] ?? 0.0).toStringAsFixed(6)}',
-                                  style: const TextStyle(fontSize: 14, color: Colors.grey),
-                                ),
-                              ],
+                      FutureBuilder<QuerySnapshot>(
+                        future: FirebaseFirestore.instance
+                            .collection('farm_locations')
+                            .where('supplierId', isEqualTo: user.uid)
+                            .where('isActive', isEqualTo: true)
+                            .limit(1)
+                            .get(),
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return const Center(child: CircularProgressIndicator());
+                          }
+                          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                            return const Text(
+                              'No farm location set.',
+                              style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
                             );
-                          },
-                        ),
+                          }
+                          final farm = snapshot.data!.docs.first.data() as Map<String, dynamic>;
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Divider(height: 32),
+                              Row(
+                                children: const [
+                                  Icon(Icons.location_on, color: Colors.green),
+                                  SizedBox(width: 8),
+                                  Text('Farm Location', style: TextStyle(fontWeight: FontWeight.bold)),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                farm['name'] ?? 'Unnamed Farm',
+                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                              ),
+                              Text(
+                                'Lat: 9${(farm['latitude'] ?? 0.0).toStringAsFixed(6)}',
+                                style: const TextStyle(fontSize: 14, color: Colors.grey),
+                              ),
+                              Text(
+                                'Lng: 9${(farm['longitude'] ?? 0.0).toStringAsFixed(6)}',
+                                style: const TextStyle(fontSize: 14, color: Colors.grey),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
                     ],
                   ),
                 ),

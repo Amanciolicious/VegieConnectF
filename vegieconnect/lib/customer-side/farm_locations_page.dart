@@ -1,9 +1,12 @@
+// ignore_for_file: use_build_context_synchronously, deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
-import '../models/farm_location.dart';
-import '../services/farm_location_service.dart';
+import 'package:vegieconnect/models/farm_location.dart';
+import '../models/supplier_location.dart';
+import '../services/supplier_location_service.dart';
 import '../services/map_service.dart';
 import 'location_selection_page.dart';
 
@@ -16,12 +19,12 @@ class FarmLocationsPage extends StatefulWidget {
 
 class _FarmLocationsPageState extends State<FarmLocationsPage> {
   final MapController _mapController = MapController();
-  final FarmLocationService _farmLocationService = FarmLocationService();
+  final SupplierLocationService _supplierLocationService = SupplierLocationService();
   final MapService _mapService = MapService();
   
-  List<FarmLocation> _allFarmLocations = [];
-  List<FarmLocation> _nearbyFarms = [];
-  List<FarmLocation> _veryNearbyFarms = []; // Farms within 1km
+  List<SupplierLocation> _allSupplierLocations = [];
+  List<SupplierLocation> _nearbySuppliers = [];
+  List<SupplierLocation> _veryNearbySuppliers = []; // Suppliers within 1km
   LatLng? _userLocation;
   String _userAddress = '';
   bool _isLoading = true;
@@ -95,7 +98,7 @@ class _FarmLocationsPageState extends State<FarmLocationsPage> {
               setState(() {
                 _userLocation = location;
                 _userAddress = address;
-                _filterNearbyFarms();
+                _filterNearbySuppliers();
               });
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
@@ -129,7 +132,7 @@ class _FarmLocationsPageState extends State<FarmLocationsPage> {
           _userLocation = location;
           _userAddress = address;
         });
-        _filterNearbyFarms();
+        _filterNearbySuppliers();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Location refreshed: $address'),
@@ -177,53 +180,53 @@ class _FarmLocationsPageState extends State<FarmLocationsPage> {
         _userAddress = await _mapService.getAddressFromCoordinates(_userLocation!);
       }
 
-      await _loadFarmLocations();
+      await _loadSupplierLocations();
     } catch (e) {
       _userLocation = const LatLng(11.0474, 124.0051); // Bogo City, Cebu, Philippines
       _userAddress = await _mapService.getAddressFromCoordinates(_userLocation!);
-      await _loadFarmLocations();
+      await _loadSupplierLocations();
     }
   }
 
-  Future<void> _loadFarmLocations() async {
+  Future<void> _loadSupplierLocations() async {
     try {
-      final locations = await _farmLocationService.getAllFarmLocations();
+      final locations = await _supplierLocationService.getAllSupplierLocations();
       setState(() {
-        _allFarmLocations = locations;
-        _filterNearbyFarms();
+        _allSupplierLocations = locations;
+        _filterNearbySuppliers();
         _isLoading = false;
       });
     } catch (e) {
       setState(() {
         _isLoading = false;
       });
-      // ignore: use_build_context_synchronously
+    
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error loading farm locations: $e')),
+        SnackBar(content: Text('Error loading supplier locations: $e')),
       );
     }
   }
 
-  void _filterNearbyFarms() {
+  void _filterNearbySuppliers() {
     if (_userLocation == null) {
-      _nearbyFarms = _allFarmLocations;
-      _veryNearbyFarms = [];
+      _nearbySuppliers = _allSupplierLocations;
+      _veryNearbySuppliers = [];
       return;
     }
 
-    _nearbyFarms = _allFarmLocations.where((farm) {
+    _nearbySuppliers = _allSupplierLocations.where((supplier) {
       double distance = _mapService.calculateDistance(
         _userLocation!,
-        LatLng(farm.latitude, farm.longitude),
+        LatLng(supplier.latitude, supplier.longitude),
       );
       return distance <= _searchRadius;
     }).toList();
 
-    // Filter very nearby farms (within vicinity radius)
-    _veryNearbyFarms = _allFarmLocations.where((farm) {
+    // Filter very nearby suppliers (within vicinity radius)
+    _veryNearbySuppliers = _allSupplierLocations.where((supplier) {
       double distance = _mapService.calculateDistance(
         _userLocation!,
-        LatLng(farm.latitude, farm.longitude),
+        LatLng(supplier.latitude, supplier.longitude),
       );
       return distance <= _vicinityRadius;
     }).toList();
@@ -233,17 +236,17 @@ class _FarmLocationsPageState extends State<FarmLocationsPage> {
   }
 
   void _checkAndShowVicinityGuide() {
-    if (_veryNearbyFarms.isNotEmpty && !_hasShownVicinityGuide) {
+    if (_veryNearbySuppliers.isNotEmpty && !_hasShownVicinityGuide) {
       _hasShownVicinityGuide = true;
       _showVicinityGuide();
     }
   }
 
   void _showVicinityGuide() {
-    if (_veryNearbyFarms.isEmpty) return;
+    if (_veryNearbySuppliers.isEmpty) return;
 
-    // Sort farms by distance
-    _veryNearbyFarms.sort((a, b) {
+    // Sort suppliers by distance
+    _veryNearbySuppliers.sort((a, b) {
       double distanceA = _mapService.calculateDistance(
         _userLocation!,
         LatLng(a.latitude, a.longitude),
@@ -255,10 +258,10 @@ class _FarmLocationsPageState extends State<FarmLocationsPage> {
       return distanceA.compareTo(distanceB);
     });
 
-    final nearestFarm = _veryNearbyFarms.first;
+    final nearestSupplier = _veryNearbySuppliers.first;
     final distance = _mapService.calculateDistance(
       _userLocation!,
-      LatLng(nearestFarm.latitude, nearestFarm.longitude),
+      LatLng(nearestSupplier.latitude, nearestSupplier.longitude),
     );
 
     showDialog(
@@ -268,9 +271,9 @@ class _FarmLocationsPageState extends State<FarmLocationsPage> {
         return AlertDialog(
           title: Row(
             children: [
-              const Icon(Icons.location_on, color: Colors.green),
+              const Icon(Icons.person_pin, color: Colors.blue),
               const SizedBox(width: 8),
-              const Text('Farm Nearby!'),
+              const Text('Supplier Nearby!'),
             ],
           ),
           content: Column(
@@ -278,18 +281,18 @@ class _FarmLocationsPageState extends State<FarmLocationsPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'You are near ${nearestFarm.name}',
+                'You are near ${nearestSupplier.locationName}',
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
                 ),
               ),
               const SizedBox(height: 8),
-              Text('Supplier: ${nearestFarm.supplierName}'),
+              Text('Supplier: ${nearestSupplier.supplierName}'),
               const SizedBox(height: 4),
               Text('Distance: ${distance.toStringAsFixed(2)} km'),
               const SizedBox(height: 4),
-              Text('Address: ${nearestFarm.address}'),
+              Text('Address: ${nearestSupplier.address}'),
               const SizedBox(height: 16),
               Container(
                 padding: const EdgeInsets.all(12),
@@ -305,13 +308,13 @@ class _FarmLocationsPageState extends State<FarmLocationsPage> {
                       '📍 Guide & Tips:',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
-                        color: Colors.green,
+                        color: Colors.blue,
                       ),
                     ),
                     const SizedBox(height: 8),
-                    const Text('• Look for farm signs or markers'),
+                    const Text('• Look for supplier location signs'),
                     const Text('• Contact the supplier before visiting'),
-                    const Text('• Check farm operating hours'),
+                    const Text('• Check supplier operating hours'),
                     const Text('• Bring cash for purchases'),
                     const Text('• Ask about available products'),
                   ],
@@ -324,43 +327,43 @@ class _FarmLocationsPageState extends State<FarmLocationsPage> {
               onPressed: () => Navigator.of(context).pop(),
               child: const Text('Close'),
             ),
-            ElevatedButton.icon(
-              onPressed: () {
-                Navigator.of(context).pop();
-                _showDetailedDirections(nearestFarm);
-              },
-              icon: const Icon(Icons.directions),
-              label: const Text('Get Directions'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                foregroundColor: Colors.white,
+                          ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _showDetailedDirections(nearestSupplier);
+                },
+                icon: const Icon(Icons.directions),
+                label: const Text('Get Directions'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
+                ),
               ),
-            ),
           ],
         );
       },
     );
   }
 
-  void _showFarmDetails(FarmLocation farm) {
+  void _showSupplierDetails(SupplierLocation supplier) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text(farm.name),
+          title: Text(supplier.locationName),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Supplier: ${farm.supplierName}'),
+              Text('Supplier: ${supplier.supplierName}'),
               const SizedBox(height: 8),
-              Text('Description: ${farm.description}'),
+              Text('Description: ${supplier.description}'),
               const SizedBox(height: 8),
-              Text('Address: ${farm.address}'),
+              Text('Address: ${supplier.address}'),
               if (_userLocation != null) ...[
                 const SizedBox(height: 8),
                 Text(
-                  'Distance: ${_mapService.calculateDistance(_userLocation!, LatLng(farm.latitude, farm.longitude)).toStringAsFixed(1)} km',
+                  'Distance: ${_mapService.calculateDistance(_userLocation!, LatLng(supplier.latitude, supplier.longitude)).toStringAsFixed(1)} km',
                 ),
               ],
             ],
@@ -374,12 +377,12 @@ class _FarmLocationsPageState extends State<FarmLocationsPage> {
               ElevatedButton.icon(
                 onPressed: () {
                   Navigator.of(context).pop();
-                  _showDetailedDirections(farm);
+                  _showDetailedDirections(supplier);
                 },
                 icon: const Icon(Icons.directions),
                 label: const Text('Get Directions'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
+                  backgroundColor: Colors.blue,
                   foregroundColor: Colors.white,
                 ),
               ),
@@ -389,10 +392,10 @@ class _FarmLocationsPageState extends State<FarmLocationsPage> {
     );
   }
 
-  void _showDetailedDirections(FarmLocation farm) {
+  void _showDetailedDirections(SupplierLocation supplier) {
     final distance = _mapService.calculateDistance(
       _userLocation!,
-      LatLng(farm.latitude, farm.longitude),
+      LatLng(supplier.latitude, supplier.longitude),
     );
 
     showDialog(
@@ -403,7 +406,7 @@ class _FarmLocationsPageState extends State<FarmLocationsPage> {
             children: [
               const Icon(Icons.directions, color: Colors.blue),
               const SizedBox(width: 8),
-              Text('Directions to ${farm.name}'),
+              Text('Directions to ${supplier.supplierName}'),
             ],
           ),
           content: SingleChildScrollView(
@@ -423,15 +426,15 @@ class _FarmLocationsPageState extends State<FarmLocationsPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        farm.name,
+                        supplier.supplierName,
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                       const SizedBox(height: 4),
-                      Text('Supplier: ${farm.supplierName}'),
-                      Text('Address: ${farm.address}'),
+                      Text('Supplier: ${supplier.supplierName}'),
+                      Text('Address: ${supplier.address}'),
                       Text('Distance: ${distance.toStringAsFixed(2)} km'),
                     ],
                   ),
@@ -454,7 +457,7 @@ class _FarmLocationsPageState extends State<FarmLocationsPage> {
                     icon: Icons.directions_walk,
                     title: 'Walking Directions',
                     subtitle: 'Best for short distances',
-                    onTap: () => _getWalkingDirections(farm),
+                    onTap: () => _getWalkingDirections(supplier as FarmLocation),
                   ),
                   const SizedBox(height: 8),
                 ],
@@ -464,7 +467,7 @@ class _FarmLocationsPageState extends State<FarmLocationsPage> {
                   icon: Icons.directions_car,
                   title: 'Driving Directions',
                   subtitle: 'Best for longer distances',
-                  onTap: () => _getDrivingDirections(farm),
+                  onTap: () => _getDrivingDirections(supplier as FarmLocation),
                 ),
                 const SizedBox(height: 8),
                 
@@ -473,7 +476,7 @@ class _FarmLocationsPageState extends State<FarmLocationsPage> {
                   icon: Icons.map,
                   title: 'Open in Maps App',
                   subtitle: 'Use your preferred navigation app',
-                  onTap: () => _openInMaps(farm),
+                  onTap: () => _openInMaps(supplier as FarmLocation),
                 ),
                 const SizedBox(height: 16),
                 
@@ -699,11 +702,11 @@ class _FarmLocationsPageState extends State<FarmLocationsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final displayFarms = _showOnlyNearby ? _nearbyFarms : _allFarmLocations;
+    final displaySuppliers = _showOnlyNearby ? _nearbySuppliers : _allSupplierLocations;
     
     // Bogo City, Cebu, Philippines coordinates
     const LatLng bogoCityCenter = LatLng(11.0474, 124.0051);
-    const double bogoCityRadius = 0.05; // Approximately 5km radius
+
 
     return Scaffold(
       appBar: AppBar(
@@ -770,7 +773,7 @@ class _FarmLocationsPageState extends State<FarmLocationsPage> {
                           onChanged: (value) {
                             setState(() {
                               _searchRadius = value;
-                              _filterNearbyFarms();
+                              _filterNearbySuppliers();
                             });
                           },
                         ),
@@ -790,8 +793,8 @@ class _FarmLocationsPageState extends State<FarmLocationsPage> {
                         children: [
                           Text(
                             _showOnlyNearby 
-                                ? 'Nearby Farms (${_nearbyFarms.length})'
-                                : 'All Farms (${_allFarmLocations.length})',
+                                ? 'Nearby Farms (${_nearbySuppliers.length})'
+                                : 'All Farms (${_allSupplierLocations.length})',
                             style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
@@ -903,33 +906,33 @@ class _FarmLocationsPageState extends State<FarmLocationsPage> {
                                 ),
                               ],
                             ),
-                          // Farm location markers
+                          // Supplier location markers
                           MarkerLayer(
-                            markers: displayFarms.map((farm) {
+                            markers: displaySuppliers.map((supplier) {
                               double distance = _userLocation != null
                                   ? _mapService.calculateDistance(
                                       _userLocation!,
-                                      LatLng(farm.latitude, farm.longitude),
+                                      LatLng(supplier.latitude, supplier.longitude),
                                     )
                                   : 0.0;
 
-                              // Check if farm is very nearby (within vicinity radius)
+                              // Check if supplier is very nearby (within vicinity radius)
                               bool isVeryNearby = distance <= _vicinityRadius;
                               bool isNearby = distance <= _searchRadius;
 
                               return Marker(
-                                point: LatLng(farm.latitude, farm.longitude),
+                                point: LatLng(supplier.latitude, supplier.longitude),
                                 width: isVeryNearby ? 50 : 40,
                                 height: isVeryNearby ? 50 : 40,
                                 child: GestureDetector(
-                                  onTap: () => _showFarmDetails(farm),
+                                  onTap: () => _showSupplierDetails(supplier),
                                   child: Stack(
                                     children: [
                                       Container(
                                         decoration: BoxDecoration(
                                           color: isVeryNearby 
                                               ? Colors.orange 
-                                              : (isNearby ? Colors.green : Colors.grey),
+                                              : (isNearby ? Colors.blue : Colors.grey),
                                           shape: BoxShape.circle,
                                           border: Border.all(
                                             color: Colors.white, 
@@ -944,7 +947,7 @@ class _FarmLocationsPageState extends State<FarmLocationsPage> {
                                           ] : null,
                                         ),
                                         child: Icon(
-                                          isVeryNearby ? Icons.location_on : Icons.location_on,
+                                          isVeryNearby ? Icons.person_pin : Icons.person_pin_circle,
                                           color: Colors.white,
                                           size: isVeryNearby ? 30 : 24,
                                         ),
@@ -1005,7 +1008,7 @@ class _FarmLocationsPageState extends State<FarmLocationsPage> {
                         ),
                       ),
                       // Vicinity indicator
-                      if (_veryNearbyFarms.isNotEmpty)
+                      if (_veryNearbySuppliers.isNotEmpty)
                         Positioned(
                           top: 16,
                           right: 16,
@@ -1026,13 +1029,13 @@ class _FarmLocationsPageState extends State<FarmLocationsPage> {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 const Icon(
-                                  Icons.location_on,
+                                  Icons.person_pin,
                                   color: Colors.white,
                                   size: 16,
                                 ),
                                 const SizedBox(width: 4),
                                 Text(
-                                  '${_veryNearbyFarms.length} Farm${_veryNearbyFarms.length > 1 ? 's' : ''} Nearby',
+                                  '${_veryNearbySuppliers.length} Supplier${_veryNearbySuppliers.length > 1 ? 's' : ''} Nearby',
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
@@ -1058,7 +1061,7 @@ class _FarmLocationsPageState extends State<FarmLocationsPage> {
               _mapController.move(bogoCityCenter, 12);
             }
           },
-          backgroundColor: Colors.green,
+          backgroundColor: Colors.blue,
           foregroundColor: Colors.white,
           child: const Icon(Icons.my_location),
         ),

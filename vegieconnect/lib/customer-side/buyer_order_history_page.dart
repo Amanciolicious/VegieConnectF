@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -88,6 +90,49 @@ class BuyerOrderHistoryPage extends StatelessWidget {
                       Text('Qty: ${order['quantity']} ${order['unit']}'),
                       Text('₱${order['price']?.toStringAsFixed(2) ?? '0.00'}'),
                       Text('Status: $status'),
+                      if (status != 'completed' && status != 'cancelled')
+                        TextButton.icon(
+                          icon: const Icon(Icons.cancel, color: Colors.red),
+                          label: const Text('Cancel Order', style: TextStyle(color: Colors.red)),
+                          onPressed: () async {
+                            final confirm = await showDialog<bool>(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: const Text('Cancel Order'),
+                                content: const Text('Are you sure you want to cancel this order?'),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context, false),
+                                    child: const Text('No'),
+                                  ),
+                                  ElevatedButton(
+                                    onPressed: () => Navigator.pop(context, true),
+                                    child: const Text('Yes, Cancel'),
+                                  ),
+                                ],
+                              ),
+                            );
+                            if (confirm == true) {
+                              try {
+                                await FirebaseFirestore.instance
+                                    .collection('orders')
+                                    .doc(orders[index].id)
+                                    .update({'status': 'cancelled', 'updatedAt': FieldValue.serverTimestamp()});
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Order cancelled.')),
+                                  );
+                                }
+                              } catch (e) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Failed to cancel order: $e')),
+                                  );
+                                }
+                              }
+                            }
+                          },
+                        ),
                     ],
                   ),
                   trailing: Container(

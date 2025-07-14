@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'favorite_page.dart';
 import 'cart_page.dart';
@@ -135,8 +137,8 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.location_on, color: Color(0xFFA7C957)),
-              title: const Text('Farm Locations'),
+              leading: const Icon(Icons.person_pin, color: Color(0xFFA7C957)),
+              title: const Text('Supplier Locations'),
               onTap: () {
                 Navigator.pop(context);
                 Navigator.of(context).push(
