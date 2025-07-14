@@ -37,10 +37,50 @@ class _CartPageState extends State<CartPage> {
   }
 
   bool _isProcessing = false;
+  String _selectedPaymentMethod = 'cash_on_pickup';
+
+  Future<String?> _showPaymentMethodDialog() async {
+    String tempMethod = _selectedPaymentMethod;
+    return showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Select Payment Method'),
+        content: StatefulBuilder(
+          builder: (context, setState) => Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              RadioListTile<String>(
+                value: 'cash_on_pickup',
+                groupValue: tempMethod,
+                onChanged: (val) => setState(() => tempMethod = val!),
+                title: const Text('Cash on Pick Up'),
+              ),
+              // Add more payment methods here in the future
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, tempMethod),
+            child: const Text('Continue'),
+          ),
+        ],
+      ),
+    );
+  }
 
   Future<void> _checkout(List<QueryDocumentSnapshot<Map<String, dynamic>>> cartItems) async {
     if (cartItems.isEmpty || _isProcessing) return;
-    setState(() => _isProcessing = true);
+    final paymentMethod = await _showPaymentMethodDialog();
+    if (paymentMethod == null) return;
+    setState(() {
+      _isProcessing = true;
+      _selectedPaymentMethod = paymentMethod;
+    });
     try {
       final batch = FirebaseFirestore.instance.batch();
       final ordersRef = FirebaseFirestore.instance.collection('orders');
@@ -56,13 +96,15 @@ class _CartPageState extends State<CartPage> {
           'price': data['price'],
           'status': 'pending',
           'createdAt': FieldValue.serverTimestamp(),
+          'paymentMethod': paymentMethod,
+          'paymentStatus': paymentMethod == 'cash_on_pickup' ? 'pending' : 'unpaid',
         });
         batch.delete(_cartRef.doc(doc.id));
       }
       await batch.commit();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Order placed for all cart items!')),
+          SnackBar(content: Text('Order placed for all cart items! Payment: ${_selectedPaymentMethod == 'cash_on_pickup' ? 'Cash on Pick Up' : _selectedPaymentMethod}')),
         );
       }
     } catch (e) {

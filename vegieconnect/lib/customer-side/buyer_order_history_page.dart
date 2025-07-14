@@ -90,6 +90,8 @@ class BuyerOrderHistoryPage extends StatelessWidget {
                       Text('Qty: ${order['quantity']} ${order['unit']}'),
                       Text('₱${order['price']?.toStringAsFixed(2) ?? '0.00'}'),
                       Text('Status: $status'),
+                      Text('Payment: ${order['paymentMethod'] == 'cash_on_pickup' ? 'Cash on Pick Up' : (order['paymentMethod'] ?? 'N/A')}'),
+                      Text('Payment Status: ${order['paymentStatus'] ?? 'N/A'}'),
                       if (status != 'completed' && status != 'cancelled')
                         TextButton.icon(
                           icon: const Icon(Icons.cancel, color: Colors.red),

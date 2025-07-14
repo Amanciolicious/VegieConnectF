@@ -101,6 +101,8 @@ class ProfilePage extends StatelessWidget {
                             Text('Qty: ${order['quantity']} ${order['unit']}'),
                             Text('₱${order['price']?.toStringAsFixed(2) ?? '0.00'}'),
                             Text('Status: $status', style: TextStyle(color: statusColor)),
+                            Text('Payment: ${order['paymentMethod'] == 'cash_on_pickup' ? 'Cash on Pick Up' : (order['paymentMethod'] ?? 'N/A')}'),
+                            Text('Payment Status: ${order['paymentStatus'] ?? 'N/A'}'),
                           ],
                         ),
                         trailing: Container(
