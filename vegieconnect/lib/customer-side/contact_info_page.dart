@@ -71,8 +71,22 @@ class _ContactInfoPageState extends State<ContactInfoPage> {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
     final green = const Color(0xFFA7C957);
-    final blue = const Color(0xFF2196F3);
+    final cardRadius = BorderRadius.circular(screenWidth * 0.05);
+    final neumorphicShadow = [
+      BoxShadow(
+        color: Colors.grey.shade300,
+        offset: Offset(screenWidth * 0.015, screenWidth * 0.015),
+        blurRadius: screenWidth * 0.04,
+      ),
+      BoxShadow(
+        color: Colors.white,
+        offset: Offset(-screenWidth * 0.015, -screenWidth * 0.015),
+        blurRadius: screenWidth * 0.04,
+      ),
+    ];
     return Scaffold(
       backgroundColor: const Color(0xFFF6F6F6),
       body: Stack(
@@ -81,12 +95,12 @@ class _ContactInfoPageState extends State<ContactInfoPage> {
             left: 0,
             bottom: 0,
             child: Container(
-              width: MediaQuery.of(context).size.width * 0.5,
-              height: 180,
+              width: screenWidth * 0.5,
+              height: screenHeight * 0.22,
               decoration: BoxDecoration(
-                color: blue,
-                borderRadius: const BorderRadius.only(
-                  topRight: Radius.circular(80),
+                color: green.withOpacity(0.2),
+                borderRadius: BorderRadius.only(
+                  topRight: Radius.circular(screenWidth * 0.18),
                 ),
               ),
             ),
@@ -96,50 +110,52 @@ class _ContactInfoPageState extends State<ContactInfoPage> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const SizedBox(height: 32),
+                  SizedBox(height: screenWidth * 0.08),
                   // Header icon
                   Container(
                     decoration: BoxDecoration(
                       color: Colors.yellow,
-                      borderRadius: BorderRadius.circular(18),
+                      borderRadius: cardRadius,
+                      boxShadow: neumorphicShadow,
                     ),
-                    padding: const EdgeInsets.all(12),
-                    child: Icon(Icons.location_on, size: 40, color: green),
+                    padding: EdgeInsets.all(screenWidth * 0.03),
+                    child: Icon(Icons.location_on, size: screenWidth * 0.11, color: green),
                   ),
-                  const SizedBox(height: 18),
-                  const Text(
+                  SizedBox(height: screenWidth * 0.045),
+                  Text(
                     'Billing Address',
                     style: TextStyle(
-                      fontSize: 26,
+                      fontSize: screenWidth * 0.065,
                       fontWeight: FontWeight.bold,
                       color: Colors.black87,
                     ),
                   ),
-                  const SizedBox(height: 6),
-                  const Text(
+                  SizedBox(height: screenWidth * 0.01),
+                  Text(
                     'Lorem ipsum dolor sit amet, consectetur adipiscing sed diam nonummy nibh euismod tincidunt.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 14, color: Colors.black54),
+                    style: TextStyle(fontSize: screenWidth * 0.035, color: Colors.black54),
                   ),
-                  const SizedBox(height: 24),
-                  Card(
-                    elevation: 8,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(24),
+                  SizedBox(height: screenWidth * 0.06),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: cardRadius,
+                      boxShadow: neumorphicShadow,
                     ),
-                    margin: const EdgeInsets.symmetric(horizontal: 24),
+                    margin: EdgeInsets.symmetric(horizontal: screenWidth * 0.06),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+                      padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.06, vertical: screenWidth * 0.08),
                       child: Form(
                         key: _formKey,
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Align(
+                            Align(
                               alignment: Alignment.centerLeft,
-                              child: Text('Contact Address', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                              child: Text('Contact Address', style: TextStyle(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.045)),
                             ),
-                            const SizedBox(height: 18),
+                            SizedBox(height: screenWidth * 0.045),
                             TextFormField(
                               controller: _phoneController,
                               keyboardType: TextInputType.phone,
@@ -148,11 +164,12 @@ class _ContactInfoPageState extends State<ContactInfoPage> {
                                 filled: true,
                                 fillColor: Colors.grey[100],
                                 border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(16),
+                                  borderRadius: cardRadius,
                                   borderSide: BorderSide.none,
                                 ),
-                                prefixIcon: const Icon(Icons.phone),
+                                prefixIcon: Icon(Icons.phone, size: screenWidth * 0.06),
                               ),
+                              style: TextStyle(fontSize: screenWidth * 0.04),
                               validator: (value) {
                                 if (value == null || value.isEmpty) {
                                   return 'Please enter your phone number';
@@ -160,7 +177,7 @@ class _ContactInfoPageState extends State<ContactInfoPage> {
                                 return null;
                               },
                             ),
-                            const SizedBox(height: 14),
+                            SizedBox(height: screenWidth * 0.03),
                             TextFormField(
                               controller: _countryController,
                               decoration: InputDecoration(
@@ -168,11 +185,12 @@ class _ContactInfoPageState extends State<ContactInfoPage> {
                                 filled: true,
                                 fillColor: Colors.grey[100],
                                 border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(16),
+                                  borderRadius: cardRadius,
                                   borderSide: BorderSide.none,
                                 ),
-                                prefixIcon: const Icon(Icons.public),
+                                prefixIcon: Icon(Icons.public, size: screenWidth * 0.06),
                               ),
+                              style: TextStyle(fontSize: screenWidth * 0.04),
                               validator: (value) {
                                 if (value == null || value.isEmpty) {
                                   return 'Please enter your country';
@@ -180,7 +198,7 @@ class _ContactInfoPageState extends State<ContactInfoPage> {
                                 return null;
                               },
                             ),
-                            const SizedBox(height: 14),
+                            SizedBox(height: screenWidth * 0.03),
                             Row(
                               children: [
                                 Expanded(
@@ -191,10 +209,11 @@ class _ContactInfoPageState extends State<ContactInfoPage> {
                                       filled: true,
                                       fillColor: Colors.grey[100],
                                       border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(16),
+                                        borderRadius: cardRadius,
                                         borderSide: BorderSide.none,
                                       ),
                                     ),
+                                    style: TextStyle(fontSize: screenWidth * 0.04),
                                     validator: (value) {
                                       if (value == null || value.isEmpty) {
                                         return 'Enter city';
@@ -203,7 +222,7 @@ class _ContactInfoPageState extends State<ContactInfoPage> {
                                     },
                                   ),
                                 ),
-                                const SizedBox(width: 10),
+                                SizedBox(width: screenWidth * 0.025),
                                 Expanded(
                                   child: TextFormField(
                                     controller: _postalController,
@@ -212,10 +231,11 @@ class _ContactInfoPageState extends State<ContactInfoPage> {
                                       filled: true,
                                       fillColor: Colors.grey[100],
                                       border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(16),
+                                        borderRadius: cardRadius,
                                         borderSide: BorderSide.none,
                                       ),
                                     ),
+                                    style: TextStyle(fontSize: screenWidth * 0.04),
                                     validator: (value) {
                                       if (value == null || value.isEmpty) {
                                         return 'Enter postal code';
@@ -226,7 +246,7 @@ class _ContactInfoPageState extends State<ContactInfoPage> {
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 14),
+                            SizedBox(height: screenWidth * 0.03),
                             TextFormField(
                               controller: _streetController,
                               decoration: InputDecoration(
@@ -234,12 +254,13 @@ class _ContactInfoPageState extends State<ContactInfoPage> {
                                 filled: true,
                                 fillColor: Colors.grey[100],
                                 border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(16),
+                                  borderRadius: cardRadius,
                                   borderSide: BorderSide.none,
                                 ),
-                                prefixIcon: const Icon(Icons.home),
+                                prefixIcon: Icon(Icons.home, size: screenWidth * 0.06),
                               ),
                               maxLines: 2,
+                              style: TextStyle(fontSize: screenWidth * 0.04),
                               validator: (value) {
                                 if (value == null || value.isEmpty) {
                                   return 'Please enter your street address';
@@ -247,7 +268,7 @@ class _ContactInfoPageState extends State<ContactInfoPage> {
                                 return null;
                               },
                             ),
-                            const SizedBox(height: 18),
+                            SizedBox(height: screenWidth * 0.045),
                             if (_errorMessage != null)
                               Padding(
                                 padding: const EdgeInsets.only(bottom: 8.0),

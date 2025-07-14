@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'authentication/login_page.dart';
+import 'theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized() ;
@@ -26,10 +27,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'VegieConnect',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Color(0xFFA7C957)),
-        scaffoldBackgroundColor: Color(0xFFF0F0F0),
-      ),
+      theme: appThemeData,
       home: const LoginPage(),
     );
   }

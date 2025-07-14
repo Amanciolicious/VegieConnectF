@@ -21,14 +21,29 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
     final green = const Color(0xFFA7C957);
-    
+    final bg = const Color(0xFFF6F6F6);
+    final cardRadius = BorderRadius.circular(screenWidth * 0.05);
+    final neumorphicShadow = [
+      BoxShadow(
+        color: Colors.grey.shade300,
+        offset: Offset(screenWidth * 0.015, screenWidth * 0.015),
+        blurRadius: screenWidth * 0.04,
+      ),
+      BoxShadow(
+        color: Colors.white,
+        offset: Offset(-screenWidth * 0.015, -screenWidth * 0.015),
+        blurRadius: screenWidth * 0.04,
+      ),
+    ];
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F6F6),
+      backgroundColor: bg,
       appBar: AppBar(
-        title: const Text(
+        title: Text(
           'Admin Dashboard',
-          style: TextStyle(fontWeight: FontWeight.bold),
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.055),
         ),
         backgroundColor: green,
         foregroundColor: Colors.white,
@@ -166,7 +181,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
       body: IndexedStack(
         index: _selectedIndex,
         children: [
-          _buildOverviewTab(),
+          _buildOverviewTab(screenWidth, cardRadius, neumorphicShadow),
           _buildUsersTab(),
           _buildAnalyticsTab(),
           _buildFarmLocationsTab(),
@@ -213,23 +228,23 @@ class _AdminDashboardState extends State<AdminDashboard> {
     );
   }
 
-  Widget _buildOverviewTab() {
+  Widget _buildOverviewTab(double screenWidth, BorderRadius cardRadius, List<BoxShadow> neumorphicShadow) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(screenWidth * 0.04),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'System Overview',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            style: TextStyle(fontSize: screenWidth * 0.06, fontWeight: FontWeight.bold),
           ),
-          const SizedBox(height: 20),
+          SizedBox(height: screenWidth * 0.05),
           GridView.count(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             crossAxisCount: 2,
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 16,
+            crossAxisSpacing: screenWidth * 0.04,
+            mainAxisSpacing: screenWidth * 0.04,
             childAspectRatio: 1.5,
             children: [
               // Total Users (suppliers and buyers only)

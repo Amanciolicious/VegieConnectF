@@ -187,66 +187,82 @@ class _LocationSelectionPageState extends State<LocationSelectionPage> {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final green = const Color(0xFFA7C957);
+    final cardRadius = BorderRadius.circular(screenWidth * 0.05);
+    final neumorphicShadow = [
+      BoxShadow(
+        color: Colors.grey.shade300,
+        offset: Offset(screenWidth * 0.015, screenWidth * 0.015),
+        blurRadius: screenWidth * 0.04,
+      ),
+      BoxShadow(
+        color: Colors.white,
+        offset: Offset(-screenWidth * 0.015, -screenWidth * 0.015),
+        blurRadius: screenWidth * 0.04,
+      ),
+    ];
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Choose Your Location'),
-        backgroundColor: Colors.green,
+        title: Text('Choose Your Location', style: TextStyle(fontSize: screenWidth * 0.05, fontWeight: FontWeight.bold)),
+        backgroundColor: green,
         foregroundColor: Colors.white,
         elevation: 0,
       ),
       body: _isLoading
-          ? const Center(
+          ? Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  CircularProgressIndicator(color: Colors.green),
-                  SizedBox(height: 16),
-                  Text('Getting location...'),
+                  CircularProgressIndicator(color: green),
+                  SizedBox(height: screenWidth * 0.04),
+                  Text('Getting location...', style: TextStyle(fontSize: screenWidth * 0.04)),
                 ],
               ),
             )
           : SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
+              padding: EdgeInsets.all(screenWidth * 0.05),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // Header
                   Container(
-                    padding: const EdgeInsets.all(20),
+                    padding: EdgeInsets.all(screenWidth * 0.05),
                     decoration: BoxDecoration(
-                      color: Colors.green.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.green.withOpacity(0.3)),
+                      color: green.withOpacity(0.1),
+                      borderRadius: cardRadius,
+                      border: Border.all(color: green.withOpacity(0.3)),
+                      boxShadow: neumorphicShadow,
                     ),
                     child: Column(
                       children: [
                         Icon(
                           Icons.location_on,
-                          size: 48,
-                          color: Colors.green,
+                          size: screenWidth * 0.12,
+                          color: green,
                         ),
-                        const SizedBox(height: 12),
-                        const Text(
+                        SizedBox(height: screenWidth * 0.03),
+                        Text(
                           'Select Your Location',
                           style: TextStyle(
-                            fontSize: 20,
+                            fontSize: screenWidth * 0.05,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        const SizedBox(height: 8),
-                        const Text(
+                        SizedBox(height: screenWidth * 0.02),
+                        Text(
                           'Choose how you want to set your location for finding nearby suppliers',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: Colors.grey,
-                            fontSize: 14,
+                            fontSize: screenWidth * 0.035,
                           ),
                         ),
                       ],
                     ),
                   ),
-                  
-                  const SizedBox(height: 24),
+                  SizedBox(height: screenWidth * 0.06),
 
                   // Current Location Option
                   Card(

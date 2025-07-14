@@ -9,6 +9,8 @@ class BuyerOrderHistoryPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
     final user = FirebaseAuth.instance.currentUser;
     final green = const Color(0xFFA7C957);
     if (user == null) {
@@ -58,7 +60,7 @@ class BuyerOrderHistoryPage extends StatelessWidget {
             });
             return ListView.separated(
               itemCount: orders.length,
-              separatorBuilder: (context, index) => const Divider(height: 1),
+              separatorBuilder: (context, index) => SizedBox(height: screenWidth * 0.02),
               itemBuilder: (context, index) {
                 final order = orders[index].data() as Map<String, dynamic>;
                 final status = order['status'] ?? 'pending';
@@ -70,112 +72,135 @@ class BuyerOrderHistoryPage extends StatelessWidget {
                   case 'processing':
                     statusColor = Colors.orange;
                     break;
+                  case 'cancelled':
+                    statusColor = Colors.red;
+                    break;
                   default:
                     statusColor = Colors.grey;
                 }
-                return ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: green.withOpacity(0.1),
-                    child: Text(
-                      order['productName'] != null && order['productName'].isNotEmpty
-                          ? order['productName'][0].toUpperCase()
-                          : '?',
-                      style: TextStyle(color: green, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  title: Text(order['productName'] ?? ''),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Qty: ${order['quantity']} ${order['unit']}'),
-                      Text('₱${order['price']?.toStringAsFixed(2) ?? '0.00'}'),
-                      Text('Status: $status'),
-                      Text('Payment: ${order['paymentMethod'] == 'cash_on_pickup' ? 'Cash on Pick Up' : (order['paymentMethod'] ?? 'N/A')}'),
-                      Text('Payment Status: ${order['paymentStatus'] ?? 'N/A'}'),
-                      if (status != 'completed' && status != 'cancelled')
-                        TextButton.icon(
-                          icon: const Icon(Icons.cancel, color: Colors.red),
-                          label: const Text('Cancel Order', style: TextStyle(color: Colors.red)),
-                          onPressed: () async {
-                            final confirm = await showDialog<bool>(
-                              context: context,
-                              builder: (context) => AlertDialog(
-                                title: const Text('Cancel Order'),
-                                content: const Text('Are you sure you want to cancel this order?'),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(context, false),
-                                    child: const Text('No'),
-                                  ),
-                                  ElevatedButton(
-                                    onPressed: () => Navigator.pop(context, true),
-                                    child: const Text('Yes, Cancel'),
-                                  ),
-                                ],
-                              ),
-                            );
-                            if (confirm == true) {
-                              try {
-                                await FirebaseFirestore.instance
-                                    .collection('orders')
-                                    .doc(orders[index].id)
-                                    .update({'status': 'cancelled', 'updatedAt': FieldValue.serverTimestamp()});
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Order cancelled.')),
-                                  );
-                                }
-                              } catch (e) {
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('Failed to cancel order: $e')),
-                                  );
-                                }
-                              }
-                            }
-                          },
-                        ),
+                return Container(
+                  margin: EdgeInsets.symmetric(horizontal: screenWidth * 0.03),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(screenWidth * 0.05),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.grey.shade300,
+                        offset: Offset(screenWidth * 0.015, screenWidth * 0.015),
+                        blurRadius: screenWidth * 0.04,
+                      ),
+                      BoxShadow(
+                        color: Colors.white,
+                        offset: Offset(-screenWidth * 0.015, -screenWidth * 0.015),
+                        blurRadius: screenWidth * 0.04,
+                      ),
                     ],
                   ),
-                  trailing: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: statusColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
+                  child: ListTile(
+                    contentPadding: EdgeInsets.symmetric(horizontal: screenWidth * 0.04, vertical: screenWidth * 0.03),
+                    leading: CircleAvatar(
+                      backgroundColor: const Color(0xFFA7C957).withOpacity(0.1),
+                      child: Text(
+                        order['productName'] != null && order['productName'].isNotEmpty
+                            ? order['productName'][0].toUpperCase()
+                            : '?',
+                        style: TextStyle(color: const Color(0xFFA7C957), fontWeight: FontWeight.bold, fontSize: screenWidth * 0.05),
+                      ),
                     ),
-                    child: Text(
-                      status,
-                      style: TextStyle(fontSize: 12, color: statusColor, fontWeight: FontWeight.bold),
+                    title: Text(order['productName'] ?? '', style: TextStyle(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.045)),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Qty: ${order['quantity']} ${order['unit']}', style: TextStyle(fontSize: screenWidth * 0.04)),
+                        Text('₱${order['price']?.toStringAsFixed(2) ?? '0.00'}', style: TextStyle(fontSize: screenWidth * 0.04)),
+                        Text('Status: $status', style: TextStyle(color: statusColor, fontSize: screenWidth * 0.04)),
+                        Text('Payment: ${order['paymentMethod'] == 'cash_on_pickup' ? 'Cash on Pick Up' : (order['paymentMethod'] ?? 'N/A')}', style: TextStyle(fontSize: screenWidth * 0.038)),
+                        Text('Payment Status: ${order['paymentStatus'] ?? 'N/A'}', style: TextStyle(fontSize: screenWidth * 0.038)),
+                        if (status != 'completed' && status != 'cancelled')
+                          TextButton.icon(
+                            icon: Icon(Icons.cancel, color: Colors.red, size: screenWidth * 0.05),
+                            label: Text('Cancel Order', style: TextStyle(color: Colors.red, fontSize: screenWidth * 0.04)),
+                            onPressed: () async {
+                              final confirm = await showDialog<bool>(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  title: const Text('Cancel Order'),
+                                  content: const Text('Are you sure you want to cancel this order?'),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(context, false),
+                                      child: const Text('No'),
+                                    ),
+                                    ElevatedButton(
+                                      onPressed: () => Navigator.pop(context, true),
+                                      child: const Text('Yes, Cancel'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (confirm == true) {
+                                try {
+                                  await FirebaseFirestore.instance
+                                      .collection('orders')
+                                      .doc(orders[index].id)
+                                      .update({'status': 'cancelled', 'updatedAt': FieldValue.serverTimestamp()});
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Order cancelled.')),
+                                    );
+                                  }
+                                } catch (e) {
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('Failed to cancel order: $e')),
+                                    );
+                                  }
+                                }
+                              }
+                            },
+                          ),
+                      ],
                     ),
-                  ),
-                  onTap: () {
-                    showDialog(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: Text('Order Details'),
-                        content: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Product: ${order['productName'] ?? ''}'),
-                            Text('Quantity: ${order['quantity']} ${order['unit']}'),
-                            Text('Price: ₱${order['price']?.toStringAsFixed(2) ?? '0.00'}'),
-                            Text('Status: $status'),
-                            if (order['createdAt'] != null)
-                              Text('Ordered: ${order['createdAt'].toDate()}'),
-                            if (order['sellerId'] != null)
-                              Text('Seller ID: ${order['sellerId']}'),
+                    trailing: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: statusColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        status,
+                        style: TextStyle(fontSize: 12, color: statusColor, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    onTap: () {
+                      showDialog(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: Text('Order Details'),
+                          content: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Product: ${order['productName'] ?? ''}'),
+                              Text('Quantity: ${order['quantity']} ${order['unit']}'),
+                              Text('Price: ₱${order['price']?.toStringAsFixed(2) ?? '0.00'}'),
+                              Text('Status: $status'),
+                              if (order['createdAt'] != null)
+                                Text('Ordered: ${order['createdAt'].toDate()}'),
+                              if (order['sellerId'] != null)
+                                Text('Seller ID: ${order['sellerId']}'),
+                            ],
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: const Text('Close'),
+                            ),
                           ],
                         ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: const Text('Close'),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
+                      );
+                    },
+                  ),
                 );
               },
             );

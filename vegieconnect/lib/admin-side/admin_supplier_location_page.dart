@@ -77,17 +77,35 @@ class _AdminSupplierLocationPageState extends State<AdminSupplierLocationPage> {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final green = const Color(0xFFA7C957);
+    final bg = const Color(0xFFF6F6F6);
+    final cardRadius = BorderRadius.circular(screenWidth * 0.05);
+    final neumorphicShadow = [
+      BoxShadow(
+        color: Colors.grey.shade300,
+        offset: Offset(screenWidth * 0.015, screenWidth * 0.015),
+        blurRadius: screenWidth * 0.04,
+      ),
+      BoxShadow(
+        color: Colors.white,
+        offset: Offset(-screenWidth * 0.015, -screenWidth * 0.015),
+        blurRadius: screenWidth * 0.04,
+      ),
+    ];
     // Bogo City, Cebu, Philippines coordinates
     const LatLng bogoCityCenter = LatLng(11.0474, 124.0051);
-    
     return Scaffold(
+      backgroundColor: bg,
       appBar: AppBar(
-        title: const Text('Supplier Locations - Bogo City'),
-        backgroundColor: Colors.blue,
+        title: Text('Supplier Locations - Bogo City', style: TextStyle(fontSize: screenWidth * 0.055, fontWeight: FontWeight.bold)),
+        backgroundColor: green,
         foregroundColor: Colors.white,
+        elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: Icon(Icons.refresh, color: Colors.white),
             onPressed: () {
               _loadSupplierLocations();
             },
@@ -102,39 +120,39 @@ class _AdminSupplierLocationPageState extends State<AdminSupplierLocationPage> {
                 // Summary card
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  margin: const EdgeInsets.all(16),
+                  padding: EdgeInsets.all(screenWidth * 0.04),
+                  margin: EdgeInsets.all(screenWidth * 0.04),
                   decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.blue.shade200),
+                    color: Colors.white,
+                    borderRadius: cardRadius,
+                    boxShadow: neumorphicShadow,
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.person_pin, color: Colors.blue.shade700),
-                          const SizedBox(width: 8),
+                          Icon(Icons.person_pin, color: green, size: screenWidth * 0.06),
+                          SizedBox(width: screenWidth * 0.02),
                           Text(
                             'Supplier Locations Summary',
                             style: TextStyle(
-                              fontSize: 18,
+                              fontSize: screenWidth * 0.045,
                               fontWeight: FontWeight.bold,
-                              color: Colors.blue.shade700,
+                              color: green,
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 8),
+                      SizedBox(height: screenWidth * 0.02),
                       Text(
                         'Total Supplier Locations: ${_supplierLocations.length}',
-                        style: const TextStyle(fontSize: 16),
+                        style: TextStyle(fontSize: screenWidth * 0.04),
                       ),
                       if (_supplierLocations.isNotEmpty)
                         Text(
                           'Active Suppliers: ${_supplierLocations.map((loc) => loc.supplierName).toSet().length}',
-                          style: const TextStyle(fontSize: 16),
+                          style: TextStyle(fontSize: screenWidth * 0.04),
                         ),
                     ],
                   ),
@@ -162,8 +180,8 @@ class _AdminSupplierLocationPageState extends State<AdminSupplierLocationPage> {
                               CircleMarker(
                                 point: bogoCityCenter,
                                 radius: 5000, // 5km radius in meters
-                                color: Colors.blue.withOpacity(0.1),
-                                borderColor: Colors.blue.withOpacity(0.5),
+                                color: green.withOpacity(0.1),
+                                borderColor: green.withOpacity(0.5),
                                 borderStrokeWidth: 3,
                               ),
                             ],
@@ -173,20 +191,21 @@ class _AdminSupplierLocationPageState extends State<AdminSupplierLocationPage> {
                             markers: _supplierLocations.map((location) {
                               return Marker(
                                 point: LatLng(location.latitude, location.longitude),
-                                width: 40,
-                                height: 40,
+                                width: screenWidth * 0.08,
+                                height: screenWidth * 0.08,
                                 child: GestureDetector(
                                   onTap: () => _showSupplierLocationDetails(location),
                                   child: Container(
                                     decoration: BoxDecoration(
-                                      color: Colors.blue,
+                                      color: green,
                                       shape: BoxShape.circle,
                                       border: Border.all(color: Colors.white, width: 2),
+                                      boxShadow: neumorphicShadow,
                                     ),
-                                    child: const Icon(
+                                    child: Icon(
                                       Icons.person_pin,
                                       color: Colors.white,
-                                      size: 24,
+                                      size: screenWidth * 0.05,
                                     ),
                                   ),
                                 ),
@@ -197,31 +216,25 @@ class _AdminSupplierLocationPageState extends State<AdminSupplierLocationPage> {
                       ),
                       // Boundary indicator
                       Positioned(
-                        top: 16,
-                        left: 16,
+                        top: screenWidth * 0.04,
+                        left: screenWidth * 0.04,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.04, vertical: screenWidth * 0.02),
                           decoration: BoxDecoration(
-                            color: Colors.blue.withOpacity(0.9),
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.2),
-                                blurRadius: 4,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
+                            color: green.withOpacity(0.9),
+                            borderRadius: cardRadius,
+                            boxShadow: neumorphicShadow,
                           ),
-                          child: const Row(
+                          child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.location_on, color: Colors.white, size: 16),
-                              SizedBox(width: 4),
+                              Icon(Icons.location_on, color: Colors.white, size: screenWidth * 0.04),
+                              SizedBox(width: screenWidth * 0.01),
                               Text(
                                 'Bogo City Boundary',
                                 style: TextStyle(
                                   color: Colors.white,
-                                  fontSize: 12,
+                                  fontSize: screenWidth * 0.03,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),

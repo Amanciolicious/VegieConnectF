@@ -369,19 +369,35 @@ class _AdminFarmMapPageState extends State<AdminFarmMapPage> {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final green = const Color(0xFFA7C957);
+    final bg = const Color(0xFFF6F6F6);
+    final cardRadius = BorderRadius.circular(screenWidth * 0.05);
+    final neumorphicShadow = [
+      BoxShadow(
+        color: Colors.grey.shade300,
+        offset: Offset(screenWidth * 0.015, screenWidth * 0.015),
+        blurRadius: screenWidth * 0.04,
+      ),
+      BoxShadow(
+        color: Colors.white,
+        offset: Offset(-screenWidth * 0.015, -screenWidth * 0.015),
+        blurRadius: screenWidth * 0.04,
+      ),
+    ];
     // Bogo City, Cebu, Philippines coordinates
     const LatLng bogoCityCenter = LatLng(11.0474, 124.0051);
-
-    
     return Scaffold(
+      backgroundColor: bg,
       appBar: AppBar(
-        title: const Text('Admin Farm Management - Bogo City'),
-        backgroundColor: Colors.green,
+        title: Text('Admin Farm Management - Bogo City', style: TextStyle(fontSize: screenWidth * 0.055, fontWeight: FontWeight.bold)),
+        backgroundColor: green,
         foregroundColor: Colors.white,
+        elevation: 0,
         actions: [
-          // Filter dropdown
           PopupMenuButton<String>(
-            icon: const Icon(Icons.filter_list),
+            icon: Icon(Icons.filter_list, color: Colors.white),
             onSelected: (value) {
               setState(() {
                 _selectedSupplierFilter = value;
@@ -394,9 +410,8 @@ class _AdminFarmMapPageState extends State<AdminFarmMapPage> {
               );
             }).toList(),
           ),
-          // Add supplier location management button
           IconButton(
-            icon: const Icon(Icons.person_pin),
+            icon: Icon(Icons.person_pin, color: Colors.white),
             onPressed: () {
               Navigator.of(context).push(
                 MaterialPageRoute(
@@ -413,215 +428,107 @@ class _AdminFarmMapPageState extends State<AdminFarmMapPage> {
           : Stack(
               children: [
                 FlutterMap(
-              mapController: _mapController,
-              options: MapOptions(
-                initialCenter: bogoCityCenter,
-                initialZoom: 12,
-                onTap: _onMapTap,
-                maxZoom: 16,
-                minZoom: 10,
-              ),
-              children: [
-                TileLayer(
-                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                  userAgentPackageName: 'com.example.vegieconnect',
-                ),
-                // Bogo City boundary circle (barrier interface)
-                CircleLayer(
-                  circles: [
-                    CircleMarker(
-                      point: bogoCityCenter,
-                      radius: 5000, // 5km radius in meters
-                      color: Colors.blue.withOpacity(0.1),
-                      borderColor: Colors.blue.withOpacity(0.5),
-                      borderStrokeWidth: 3,
+                  mapController: _mapController,
+                  options: MapOptions(
+                    initialCenter: bogoCityCenter,
+                    initialZoom: 12,
+                    onTap: _onMapTap,
+                    maxZoom: 16,
+                    minZoom: 10,
+                  ),
+                  children: [
+                    TileLayer(
+                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      userAgentPackageName: 'com.example.vegieconnect',
+                    ),
+                    CircleLayer(
+                      circles: [
+                        CircleMarker(
+                          point: bogoCityCenter,
+                          radius: 5000, // 5km radius in meters
+                          color: green.withOpacity(0.1),
+                          borderColor: green.withOpacity(0.5),
+                          borderStrokeWidth: 3,
+                        ),
+                      ],
+                    ),
+                    MarkerLayer(
+                      markers: _filteredFarmLocations.map((location) {
+                        return Marker(
+                          point: LatLng(location.latitude, location.longitude),
+                          width: screenWidth * 0.08,
+                          height: screenWidth * 0.08,
+                          child: GestureDetector(
+                            onTap: () => _showFarmDetails(location),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: green,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white, width: 2),
+                                boxShadow: neumorphicShadow,
+                              ),
+                              child: Icon(Icons.agriculture, color: Colors.white, size: screenWidth * 0.05),
+                            ),
+                          ),
+                        );
+                      }).toList(),
                     ),
                   ],
                 ),
-                // Show existing farm locations
-                MarkerLayer(
-                  markers: _filteredFarmLocations.map((farm) {
-                    return Marker(
-                      point: LatLng(farm.latitude, farm.longitude),
-                      width: 40,
-                      height: 40,
-                      child: GestureDetector(
-                        onTap: () => _showFarmDetails(farm),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.green,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 2),
-                          ),
-                          child: const Icon(
-                            Icons.location_on,
-                            color: Colors.white,
-                            size: 24,
-                          ),
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-                // Show selected location
-                if (_selectedLocation != null)
-                  MarkerLayer(
-                    markers: [
-                      Marker(
-                        point: _selectedLocation!,
-                        width: 40,
-                        height: 40,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.red,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 2),
-                          ),
-                          child: const Icon(
-                            Icons.add_location,
-                            color: Colors.white,
-                            size: 24,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-              ],
-            ),
-                // Bogo City boundary indicator
                 Positioned(
-                  top: 16,
-                  left: 16,
+                  top: screenWidth * 0.04,
+                  left: screenWidth * 0.04,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.04, vertical: screenWidth * 0.02),
                     decoration: BoxDecoration(
-                      color: Colors.blue.withOpacity(0.9),
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.2),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
+                      color: green.withOpacity(0.9),
+                      borderRadius: BorderRadius.circular(screenWidth * 0.05),
+                      boxShadow: neumorphicShadow,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.location_on, color: Colors.white, size: screenWidth * 0.04),
+                        SizedBox(width: screenWidth * 0.01),
+                        Text(
+                          'Bogo City Boundary',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: screenWidth * 0.03,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ],
                     ),
-                    child: const Text(
-                      '📍 Bogo City Boundary',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
-                    ),
                   ),
                 ),
-                // Farm count indicator
-                Positioned(
-                  top: 60,
-                  left: 16,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.green.withOpacity(0.9),
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.2),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Text(
-                      '🌾 ${_filteredFarmLocations.length} Farms',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                ),
-                // Filter indicator
-                if (_selectedSupplierFilter != 'All Suppliers')
-                  Positioned(
-                    top: 104,
-                    left: 16,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.withOpacity(0.9),
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.2),
-                            blurRadius: 4,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Text(
-                        '👤 $_selectedSupplierFilter',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
-                  ),
-                // Pin addition mode indicator
                 if (_isAddingPin)
                   Positioned(
-                    top: 16,
-                    right: 16,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.withOpacity(0.9),
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.2),
-                            blurRadius: 4,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: const Text(
-                        '📍 Adding Pin Mode',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                        ),
-                      ),
+                    bottom: screenWidth * 0.04,
+                    right: screenWidth * 0.04,
+                    child: FloatingActionButton.extended(
+                      backgroundColor: green,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: cardRadius),
+                      onPressed: _cancelPinAdditionMode,
+                      label: Text('Cancel Pin', style: TextStyle(fontSize: screenWidth * 0.04)),
+                      icon: Icon(Icons.cancel, size: screenWidth * 0.05),
                     ),
                   ),
-                // Center map button
                 Positioned(
-                  bottom: 100,
-                  right: 16,
-                  child: FloatingActionButton(
-                    onPressed: () {
-                      _mapController.move(bogoCityCenter, 12);
-                    },
-                    backgroundColor: Colors.blue,
+                  bottom: screenWidth * 0.04,
+                  left: screenWidth * 0.04,
+                  child: FloatingActionButton.extended(
+                    backgroundColor: green,
                     foregroundColor: Colors.white,
-                    mini: true,
-                    child: const Icon(Icons.center_focus_strong),
+                    shape: RoundedRectangleBorder(borderRadius: cardRadius),
+                    onPressed: _enablePinAdditionMode,
+                    label: Text('Add Pin', style: TextStyle(fontSize: screenWidth * 0.04)),
+                    icon: Icon(Icons.add_location, size: screenWidth * 0.05),
                   ),
                 ),
               ],
             ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _isAddingPin ? _cancelPinAdditionMode : _enablePinAdditionMode,
-        backgroundColor: _isAddingPin ? Colors.red : Colors.green,
-        foregroundColor: Colors.white,
-        icon: Icon(_isAddingPin ? Icons.close : Icons.add_location),
-        label: Text(_isAddingPin ? 'Cancel' : 'Add Pin'),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
   }
 } 

@@ -17,7 +17,22 @@ class _VeggieDetailsPageState extends State<VeggieDetailsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
     final green = const Color(0xFFA7C957);
+    final cardRadius = BorderRadius.circular(screenWidth * 0.05);
+    final neumorphicShadow = [
+      BoxShadow(
+        color: Colors.grey.shade300,
+        offset: Offset(screenWidth * 0.015, screenWidth * 0.015),
+        blurRadius: screenWidth * 0.04,
+      ),
+      BoxShadow(
+        color: Colors.white,
+        offset: Offset(-screenWidth * 0.015, -screenWidth * 0.015),
+        blurRadius: screenWidth * 0.04,
+      ),
+    ];
     final veggie = widget.veggie;
     final desc = veggie['desc'] as String;
     final showReadMore = desc.length > 90;
@@ -31,57 +46,51 @@ class _VeggieDetailsPageState extends State<VeggieDetailsPage> {
               Stack(
                 children: [
                   Container(
-                    margin: const EdgeInsets.only(top: 40, left: 16, right: 16),
-                    padding: const EdgeInsets.only(top: 60, bottom: 24),
+                    margin: EdgeInsets.only(top: screenWidth * 0.11, left: screenWidth * 0.04, right: screenWidth * 0.04),
+                    padding: EdgeInsets.only(top: screenWidth * 0.16, bottom: screenWidth * 0.06),
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(32),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black12,
-                          blurRadius: 16,
-                          offset: const Offset(0, 8),
-                        ),
-                      ],
+                      borderRadius: cardRadius,
+                      boxShadow: neumorphicShadow,
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Center(child: Text(veggie['image'], style: const TextStyle(fontSize: 100))),
-                        const SizedBox(height: 12),
+                        Center(child: Text(veggie['image'], style: TextStyle(fontSize: screenWidth * 0.22))),
+                        SizedBox(height: screenWidth * 0.03),
                         Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.06),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(veggie['name'], style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
-                              const SizedBox(height: 6),
+                              Text(veggie['name'], style: TextStyle(fontSize: screenWidth * 0.065, fontWeight: FontWeight.bold)),
+                              SizedBox(height: screenWidth * 0.015),
                               Row(
                                 children: [
-                                  ...List.generate(5, (i) => Icon(Icons.star, color: i < veggie['rating'].round() ? Colors.orange : Colors.grey[300], size: 20)),
-                                  const SizedBox(width: 8),
-                                  Text(veggie['rating'].toString(), style: const TextStyle(fontSize: 15)),
+                                  ...List.generate(5, (i) => Icon(Icons.star, color: i < veggie['rating'].round() ? Colors.orange : Colors.grey[300], size: screenWidth * 0.05)),
+                                  SizedBox(width: screenWidth * 0.02),
+                                  Text(veggie['rating'].toString(), style: TextStyle(fontSize: screenWidth * 0.04)),
                                 ],
                               ),
-                              const SizedBox(height: 8),
+                              SizedBox(height: screenWidth * 0.02),
                               Row(
                                 children: [
-                                  Text('₱${veggie['price']}/KG', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: green)),
+                                  Text('\u20b1${veggie['price']}/KG', style: TextStyle(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.055, color: green)),
                                   const Spacer(),
                                   Container(
                                     decoration: BoxDecoration(
                                       color: green.withOpacity(0.12),
-                                      borderRadius: BorderRadius.circular(24),
+                                      borderRadius: cardRadius,
                                     ),
                                     child: Row(
                                       children: [
                                         IconButton(
-                                          icon: const Icon(Icons.remove, size: 20),
+                                          icon: Icon(Icons.remove, size: screenWidth * 0.05),
                                           onPressed: _qty > 1 ? () => setState(() => _qty--) : null,
                                         ),
-                                        Text('$_qty KG', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                        Text('$_qty KG', style: TextStyle(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.045)),
                                         IconButton(
-                                          icon: const Icon(Icons.add, size: 20),
+                                          icon: Icon(Icons.add, size: screenWidth * 0.05),
                                           onPressed: () => setState(() => _qty++),
                                         ),
                                       ],
@@ -89,17 +98,17 @@ class _VeggieDetailsPageState extends State<VeggieDetailsPage> {
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 18),
-                              const Text('Product Details', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                              const SizedBox(height: 6),
+                              SizedBox(height: screenWidth * 0.045),
+                              Text('Product Details', style: TextStyle(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.045)),
+                              SizedBox(height: screenWidth * 0.015),
                               Text(
                                 showReadMore && !_readMore ? '${desc.substring(0, 90)}...' : desc,
-                                style: const TextStyle(fontSize: 16, color: Colors.black87),
+                                style: TextStyle(fontSize: screenWidth * 0.04, color: Colors.black87),
                               ),
                               if (showReadMore && !_readMore)
                                 GestureDetector(
                                   onTap: () => setState(() => _readMore = true),
-                                  child: const Text('Read More', style: TextStyle(color: Color(0xFFA7C957), fontWeight: FontWeight.bold)),
+                                  child: Text('Read More', style: TextStyle(color: green, fontWeight: FontWeight.bold, fontSize: screenWidth * 0.04)),
                                 ),
                             ],
                           ),
@@ -108,40 +117,42 @@ class _VeggieDetailsPageState extends State<VeggieDetailsPage> {
                     ),
                   ),
                   Positioned(
-                    top: 56,
-                    left: 32,
+                    top: screenWidth * 0.15,
+                    left: screenWidth * 0.08,
                     child: CircleAvatar(
                       backgroundColor: Colors.white,
+                      radius: screenWidth * 0.06,
                       child: IconButton(
-                        icon: const Icon(Icons.arrow_back, color: Colors.black87),
+                        icon: Icon(Icons.arrow_back, color: Colors.black87, size: screenWidth * 0.06),
                         onPressed: () => Navigator.pop(context),
                       ),
                     ),
                   ),
                   Positioned(
-                    top: 56,
-                    right: 32,
+                    top: screenWidth * 0.15,
+                    right: screenWidth * 0.08,
                     child: CircleAvatar(
                       backgroundColor: Colors.white,
+                      radius: screenWidth * 0.06,
                       child: IconButton(
-                        icon: const Icon(Icons.favorite_border, color: Color(0xFFA7C957)),
+                        icon: Icon(Icons.favorite_border, color: green, size: screenWidth * 0.06),
                         onPressed: () {},
                       ),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 24),
+              SizedBox(height: screenWidth * 0.06),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: const Text('Related Products', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.06),
+                child: Text('Related Products', style: TextStyle(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.045)),
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: screenWidth * 0.02),
               SizedBox(
-                height: 120,
+                height: screenWidth * 0.32,
                 child: ListView(
                   scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.06),
                   children: [
                     for (var v in veggies.where((v) => v['name'] != veggie['name']).take(4))
                       GestureDetector(
@@ -149,18 +160,19 @@ class _VeggieDetailsPageState extends State<VeggieDetailsPage> {
                           MaterialPageRoute(builder: (_) => VeggieDetailsPage(veggie: v)),
                         ),
                         child: Container(
-                          width: 100,
-                          margin: const EdgeInsets.only(right: 12),
+                          width: screenWidth * 0.22,
+                          margin: EdgeInsets.only(right: screenWidth * 0.03),
                           decoration: BoxDecoration(
                             color: green.withOpacity(0.10),
-                            borderRadius: BorderRadius.circular(16),
+                            borderRadius: cardRadius,
+                            boxShadow: neumorphicShadow,
                           ),
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Text(v['image'], style: const TextStyle(fontSize: 36)),
-                              const SizedBox(height: 6),
-                              Text(v['name'], style: const TextStyle(fontWeight: FontWeight.w600)),
+                              Text(v['image'], style: TextStyle(fontSize: screenWidth * 0.08)),
+                              SizedBox(height: screenWidth * 0.015),
+                              Text(v['name'], style: TextStyle(fontWeight: FontWeight.w600, fontSize: screenWidth * 0.04)),
                             ],
                           ),
                         ),
@@ -168,7 +180,7 @@ class _VeggieDetailsPageState extends State<VeggieDetailsPage> {
                   ],
                 ),
               ),
-              const SizedBox(height: 100),
+              SizedBox(height: screenWidth * 0.18),
             ],
           ),
           // Bottom bar
@@ -177,40 +189,36 @@ class _VeggieDetailsPageState extends State<VeggieDetailsPage> {
             right: 0,
             bottom: 0,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.06, vertical: screenWidth * 0.04),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(24),
-                  topRight: Radius.circular(24),
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(screenWidth * 0.05),
+                  topRight: Radius.circular(screenWidth * 0.05),
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black12,
-                    blurRadius: 12,
-                    offset: const Offset(0, -2),
-                  ),
-                ],
+                boxShadow: neumorphicShadow,
               ),
               child: Row(
                 children: [
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Total Price', style: TextStyle(color: Colors.black54)),
-                      Text('₱${(veggie['price'] * _qty).toStringAsFixed(2)}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: green)),
+                      Text('Total Price', style: TextStyle(color: Colors.black54, fontSize: screenWidth * 0.035)),
+                      Text('\u20b1${(veggie['price'] * _qty).toStringAsFixed(2)}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.055, color: green)),
                     ],
                   ),
                   const Spacer(),
                   SizedBox(
-                    height: 48,
+                    height: screenWidth * 0.13,
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: green,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        shape: RoundedRectangleBorder(borderRadius: cardRadius),
+                        elevation: 0,
+                        shadowColor: Colors.transparent,
                       ),
                       onPressed: () {},
-                      child: const Text('Add to Cart', style: TextStyle(fontSize: 18, color: Colors.white)),
+                      child: Text('Add to Cart', style: TextStyle(fontSize: screenWidth * 0.045, color: Colors.white)),
                     ),
                   ),
                 ],

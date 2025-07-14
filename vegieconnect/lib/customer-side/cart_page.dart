@@ -120,17 +120,34 @@ class _CartPageState extends State<CartPage> {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
     final green = const Color(0xFFA7C957);
+    final bg = const Color(0xFFF6F6F6);
+    final cardRadius = BorderRadius.circular(screenWidth * 0.05);
+    final neumorphicShadow = [
+      BoxShadow(
+        color: Colors.grey.shade300,
+        offset: Offset(screenWidth * 0.015, screenWidth * 0.015),
+        blurRadius: screenWidth * 0.04,
+      ),
+      BoxShadow(
+        color: Colors.white,
+        offset: Offset(-screenWidth * 0.015, -screenWidth * 0.015),
+        blurRadius: screenWidth * 0.04,
+      ),
+    ];
     if (user == null) {
       return const Scaffold(
         body: Center(child: Text('Not logged in.')),
       );
     }
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F6F6),
+      backgroundColor: bg,
       appBar: AppBar(
         backgroundColor: green,
-        title: const Text('Cart'),
+        title: Text('Cart', style: TextStyle(fontSize: screenWidth * 0.055, fontWeight: FontWeight.bold)),
+        elevation: 0,
       ),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: _cartRef.snapshots(),
@@ -150,60 +167,71 @@ class _CartPageState extends State<CartPage> {
               Expanded(
                 child: ListView.builder(
                   itemCount: cartItems.length,
+                  padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.03, vertical: screenWidth * 0.01),
                   itemBuilder: (context, i) {
                     final item = cartItems[i].data();
-                    return ListTile(
-                      leading: Icon(Icons.eco, color: green),
-                      title: Text(item['name'] ?? ''),
-                      subtitle: Text('₱${item['price']} x ${item['quantity']}'),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.remove),
-                            onPressed: () => _updateQuantity(cartItems[i].id, (item['quantity'] ?? 1) - 1),
-                          ),
-                          Text('${item['quantity']}'),
-                          IconButton(
-                            icon: const Icon(Icons.add),
-                            onPressed: () => _updateQuantity(cartItems[i].id, (item['quantity'] ?? 1) + 1),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.delete),
-                            onPressed: () => _removeItem(cartItems[i].id),
-                          ),
-                        ],
+                    return Container(
+                      margin: EdgeInsets.symmetric(vertical: screenWidth * 0.015),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: cardRadius,
+                        boxShadow: neumorphicShadow,
+                      ),
+                      child: ListTile(
+                        contentPadding: EdgeInsets.symmetric(horizontal: screenWidth * 0.04, vertical: screenWidth * 0.02),
+                        leading: Icon(Icons.eco, color: green, size: screenWidth * 0.09),
+                        title: Text(item['name'] ?? '', style: TextStyle(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.045)),
+                        subtitle: Text('₱${item['price']} x ${item['quantity']}', style: TextStyle(fontSize: screenWidth * 0.04)),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: Icon(Icons.remove, size: screenWidth * 0.07),
+                              onPressed: () => _updateQuantity(cartItems[i].id, (item['quantity'] ?? 1) - 1),
+                            ),
+                            Text('${item['quantity']}', style: TextStyle(fontSize: screenWidth * 0.045)),
+                            IconButton(
+                              icon: Icon(Icons.add, size: screenWidth * 0.07),
+                              onPressed: () => _updateQuantity(cartItems[i].id, (item['quantity'] ?? 1) + 1),
+                            ),
+                            IconButton(
+                              icon: Icon(Icons.delete, color: Colors.red, size: screenWidth * 0.07),
+                              onPressed: () => _removeItem(cartItems[i].id),
+                            ),
+                          ],
+                        ),
                       ),
                     );
                   },
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.all(20.0),
+                padding: EdgeInsets.all(screenWidth * 0.05),
                 child: Column(
                   children: [
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Total:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                        Text('₱${total.toStringAsFixed(2)}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                        Text('Total:', style: TextStyle(fontSize: screenWidth * 0.05, fontWeight: FontWeight.bold)),
+                        Text('₱${total.toStringAsFixed(2)}', style: TextStyle(fontSize: screenWidth * 0.05, fontWeight: FontWeight.bold)),
                       ],
                     ),
-                    const SizedBox(height: 16),
+                    SizedBox(height: screenWidth * 0.04),
                     SizedBox(
                       width: double.infinity,
-                      height: 48,
+                      height: screenWidth * 0.13,
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: green,
+                          backgroundColor: const Color(0xFFFFA500), // Orange accent
+                          elevation: 2,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
+                            borderRadius: BorderRadius.circular(screenWidth * 0.04),
                           ),
                         ),
                         onPressed: _isProcessing || cartItems.isEmpty
                             ? null
                             : () => _checkout(cartItems),
-                        child: const Text('Checkout', style: TextStyle(fontSize: 18, color: Colors.white)),
+                        child: Text('Checkout', style: TextStyle(fontSize: screenWidth * 0.05, color: Colors.white, fontWeight: FontWeight.bold)),
                       ),
                     ),
                   ],

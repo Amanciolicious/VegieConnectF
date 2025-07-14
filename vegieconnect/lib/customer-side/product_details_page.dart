@@ -25,163 +25,129 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
     final green = const Color(0xFFA7C957);
+    final bg = const Color(0xFFF6F6F6);
+    final cardRadius = BorderRadius.circular(screenWidth * 0.05);
+    final neumorphicShadow = [
+      BoxShadow(
+        color: Colors.grey.shade300,
+        offset: Offset(screenWidth * 0.015, screenWidth * 0.015),
+        blurRadius: screenWidth * 0.04,
+      ),
+      BoxShadow(
+        color: Colors.white,
+        offset: Offset(-screenWidth * 0.015, -screenWidth * 0.015),
+        blurRadius: screenWidth * 0.04,
+      ),
+    ];
     final product = widget.product;
     final desc = product['description'] ?? 'No description available';
     final showReadMore = desc.length > 90;
     
     return Scaffold(
-      backgroundColor: const Color(0xFFEAF6EA),
+      backgroundColor: bg,
+      appBar: AppBar(
+        backgroundColor: green,
+        elevation: 0,
+        title: Text('Product Details', style: TextStyle(fontSize: screenWidth * 0.055, fontWeight: FontWeight.bold)),
+      ),
       body: Stack(
         children: [
           ListView(
             padding: EdgeInsets.zero,
             children: [
-              Stack(
-                children: [
-                  Container(
-                    margin: const EdgeInsets.only(top: 40, left: 16, right: 16),
-                    padding: const EdgeInsets.only(top: 60, bottom: 24),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(32),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black12,
-                          blurRadius: 16,
-                          offset: const Offset(0, 8),
-                        ),
-                      ],
+              Container(
+                margin: EdgeInsets.only(top: screenWidth * 0.08, left: screenWidth * 0.04, right: screenWidth * 0.04),
+                padding: EdgeInsets.only(top: screenWidth * 0.15, bottom: screenWidth * 0.06),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: cardRadius,
+                  boxShadow: neumorphicShadow,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: ProductImageWidget(
+                        imagePath: product['imageUrl'] ?? '',
+                        width: screenWidth * 0.5,
+                        height: screenWidth * 0.5,
+                        placeholder: Icon(Icons.shopping_basket, size: screenWidth * 0.18, color: green),
+                      ),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Center(
-                          child: ProductImageWidget(
-                            imagePath: product['imageUrl'] ?? '',
-                            width: 200,
-                            height: 200,
-                            placeholder: Icon(Icons.shopping_basket, size: 100, color: green),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 24),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                    SizedBox(height: screenWidth * 0.03),
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.06),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(product['name'] ?? 'Unknown Product', style: TextStyle(fontSize: screenWidth * 0.06, fontWeight: FontWeight.bold)),
+                          SizedBox(height: screenWidth * 0.015),
+                          Row(
                             children: [
-                              Text(
-                                product['name'] ?? 'Unknown Product', 
-                                style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold)
-                              ),
-                              const SizedBox(height: 6),
-                              Row(
-                                children: [
-                                  Icon(Icons.store, color: green, size: 20),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    product['supplierName'] ?? 'Unknown Supplier',
-                                    style: const TextStyle(fontSize: 15, color: Colors.grey),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                children: [
-                                  Text(
-                                    '₱${product['price']?.toStringAsFixed(2) ?? '0.00'}/${product['unit'] ?? 'unit'}', 
-                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: green)
-                                  ),
-                                  const Spacer(),
-                                  Container(
-                                    decoration: BoxDecoration(
-                                      color: green.withOpacity(0.12),
-                                      borderRadius: BorderRadius.circular(24),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        IconButton(
-                                          icon: const Icon(Icons.remove, size: 20),
-                                          onPressed: _qty > 1 ? () => setState(() => _qty--) : null,
-                                        ),
-                                        Text('$_qty ${product['unit'] ?? 'unit'}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                                        IconButton(
-                                          icon: const Icon(Icons.add, size: 20),
-                                          onPressed: () => setState(() => _qty++),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                children: [
-                                  Icon(Icons.inventory, color: Colors.blue, size: 20),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    'Stock: ${product['quantity'] ?? 0} ${product['unit'] ?? 'unit'}',
-                                    style: const TextStyle(fontSize: 15, color: Colors.blue),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 18),
-                              const Text('Product Details', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                              const SizedBox(height: 6),
-                              Text(
-                                showReadMore && !_readMore ? '${desc.substring(0, 90)}...' : desc,
-                                style: const TextStyle(fontSize: 16, color: Colors.black87),
-                              ),
-                              if (showReadMore && !_readMore)
-                                GestureDetector(
-                                  onTap: () => setState(() => _readMore = true),
-                                  child: const Text('Read More', style: TextStyle(color: Color(0xFFA7C957), fontWeight: FontWeight.bold)),
+                              Icon(Icons.store, color: green, size: screenWidth * 0.05),
+                              SizedBox(width: screenWidth * 0.02),
+                              Text(product['supplierName'] ?? 'Unknown Supplier', style: TextStyle(fontSize: screenWidth * 0.04, color: Colors.grey)),
+                            ],
+                          ),
+                          SizedBox(height: screenWidth * 0.02),
+                          Row(
+                            children: [
+                              Text('₱${product['price']?.toStringAsFixed(2) ?? '0.00'}/${product['unit'] ?? 'unit'}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.055, color: green)),
+                              const Spacer(),
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: green.withOpacity(0.12),
+                                  borderRadius: BorderRadius.circular(screenWidth * 0.07),
                                 ),
-                              const SizedBox(height: 18),
-                              Row(
-                                children: [
-                                  Icon(Icons.category, color: Colors.orange, size: 20),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    'Category: ${product['category'] ?? 'Unknown'}',
-                                    style: const TextStyle(fontSize: 15, color: Colors.orange),
-                                  ),
-                                ],
+                                child: Row(
+                                  children: [
+                                    IconButton(
+                                      icon: Icon(Icons.remove, size: screenWidth * 0.06),
+                                      onPressed: _qty > 1 ? () => setState(() => _qty--) : null,
+                                    ),
+                                    Text('$_qty ${product['unit'] ?? 'unit'}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.045)),
+                                    IconButton(
+                                      icon: Icon(Icons.add, size: screenWidth * 0.06),
+                                      onPressed: () => setState(() => _qty++),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ],
                           ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Positioned(
-                    top: 56,
-                    left: 32,
-                    child: CircleAvatar(
-                      backgroundColor: Colors.white,
-                      child: IconButton(
-                        icon: const Icon(Icons.arrow_back, color: Colors.black87),
-                        onPressed: () => Navigator.pop(context),
+                          SizedBox(height: screenWidth * 0.02),
+                          Row(
+                            children: [
+                              Icon(Icons.inventory, color: Colors.blue, size: screenWidth * 0.05),
+                              SizedBox(width: screenWidth * 0.02),
+                              Text('Stock: ${product['quantity'] ?? 0} ${product['unit'] ?? 'unit'}', style: TextStyle(fontSize: screenWidth * 0.04, color: Colors.blue)),
+                            ],
+                          ),
+                          SizedBox(height: screenWidth * 0.03),
+                          Text('Product Details', style: TextStyle(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.05)),
+                          SizedBox(height: screenWidth * 0.01),
+                          Text(showReadMore && !_readMore ? '${desc.substring(0, 90)}...' : desc, style: TextStyle(fontSize: screenWidth * 0.042, color: Colors.black87)),
+                          if (showReadMore && !_readMore)
+                            GestureDetector(
+                              onTap: () => setState(() => _readMore = true),
+                              child: Text('Read More', style: TextStyle(color: green, fontWeight: FontWeight.bold, fontSize: screenWidth * 0.04)),
+                            ),
+                          SizedBox(height: screenWidth * 0.03),
+                          Row(
+                            children: [
+                              Icon(Icons.category, color: Colors.orange, size: screenWidth * 0.05),
+                              SizedBox(width: screenWidth * 0.02),
+                              Text('Category: ${product['category'] ?? 'Unknown'}', style: TextStyle(fontSize: screenWidth * 0.04, color: Colors.orange)),
+                            ],
+                          ),
+                        ],
                       ),
                     ),
-                  ),
-                  Positioned(
-                    top: 56,
-                    right: 32,
-                    child: CircleAvatar(
-                      backgroundColor: Colors.white,
-                      child: IconButton(
-                        icon: const Icon(Icons.favorite_border, color: Color(0xFFA7C957)),
-                        onPressed: () {
-                        
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Added to favorites!')),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
               const SizedBox(height: 24),
               Padding(
@@ -269,40 +235,32 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
             right: 0,
             bottom: 0,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.06, vertical: screenWidth * 0.04),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(24),
-                  topRight: Radius.circular(24),
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(screenWidth * 0.07),
+                  topRight: Radius.circular(screenWidth * 0.07),
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black12,
-                    blurRadius: 12,
-                    offset: const Offset(0, -2),
-                  ),
-                ],
+                boxShadow: neumorphicShadow,
               ),
               child: Row(
                 children: [
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Total Price', style: TextStyle(color: Colors.black54)),
-                      Text(
-                        '₱${((product['price'] ?? 0) * _qty).toStringAsFixed(2)}', 
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: green)
-                      ),
+                      Text('Total Price', style: TextStyle(color: Colors.black54, fontSize: screenWidth * 0.04)),
+                      Text('₱${((product['price'] ?? 0) * _qty).toStringAsFixed(2)}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.055, color: green)),
                     ],
                   ),
                   const Spacer(),
                   SizedBox(
-                    height: 48,
+                    height: screenWidth * 0.13,
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: green,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        backgroundColor: const Color(0xFFFFA500), // Orange accent
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(screenWidth * 0.04)),
+                        elevation: 2,
                       ),
                       onPressed: () async {
                         final user = FirebaseAuth.instance.currentUser;

@@ -9,19 +9,35 @@ class VeggiesPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
     final green = const Color(0xFFA7C957);
+    final cardRadius = BorderRadius.circular(screenWidth * 0.05);
+    final neumorphicShadow = [
+      BoxShadow(
+        color: Colors.grey.shade300,
+        offset: Offset(screenWidth * 0.015, screenWidth * 0.015),
+        blurRadius: screenWidth * 0.04,
+      ),
+      BoxShadow(
+        color: Colors.white,
+        offset: Offset(-screenWidth * 0.015, -screenWidth * 0.015),
+        blurRadius: screenWidth * 0.04,
+      ),
+    ];
     return Scaffold(
       backgroundColor: const Color(0xFFF6F6F6),
       appBar: AppBar(
         backgroundColor: green,
-        title: const Text('Veggies'),
+        title: Text('Veggies', style: TextStyle(fontSize: screenWidth * 0.05, fontWeight: FontWeight.bold)),
+        elevation: 0,
       ),
       body: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: EdgeInsets.all(screenWidth * 0.04),
         child: GridView.count(
           crossAxisCount: 2,
-          mainAxisSpacing: 16,
-          crossAxisSpacing: 16,
+          mainAxisSpacing: screenWidth * 0.04,
+          crossAxisSpacing: screenWidth * 0.04,
           childAspectRatio: 0.85,
           children: [
             for (var veggie in veggies)
@@ -44,45 +60,62 @@ class _VeggieGridCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
     final green = const Color(0xFFA7C957);
+    final cardRadius = BorderRadius.circular(screenWidth * 0.05);
+    final neumorphicShadow = [
+      BoxShadow(
+        color: Colors.grey.shade300,
+        offset: Offset(screenWidth * 0.015, screenWidth * 0.015),
+        blurRadius: screenWidth * 0.04,
+      ),
+      BoxShadow(
+        color: Colors.white,
+        offset: Offset(-screenWidth * 0.015, -screenWidth * 0.015),
+        blurRadius: screenWidth * 0.04,
+      ),
+    ];
     return Container(
       decoration: BoxDecoration(
         color: green.withOpacity(0.10),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: cardRadius,
+        boxShadow: neumorphicShadow,
       ),
       child: Padding(
-        padding: const EdgeInsets.all(12.0),
+        padding: EdgeInsets.all(screenWidth * 0.03),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Align(
               alignment: Alignment.topRight,
-              child: Icon(Icons.favorite_border, color: green),
+              child: Icon(Icons.favorite_border, color: green, size: screenWidth * 0.05),
             ),
-            Center(child: Text(veggie['image'], style: const TextStyle(fontSize: 40))),
-            const SizedBox(height: 8),
-            Text(veggie['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const SizedBox(height: 4),
+            Center(child: Text(veggie['image'], style: TextStyle(fontSize: screenWidth * 0.09))),
+            SizedBox(height: screenWidth * 0.02),
+            Text(veggie['name'], style: TextStyle(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.04)),
+            SizedBox(height: screenWidth * 0.01),
             Row(
               children: [
-                Icon(Icons.star, color: Colors.orange, size: 16),
-                Text('${veggie['rating']}', style: const TextStyle(fontSize: 14)),
+                Icon(Icons.star, color: Colors.orange, size: screenWidth * 0.04),
+                Text('${veggie['rating']}', style: TextStyle(fontSize: screenWidth * 0.035)),
               ],
             ),
-            const SizedBox(height: 4),
-            Text('₱${veggie['price']}/KG', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFFA7C957))),
+            SizedBox(height: screenWidth * 0.01),
+            Text('\u20b1${veggie['price']}/KG', style: TextStyle(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.04, color: green)),
             const Spacer(),
             Align(
               alignment: Alignment.bottomRight,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: green,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  minimumSize: const Size(36, 36),
+                  shape: RoundedRectangleBorder(borderRadius: cardRadius),
+                  minimumSize: Size(screenWidth * 0.09, screenWidth * 0.09),
                   padding: EdgeInsets.zero,
+                  elevation: 0,
+                  shadowColor: Colors.transparent,
                 ),
                 onPressed: () {},
-                child: const Icon(Icons.add, color: Colors.white),
+                child: Icon(Icons.add, color: Colors.white, size: screenWidth * 0.05),
               ),
             ),
           ],

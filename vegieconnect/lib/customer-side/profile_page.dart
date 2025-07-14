@@ -7,6 +7,8 @@ class ProfilePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
     final green = const Color(0xFFA7C957);
     final user = FirebaseAuth.instance.currentUser;
     return FutureBuilder<DocumentSnapshot>(
@@ -74,7 +76,7 @@ class ProfilePage extends StatelessWidget {
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
                     itemCount: orders.length,
-                    separatorBuilder: (context, index) => const Divider(height: 1),
+                    separatorBuilder: (context, index) => SizedBox(height: screenWidth * 0.02),
                     itemBuilder: (context, index) {
                       final order = orders[index].data() as Map<String, dynamic>;
                       final status = order['status'] ?? 'pending';
@@ -92,28 +94,48 @@ class ProfilePage extends StatelessWidget {
                         default:
                           statusColor = Colors.grey;
                       }
-                      return ListTile(
-                        leading: Icon(Icons.receipt_long, color: green),
-                        title: Text(order['productName'] ?? ''),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Qty: ${order['quantity']} ${order['unit']}'),
-                            Text('₱${order['price']?.toStringAsFixed(2) ?? '0.00'}'),
-                            Text('Status: $status', style: TextStyle(color: statusColor)),
-                            Text('Payment: ${order['paymentMethod'] == 'cash_on_pickup' ? 'Cash on Pick Up' : (order['paymentMethod'] ?? 'N/A')}'),
-                            Text('Payment Status: ${order['paymentStatus'] ?? 'N/A'}'),
+                      return Container(
+                        margin: EdgeInsets.symmetric(horizontal: screenWidth * 0.03),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(screenWidth * 0.05),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.grey.shade300,
+                              offset: Offset(screenWidth * 0.015, screenWidth * 0.015),
+                              blurRadius: screenWidth * 0.04,
+                            ),
+                            BoxShadow(
+                              color: Colors.white,
+                              offset: Offset(-screenWidth * 0.015, -screenWidth * 0.015),
+                              blurRadius: screenWidth * 0.04,
+                            ),
                           ],
                         ),
-                        trailing: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: statusColor.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
+                        child: ListTile(
+                          contentPadding: EdgeInsets.symmetric(horizontal: screenWidth * 0.04, vertical: screenWidth * 0.03),
+                          leading: Icon(Icons.receipt_long, color: green, size: screenWidth * 0.09),
+                          title: Text(order['productName'] ?? '', style: TextStyle(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.045)),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Qty: ${order['quantity']} ${order['unit']}', style: TextStyle(fontSize: screenWidth * 0.04)),
+                              Text('₱${order['price']?.toStringAsFixed(2) ?? '0.00'}', style: TextStyle(fontSize: screenWidth * 0.04)),
+                              Text('Status: $status', style: TextStyle(color: statusColor, fontSize: screenWidth * 0.04)),
+                              Text('Payment: ${order['paymentMethod'] == 'cash_on_pickup' ? 'Cash on Pick Up' : (order['paymentMethod'] ?? 'N/A')}', style: TextStyle(fontSize: screenWidth * 0.038)),
+                              Text('Payment Status: ${order['paymentStatus'] ?? 'N/A'}', style: TextStyle(fontSize: screenWidth * 0.038)),
+                            ],
                           ),
-                          child: Text(
-                            status,
-                            style: TextStyle(fontSize: 12, color: statusColor, fontWeight: FontWeight.bold),
+                          trailing: Container(
+                            padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.03, vertical: screenWidth * 0.015),
+                            decoration: BoxDecoration(
+                              color: statusColor.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(screenWidth * 0.04),
+                            ),
+                            child: Text(
+                              status,
+                              style: TextStyle(fontSize: screenWidth * 0.04, color: statusColor, fontWeight: FontWeight.bold),
+                            ),
                           ),
                         ),
                       );

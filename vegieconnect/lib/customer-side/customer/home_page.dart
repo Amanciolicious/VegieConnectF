@@ -10,8 +10,23 @@ class HomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
     final green = const Color(0xFFA7C957);
     final darkGreen = const Color(0xFF6CA04A);
+    final cardRadius = BorderRadius.circular(screenWidth * 0.05);
+    final neumorphicShadow = [
+      BoxShadow(
+        color: Colors.grey.shade300,
+        offset: Offset(screenWidth * 0.015, screenWidth * 0.015),
+        blurRadius: screenWidth * 0.04,
+      ),
+      BoxShadow(
+        color: Colors.white,
+        offset: Offset(-screenWidth * 0.015, -screenWidth * 0.015),
+        blurRadius: screenWidth * 0.04,
+      ),
+    ];
     return Scaffold(
       backgroundColor: const Color(0xFFF6F6F6),
       body: SafeArea(
@@ -20,41 +35,43 @@ class HomePage extends StatelessWidget {
           children: [
             Container(
               color: green,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+              padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05, vertical: screenWidth * 0.045),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.location_on, color: Colors.white),
-                      const SizedBox(width: 8),
-                      const Text('Your Location', style: TextStyle(color: Colors.white70, fontSize: 14)),
+                      Icon(Icons.location_on, color: Colors.white, size: screenWidth * 0.05),
+                      SizedBox(width: screenWidth * 0.02),
+                      Text('Your Location', style: TextStyle(color: Colors.white70, fontSize: screenWidth * 0.035)),
                       const Spacer(),
-                      Icon(Icons.notifications_none, color: Colors.white),
+                      Icon(Icons.notifications_none, color: Colors.white, size: screenWidth * 0.05),
                     ],
                   ),
-                  const SizedBox(height: 4),
-                  const Text('Welcome, Vegie Lover!', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 16),
+                  SizedBox(height: screenWidth * 0.01),
+                  Text('Welcome, Vegie Lover!', style: TextStyle(color: Colors.white, fontSize: screenWidth * 0.05, fontWeight: FontWeight.bold)),
+                  SizedBox(height: screenWidth * 0.04),
                   Container(
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: cardRadius,
+                      boxShadow: neumorphicShadow,
                     ),
                     child: Row(
                       children: [
-                        const SizedBox(width: 12),
-                        const Icon(Icons.search, color: Colors.black38),
-                        const SizedBox(width: 8),
+                        SizedBox(width: screenWidth * 0.03),
+                        Icon(Icons.search, color: Colors.black38, size: screenWidth * 0.05),
+                        SizedBox(width: screenWidth * 0.02),
                         Expanded(
                           child: TextField(
                             decoration: InputDecoration(
                               hintText: 'Search Vegetables',
                               border: InputBorder.none,
                             ),
+                            style: TextStyle(fontSize: screenWidth * 0.04),
                           ),
                         ),
-                        const SizedBox(width: 12),
+                        SizedBox(width: screenWidth * 0.03),
                       ],
                     ),
                   ),
@@ -62,37 +79,38 @@ class HomePage extends StatelessWidget {
               ),
             ),
             Container(
-              margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-              padding: const EdgeInsets.all(18),
+              margin: EdgeInsets.symmetric(horizontal: screenWidth * 0.05, vertical: screenWidth * 0.045),
+              padding: EdgeInsets.all(screenWidth * 0.045),
               decoration: BoxDecoration(
                 color: green.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: cardRadius,
+                boxShadow: neumorphicShadow,
               ),
               child: Row(
                 children: [
-                  Icon(Icons.local_offer, color: green, size: 40),
-                  const SizedBox(width: 16),
+                  Icon(Icons.local_offer, color: green, size: screenWidth * 0.09),
+                  SizedBox(width: screenWidth * 0.04),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
-                        Text('Get 40% discount on your first order from app.', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                        SizedBox(height: 6),
-                        Text('Shop Now', style: TextStyle(color: Colors.green, fontWeight: FontWeight.w500)),
+                      children: [
+                        Text('Get 40% discount on your first order from app.', style: TextStyle(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.04)),
+                        SizedBox(height: screenWidth * 0.015),
+                        Text('Shop Now', style: TextStyle(color: green, fontWeight: FontWeight.w500, fontSize: screenWidth * 0.035)),
                       ],
                     ),
                   ),
-                  Icon(Icons.eco, color: darkGreen, size: 48),
+                  Icon(Icons.eco, color: darkGreen, size: screenWidth * 0.11),
                 ],
               ),
             ),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: const Text('Categories', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
+              child: Text('Categories', style: TextStyle(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.045)),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: screenWidth * 0.03),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
+              padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
               child: GestureDetector(
                 onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const VeggiesPage())),
                 child: Row(
@@ -102,11 +120,11 @@ class HomePage extends StatelessWidget {
                         children: [
                           CircleAvatar(
                             backgroundColor: green.withOpacity(0.15),
-                            radius: 32,
-                            child: Icon(Icons.eco, color: green, size: 32),
+                            radius: screenWidth * 0.08,
+                            child: Icon(Icons.eco, color: green, size: screenWidth * 0.08),
                           ),
-                          const SizedBox(height: 8),
-                          const Text('Veggies', style: TextStyle(fontWeight: FontWeight.w500)),
+                          SizedBox(height: screenWidth * 0.02),
+                          Text('Veggies', style: TextStyle(fontWeight: FontWeight.w500, fontSize: screenWidth * 0.04)),
                         ],
                       ),
                     ),
@@ -115,20 +133,20 @@ class HomePage extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: screenWidth * 0.06),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: const Text('Popular', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
+              child: Text('Popular', style: TextStyle(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.045)),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: screenWidth * 0.03),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
+              padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
               child: GridView.count(
                 crossAxisCount: 2,
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                mainAxisSpacing: 16,
-                crossAxisSpacing: 16,
+                mainAxisSpacing: screenWidth * 0.04,
+                crossAxisSpacing: screenWidth * 0.04,
                 childAspectRatio: 1.1,
                 children: [
                   for (var veggie in veggies.take(4))
@@ -141,7 +159,7 @@ class HomePage extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 32),
+            SizedBox(height: screenWidth * 0.08),
           ],
         ),
       ),
@@ -155,24 +173,39 @@ class _VeggieCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
     final green = const Color(0xFFA7C957);
+    final cardRadius = BorderRadius.circular(screenWidth * 0.05);
+    final neumorphicShadow = [
+      BoxShadow(
+        color: Colors.grey.shade300,
+        offset: Offset(screenWidth * 0.015, screenWidth * 0.015),
+        blurRadius: screenWidth * 0.04,
+      ),
+      BoxShadow(
+        color: Colors.white,
+        offset: Offset(-screenWidth * 0.015, -screenWidth * 0.015),
+        blurRadius: screenWidth * 0.04,
+      ),
+    ];
     return Container(
       decoration: BoxDecoration(
         color: green.withOpacity(0.10),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: cardRadius,
+        boxShadow: neumorphicShadow,
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(veggie['image'], style: const TextStyle(fontSize: 40)),
-          const SizedBox(height: 10),
-          Text(veggie['name'], style: const TextStyle(fontWeight: FontWeight.w600)),
-          const SizedBox(height: 6),
+          Text(veggie['image'], style: TextStyle(fontSize: screenWidth * 0.09)),
+          SizedBox(height: screenWidth * 0.025),
+          Text(veggie['name'], style: TextStyle(fontWeight: FontWeight.w600, fontSize: screenWidth * 0.04)),
+          SizedBox(height: screenWidth * 0.015),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.star, color: Colors.orange, size: 16),
-              Text('${veggie['rating']}', style: const TextStyle(fontSize: 14)),
+              Icon(Icons.star, color: Colors.orange, size: screenWidth * 0.04),
+              Text('${veggie['rating']}', style: TextStyle(fontSize: screenWidth * 0.035)),
             ],
           ),
         ],

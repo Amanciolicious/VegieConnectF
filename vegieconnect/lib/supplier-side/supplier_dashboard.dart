@@ -23,14 +23,29 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
     final green = const Color(0xFFA7C957);
-    
+    final bg = const Color(0xFFF6F6F6);
+    final cardRadius = BorderRadius.circular(screenWidth * 0.05);
+    final neumorphicShadow = [
+      BoxShadow(
+        color: Colors.grey.shade300,
+        offset: Offset(screenWidth * 0.015, screenWidth * 0.015),
+        blurRadius: screenWidth * 0.04,
+      ),
+      BoxShadow(
+        color: Colors.white,
+        offset: Offset(-screenWidth * 0.015, -screenWidth * 0.015),
+        blurRadius: screenWidth * 0.04,
+      ),
+    ];
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F6F6),
+      backgroundColor: bg,
       appBar: AppBar(
-        title: const Text(
+        title: Text(
           'Supplier Dashboard',
-          style: TextStyle(fontWeight: FontWeight.bold),
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.055),
         ),
         backgroundColor: green,
         foregroundColor: Colors.white,
@@ -135,7 +150,7 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
       body: IndexedStack(
         index: _selectedIndex,
         children: [
-          _buildOverviewTab(),
+          _buildOverviewTab(screenWidth, cardRadius, neumorphicShadow),
           _buildProductsTab(),
           _buildOrdersTab(),
           _buildProfileTab(),
@@ -173,30 +188,29 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
     );
   }
 
-  Widget _buildOverviewTab() {
+  Widget _buildOverviewTab(double screenWidth, BorderRadius cardRadius, List<BoxShadow> neumorphicShadow) {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       return const Center(child: Text('Not logged in.'));
     }
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(screenWidth * 0.04),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Business Overview',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            style: TextStyle(fontSize: screenWidth * 0.06, fontWeight: FontWeight.bold),
           ),
-          const SizedBox(height: 20),
-          // Fix: Wrap GridView in SizedBox to prevent overflow
+          SizedBox(height: screenWidth * 0.05),
           SizedBox(
-            height: 220, // Adjust as needed for your UI
+            height: 220,
             child: GridView.count(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               crossAxisCount: 2,
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
+              crossAxisSpacing: screenWidth * 0.04,
+              mainAxisSpacing: screenWidth * 0.04,
               childAspectRatio: 1.5,
               children: [
                 // Total Products
@@ -207,7 +221,7 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
                       .snapshots(),
                   builder: (context, snapshot) {
                     final count = snapshot.hasData ? snapshot.data!.docs.length : 0;
-                    return _buildStatCard('Total Products', '$count', Icons.inventory, Colors.blue);
+                    return _buildStatCard(screenWidth, cardRadius, neumorphicShadow, 'Total Products', '$count', Icons.inventory, Colors.blue);
                   },
                 ),
                 // Active Orders
@@ -219,7 +233,7 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
                       .snapshots(),
                   builder: (context, snapshot) {
                     final count = snapshot.hasData ? snapshot.data!.docs.length : 0;
-                    return _buildStatCard('Active Orders', '$count', Icons.shopping_cart, Colors.green);
+                    return _buildStatCard(screenWidth, cardRadius, neumorphicShadow, 'Active Orders', '$count', Icons.shopping_cart, Colors.green);
                   },
                 ),
                 // Revenue
@@ -239,7 +253,7 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
                           : (data['price'] ?? 0);
                       }
                     }
-                    return _buildStatCard('Revenue', '₱${revenue.toStringAsFixed(2)}', Icons.attach_money, Colors.orange);
+                    return _buildStatCard(screenWidth, cardRadius, neumorphicShadow, 'Revenue', '₱${revenue.toStringAsFixed(2)}', Icons.attach_money, Colors.orange);
                   },
                 ),
                 // Rating
@@ -259,7 +273,7 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
                       }
                       avg = sum / snapshot.data!.docs.length;
                     }
-                    return _buildStatCard('Rating', avg > 0 ? avg.toStringAsFixed(1) : 'N/A', Icons.star, Colors.purple);
+                    return _buildStatCard(screenWidth, cardRadius, neumorphicShadow, 'Rating', avg > 0 ? avg.toStringAsFixed(1) : 'N/A', Icons.star, Colors.purple);
                   },
                 ),
               ],
@@ -274,37 +288,37 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
           // Fix: Wrap _buildRecentOrders in SizedBox to prevent overflow
           SizedBox(
             height: 320, // Adjust as needed for your UI
-            child: _buildRecentOrders(),
+            child: _buildRecentOrders(screenWidth),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildStatCard(String title, String value, IconData icon, Color color) {
+  Widget _buildStatCard(double screenWidth, BorderRadius cardRadius, List<BoxShadow> neumorphicShadow, String title, String value, IconData icon, Color color) {
     return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 0, // Removed elevation for neumorphic effect
+      shape: RoundedRectangleBorder(borderRadius: cardRadius),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(screenWidth * 0.04),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Icon(icon, color: color, size: 24),
+                Icon(icon, color: color, size: screenWidth * 0.06),
                 const Spacer(),
-                Icon(Icons.trending_up, color: Colors.green, size: 20),
+                Icon(Icons.trending_up, color: Colors.green, size: screenWidth * 0.05),
               ],
             ),
             const Spacer(),
             Text(
               value,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              style: TextStyle(fontSize: screenWidth * 0.06, fontWeight: FontWeight.bold),
             ),
             Text(
               title,
-              style: const TextStyle(fontSize: 14, color: Colors.grey),
+              style: TextStyle(fontSize: screenWidth * 0.035, color: Colors.grey),
             ),
           ],
         ),
@@ -312,7 +326,7 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
     );
   }
 
-  Widget _buildRecentOrders() {
+  Widget _buildRecentOrders(double screenWidth) {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       return const Center(child: Text('Not logged in.'));
@@ -358,15 +372,15 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
               title: Text('Order #${order['id'] ?? ''}'),
               subtitle: Text('${order['customer'] ?? ''} • ₱${(order['price'] ?? 0).toStringAsFixed(2)}'),
               trailing: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.02, vertical: screenWidth * 0.01),
                 decoration: BoxDecoration(
                   color: statusColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(screenWidth * 0.05),
                 ),
                 child: Text(
                   status,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: screenWidth * 0.035,
                     color: statusColor,
                     fontWeight: FontWeight.bold,
                   ),
@@ -380,8 +394,10 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
   }
 
   Widget _buildProductsTab() {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(screenWidth * 0.04),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -415,6 +431,8 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
   }
 
   Widget _buildProductList() {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       return const Center(child: Text('Not logged in.'));
@@ -439,10 +457,10 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
         return GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 2,
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 16,
+            crossAxisSpacing: screenWidth * 0.04,
+            mainAxisSpacing: screenWidth * 0.04,
             childAspectRatio: 0.8,
           ),
           itemCount: products.length,
@@ -461,21 +479,21 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
                 );
               },
               child: Card(
-                elevation: 4,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 0, // Removed elevation for neumorphic effect
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(screenWidth * 0.05)),
                 child: Padding(
-                  padding: const EdgeInsets.all(8.0),
+                  padding: EdgeInsets.all(screenWidth * 0.02),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Center(
                         child: SizedBox(
-                          height: 50,
+                          height: screenWidth * 0.12,
                           child: ProductImageWidget(
                             imagePath: product['imageUrl'] ?? '',
-                            width: 64,
-                            height: 50,
-                            placeholder: Icon(Icons.shopping_basket, size: 32, color: const Color(0xFFA7C957)),
+                            width: screenWidth * 0.16,
+                            height: screenWidth * 0.125,
+                            placeholder: Icon(Icons.shopping_basket, size: screenWidth * 0.08, color: const Color(0xFFA7C957)),
                           ),
                         ),
                       ),
@@ -591,8 +609,10 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
   }
 
   Widget _buildOrdersTab() {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(screenWidth * 0.04),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -609,7 +629,7 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
                     hintText: 'Search orders...',
                     prefixIcon: const Icon(Icons.search),
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(screenWidth * 0.05),
                     ),
                     filled: true,
                     fillColor: Colors.white,
@@ -636,6 +656,8 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
   }
 
   Widget _buildOrderList() {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       return const Center(child: Text('Not logged in.'));
@@ -708,11 +730,12 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
                 ],
               ),
               trailing: DropdownButton<String>(
-                value: status,
+                value: ['pending', 'processing', 'completed', 'cancelled'].contains(status) ? status : 'pending',
                 items: const [
                   DropdownMenuItem(value: 'pending', child: Text('Pending')),
                   DropdownMenuItem(value: 'processing', child: Text('Processing')),
                   DropdownMenuItem(value: 'completed', child: Text('Completed')),
+                  DropdownMenuItem(value: 'cancelled', child: Text('Cancelled')),
                 ],
                 onChanged: (val) async {
                   if (val != null && val != status) {
@@ -759,6 +782,8 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
   }
 
   Widget _buildProfileTab() {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
     final user = FirebaseAuth.instance.currentUser;
     return FutureBuilder<DocumentSnapshot>(
       future: FirebaseFirestore.instance.collection('users').doc(user!.uid).get(),
@@ -771,7 +796,7 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
         }
         final data = snapshot.data!.data() as Map<String, dynamic>;
         return SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.all(screenWidth * 0.04),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -781,14 +806,14 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
               ),
               const SizedBox(height: 20),
               Card(
-                elevation: 2,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 0, // Removed elevation for neumorphic effect
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(screenWidth * 0.05)),
                 child: Padding(
-                  padding: const EdgeInsets.all(20),
+                  padding: EdgeInsets.all(screenWidth * 0.05),
                   child: Column(
                     children: [
                       CircleAvatar(
-                        radius: 50,
+                        radius: screenWidth * 0.125,
                         backgroundColor: const Color(0xFFA7C957).withOpacity(0.1),
                         child: const Icon(
                           Icons.store,
@@ -821,7 +846,7 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
                                 .snapshots(),
                             builder: (context, snapshot) {
                               final count = snapshot.hasData ? snapshot.data!.docs.length : 0;
-                              return _buildProfileStat('Products', '$count');
+                              return _buildProfileStat(screenWidth, 'Products', '$count');
                             },
                           ),
                           // Orders count
@@ -832,7 +857,7 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
                                 .snapshots(),
                             builder: (context, snapshot) {
                               final count = snapshot.hasData ? snapshot.data!.docs.length : 0;
-                              return _buildProfileStat('Orders', '$count');
+                              return _buildProfileStat(screenWidth, 'Orders', '$count');
                             },
                           ),
                           // Rating average
@@ -852,7 +877,7 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
                                 }
                                 avg = sum / snapshot.data!.docs.length;
                               }
-                              return _buildProfileStat('Rating', avg > 0 ? avg.toStringAsFixed(1) : 'N/A');
+                              return _buildProfileStat(screenWidth, 'Rating', avg > 0 ? avg.toStringAsFixed(1) : 'N/A');
                             },
                           ),
                         ],
@@ -911,8 +936,8 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
               ),
               const SizedBox(height: 20),
               Card(
-                elevation: 2,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 0, // Removed elevation for neumorphic effect
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(screenWidth * 0.05)),
                 child: Column(
                   children: [
                     ListTile(
@@ -957,16 +982,16 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
     );
   }
 
-  Widget _buildProfileStat(String label, String value) {
+  Widget _buildProfileStat(double screenWidth, String label, String value) {
     return Column(
       children: [
         Text(
           value,
-          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          style: TextStyle(fontSize: screenWidth * 0.05, fontWeight: FontWeight.bold),
         ),
         Text(
           label,
-          style: const TextStyle(fontSize: 12, color: Colors.grey),
+          style: TextStyle(fontSize: screenWidth * 0.035, color: Colors.grey),
         ),
       ],
     );

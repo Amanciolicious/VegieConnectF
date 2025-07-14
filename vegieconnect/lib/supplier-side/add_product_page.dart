@@ -114,14 +114,32 @@ class _AddProductPageState extends State<AddProductPage> {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
     final green = const Color(0xFFA7C957);
+    final bg = const Color(0xFFF6F6F6);
+    final cardRadius = BorderRadius.circular(screenWidth * 0.05);
+    final neumorphicShadow = [
+      BoxShadow(
+        color: Colors.grey.shade300,
+        offset: Offset(screenWidth * 0.015, screenWidth * 0.015),
+        blurRadius: screenWidth * 0.04,
+      ),
+      BoxShadow(
+        color: Colors.white,
+        offset: Offset(-screenWidth * 0.015, -screenWidth * 0.015),
+        blurRadius: screenWidth * 0.04,
+      ),
+    ];
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.product != null ? 'Edit Product' : 'Add Product'),
+        title: Text(widget.product != null ? 'Edit Product' : 'Add Product', style: TextStyle(fontSize: screenWidth * 0.055, fontWeight: FontWeight.bold)),
         backgroundColor: green,
+        elevation: 0,
       ),
+      backgroundColor: bg,
       body: Padding(
-        padding: const EdgeInsets.all(20.0),
+        padding: EdgeInsets.all(screenWidth * 0.05),
         child: Form(
           key: _formKey,
           child: ListView(
@@ -129,64 +147,76 @@ class _AddProductPageState extends State<AddProductPage> {
               Center(
                 child: GestureDetector(
                   onTap: _pickImage,
-                  child: _webImageBytes != null
-                      ? Image.memory(_webImageBytes!, width: 120, height: 120, fit: BoxFit.cover)
-                      : _imageFile != null
-                          ? Image.file(_imageFile!, width: 120, height: 120, fit: BoxFit.cover)
-                          : ProductImageWidget(
-                              imagePath: _imageUrl ?? '',
-                              width: 120,
-                              height: 120,
-                            ),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: cardRadius,
+                      boxShadow: neumorphicShadow,
+                    ),
+                    padding: EdgeInsets.all(screenWidth * 0.03),
+                    child: _webImageBytes != null
+                        ? Image.memory(_webImageBytes!, width: screenWidth * 0.3, height: screenWidth * 0.3, fit: BoxFit.cover)
+                        : _imageFile != null
+                            ? Image.file(_imageFile!, width: screenWidth * 0.3, height: screenWidth * 0.3, fit: BoxFit.cover)
+                            : ProductImageWidget(
+                                imagePath: _imageUrl ?? '',
+                                width: screenWidth * 0.3,
+                                height: screenWidth * 0.3,
+                              ),
+                  ),
                 ),
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: screenWidth * 0.03),
               TextFormField(
                 controller: _nameController,
-                decoration: const InputDecoration(labelText: 'Product Name'),
+                decoration: InputDecoration(labelText: 'Product Name', border: OutlineInputBorder(borderRadius: cardRadius)),
                 validator: (value) => value == null || value.isEmpty ? 'Enter product name' : null,
+                style: TextStyle(fontSize: screenWidth * 0.045),
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: screenWidth * 0.03),
               TextFormField(
                 controller: _descController,
-                decoration: const InputDecoration(labelText: 'Description'),
+                decoration: InputDecoration(labelText: 'Description', border: OutlineInputBorder(borderRadius: cardRadius)),
                 maxLines: 2,
+                style: TextStyle(fontSize: screenWidth * 0.045),
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: screenWidth * 0.03),
               TextFormField(
                 controller: _priceController,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Price',
                   prefixText: '₱ ',
+                  border: OutlineInputBorder(borderRadius: cardRadius),
                 ),
                 keyboardType: TextInputType.number,
                 validator: (value) => value == null || value.isEmpty ? 'Enter price' : null,
+                style: TextStyle(fontSize: screenWidth * 0.045),
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: screenWidth * 0.03),
               Row(
                 children: [
-                  const Text('Quantity', style: TextStyle(fontSize: 16)),
-                  const SizedBox(width: 16),
+                  Text('Quantity', style: TextStyle(fontSize: screenWidth * 0.045)),
+                  SizedBox(width: screenWidth * 0.04),
                   Container(
                     decoration: BoxDecoration(
                       border: Border.all(color: Colors.blue),
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: cardRadius,
+                      color: Colors.white,
+                      boxShadow: neumorphicShadow,
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         IconButton(
-                          icon: const Icon(Icons.remove),
-                          onPressed: _quantity > 0
-                              ? () => setState(() => _quantity--)
-                              : null,
+                          icon: Icon(Icons.remove, size: screenWidth * 0.06),
+                          onPressed: _quantity > 0 ? () => setState(() => _quantity--) : null,
                         ),
                         Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                          child: Text('$_quantity', style: const TextStyle(fontSize: 18)),
+                          padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.03),
+                          child: Text('$_quantity', style: TextStyle(fontSize: screenWidth * 0.045)),
                         ),
                         IconButton(
-                          icon: const Icon(Icons.add),
+                          icon: Icon(Icons.add, size: screenWidth * 0.06),
                           onPressed: () => setState(() => _quantity++),
                         ),
                       ],
@@ -194,7 +224,7 @@ class _AddProductPageState extends State<AddProductPage> {
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: screenWidth * 0.03),
               DropdownButtonFormField<String>(
                 value: _unit,
                 items: const [
@@ -203,9 +233,10 @@ class _AddProductPageState extends State<AddProductPage> {
                   DropdownMenuItem(value: 'g', child: Text('g')),
                 ],
                 onChanged: (val) => setState(() => _unit = val ?? 'kg'),
-                decoration: const InputDecoration(labelText: 'Unit'),
+                decoration: InputDecoration(labelText: 'Unit', border: OutlineInputBorder(borderRadius: cardRadius)),
+                style: TextStyle(fontSize: screenWidth * 0.045),
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: screenWidth * 0.03),
               DropdownButtonFormField<String>(
                 value: _category,
                 items: const [
@@ -214,23 +245,25 @@ class _AddProductPageState extends State<AddProductPage> {
                   DropdownMenuItem(value: 'Other', child: Text('Other')),
                 ],
                 onChanged: (val) => setState(() => _category = val ?? 'Vegetable'),
-                decoration: const InputDecoration(labelText: 'Category'),
+                decoration: InputDecoration(labelText: 'Category', border: OutlineInputBorder(borderRadius: cardRadius)),
+                style: TextStyle(fontSize: screenWidth * 0.045),
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: screenWidth * 0.03),
               SwitchListTile(
                 value: _isActive,
                 onChanged: (val) => setState(() => _isActive = val),
-                title: const Text('Active'),
+                title: Text('Active', style: TextStyle(fontSize: screenWidth * 0.045)),
+                contentPadding: EdgeInsets.zero,
               ),
-              const SizedBox(height: 24),
+              SizedBox(height: screenWidth * 0.05),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   TextButton(
                     onPressed: () => Navigator.pop(context),
-                    child: const Text('Cancel'),
+                    child: Text('Cancel', style: TextStyle(fontSize: screenWidth * 0.045)),
                   ),
-                  const SizedBox(width: 16),
+                  SizedBox(width: screenWidth * 0.04),
                   ElevatedButton(
                     onPressed: _isUploading
                         ? null
