@@ -8,6 +8,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/supplier_location.dart';
 import '../services/supplier_location_service.dart';
 import '../services/map_service.dart';
+import 'package:vegieconnect/theme.dart'; // For AppColors
 
 class SupplierLocationPage extends StatefulWidget {
   const SupplierLocationPage({super.key});
@@ -325,22 +326,14 @@ class _SupplierLocationPageState extends State<SupplierLocationPage> {
       
       final supplierName = userDoc.data()?['name'] ?? 'Unknown Supplier';
       
-      // Get address from coordinates
-      final address = await _mapService.getAddressFromCoordinates(location);
-
-      final supplierLocation = SupplierLocation(
-        id: user.uid, // FIX: Use UID as document ID
+      // Use the new API
+      await _supplierLocationService.createOrUpdateSupplierLocation(
         supplierId: user.uid,
         supplierName: supplierName,
         locationName: name,
         description: description,
-        latitude: location.latitude,
-        longitude: location.longitude,
-        address: address,
-        createdAt: DateTime.now(),
+        location: location,
       );
-
-      await _supplierLocationService.addSupplierLocation(supplierLocation);
       
       // Reload supplier location
       await _loadSupplierLocation();
@@ -357,19 +350,13 @@ class _SupplierLocationPageState extends State<SupplierLocationPage> {
 
   Future<void> _updateSupplierLocation(LatLng newLocation) async {
     try {
-      if (_supplierLocation == null) return;
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null || _supplierLocation == null) return;
       
-      // Get new address from coordinates
-      final newAddress = await _mapService.getAddressFromCoordinates(newLocation);
-
-      // Create updated supplier location
-      final updatedLocation = _supplierLocation!.copyWith(
-        latitude: newLocation.latitude,
-        longitude: newLocation.longitude,
-        address: newAddress,
+      await _supplierLocationService.updateSupplierLocation(
+        supplierId: user.uid,
+        newLocation: newLocation,
       );
-
-      await _supplierLocationService.updateSupplierLocation(updatedLocation);
       
       // Reload supplier location
       await _loadSupplierLocation();
@@ -384,68 +371,101 @@ class _SupplierLocationPageState extends State<SupplierLocationPage> {
     }
   }
 
-  void _showLocationDetails() {
-    if (_supplierLocation == null) return;
-    
-    showDialog(
+
+
+
+
+  void _showSupplierModal(SupplierLocation? supplier) {
+    if (supplier == null) return;
+    showModalBottomSheet(
       context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text(_supplierLocation!.locationName),
-          content: Column(
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      backgroundColor: Colors.white,
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Description: ${_supplierLocation!.description}'),
-              const SizedBox(height: 8),
-              Text('Address: ${_supplierLocation!.address}'),
-              const SizedBox(height: 8),
-              Text('Coordinates: ${_supplierLocation!.latitude.toStringAsFixed(6)}, ${_supplierLocation!.longitude.toStringAsFixed(6)}'),
-              const SizedBox(height: 8),
-              Text('Added: ${_supplierLocation!.createdAt.toString().split('.')[0]}'),
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 28,
+                    backgroundColor: AppColors.primaryGreen.withOpacity(0.1),
+                    child: const Icon(Icons.store, color: AppColors.primaryGreen, size: 32),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(supplier.supplierName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
+                        Row(
+                          children: [
+                            Icon(Icons.star, color: Colors.orange, size: 18),
+                            const SizedBox(width: 4),
+                            Text(supplier.rating != null ? supplier.rating!.toStringAsFixed(1) : 'N/A', style: const TextStyle(fontWeight: FontWeight.bold)),
+                            if (supplier.isNearest ?? false) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primaryGreen.withOpacity(0.15),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Text('Nearest', style: TextStyle(color: AppColors.primaryGreen, fontWeight: FontWeight.bold, fontSize: 12)),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Icon(Icons.location_on, color: AppColors.primaryGreen, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(supplier.address, style: const TextStyle(fontSize: 15))),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Icon(Icons.payments, color: AppColors.primaryGreen, size: 20),
+                  const SizedBox(width: 8),
+                  const Text('Cash on Pick Up', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(width: 16),
+                  Icon(Icons.qr_code, color: AppColors.primaryGreen, size: 20),
+                  const SizedBox(width: 8),
+                  const Text('GCash', style: TextStyle(fontWeight: FontWeight.bold)),
+                ],
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryGreen,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                  onPressed: () {
+                    // Optionally show more details or navigate
+                    Navigator.pop(context);
+                  },
+                  child: const Text('View Details', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+              ),
             ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Close'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                _showEditLocationDialog(_supplierLocation! as LatLng);
-              },
-              child: const Text('Edit', style: TextStyle(color: Colors.blue)),
-            ),
-            TextButton(
-              onPressed: () async {
-                Navigator.of(context).pop();
-                await _deleteSupplierLocation();
-              },
-              child: const Text('Delete', style: TextStyle(color: Colors.red)),
-            ),
-          ],
         );
       },
     );
-  }
-
-
-
-  Future<void> _deleteSupplierLocation() async {
-    try {
-      if (_supplierLocation == null) return;
-      
-      await _supplierLocationService.deleteSupplierLocation(_supplierLocation!.id);
-      await _loadSupplierLocation();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Supplier location deleted successfully!')),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error deleting supplier location: $e')),
-      );
-    }
   }
 
   @override
@@ -499,18 +519,18 @@ class _SupplierLocationPageState extends State<SupplierLocationPage> {
                         width: 40,
                         height: 40,
                         child: GestureDetector(
-                          onTap: () => _showLocationDetails(),
+                          onTap: () => _showSupplierModal(_supplierLocation),
                           child: Container(
                             decoration: BoxDecoration(
-                              color: Colors.blue,
+                              color: AppColors.primaryGreen,
                               shape: BoxShape.circle,
                               border: Border.all(color: Colors.white, width: 2),
                             ),
-                                                      child: const Icon(
-                            Icons.person_pin,
-                            color: Colors.white,
-                            size: 24,
-                          ),
+                            child: const Icon(
+                              Icons.person_pin,
+                              color: Colors.white,
+                              size: 24,
+                            ),
                           ),
                         ),
                       ),

@@ -1,6 +1,8 @@
-import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../customer-side/contact_info_page.dart';
+import 'package:vegieconnect/theme.dart'; // For AppColors
+import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
+import 'package:vegieconnect/authentication/login_page.dart';
 
 class VerifyEmailPage extends StatefulWidget {
   final String userId;
@@ -61,99 +63,206 @@ class _VerifyEmailPageState extends State<VerifyEmailPage> {
 
   @override
   Widget build(BuildContext context) {
-    final green = const Color(0xFFA7C957);
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F6F6),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32.0),
-          child: Card(
-            elevation: 8,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.email, size: 48, color: Color(0xFFA7C957)),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Verify Your Email',
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'A verification link has been sent to:',
-                    style: TextStyle(fontSize: 15, color: Colors.black54),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    widget.email,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Please check your email and click the verification link to continue.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 15, color: Colors.black54),
-                  ),
-                  const SizedBox(height: 24),
-                  if (_errorMessage != null)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8.0),
-                      child: Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
-                    ),
-                  if (_infoMessage != null)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8.0),
-                      child: Text(_infoMessage!, style: const TextStyle(color: Colors.green)),
-                    ),
-                  Row(
+      backgroundColor: AppColors.background,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: EdgeInsets.all(screenWidth * 0.05),
+          child: Column(
+            children: [
+              SizedBox(height: screenHeight * 0.1),
+              // Header Section
+              Neumorphic(
+                style: AppNeumorphic.card,
+                child: Container(
+                  padding: EdgeInsets.all(screenWidth * 0.08),
+                  child: Column(
                     children: [
-                      Expanded(
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: green,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                          ),
-                          onPressed: _isLoading ? null : _checkVerified,
-                          child: _isLoading
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    color: Colors.white,
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Text('Continue'),
+                      Icon(
+                        Icons.email,
+                        size: screenWidth * 0.15,
+                        color: AppColors.primaryGreen,
+                      ),
+                      SizedBox(height: screenWidth * 0.04),
+                      Text(
+                        'Verify Your Email',
+                        style: AppTextStyles.headline.copyWith(
+                          fontSize: screenWidth * 0.06,
+                          color: AppColors.primaryGreen,
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      OutlinedButton(
-                        style: OutlinedButton.styleFrom(
-                          side: BorderSide(color: green),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                      SizedBox(height: screenWidth * 0.02),
+                      Text(
+                        'We\'ve sent a verification link to your email',
+                        style: AppTextStyles.body.copyWith(
+                          fontSize: screenWidth * 0.04,
+                          color: AppColors.textSecondary,
                         ),
-                        onPressed: _isLoading ? null : _resendEmail,
-                        child: const Text('Resend Email'),
+                        textAlign: TextAlign.center,
                       ),
                     ],
                   ),
+                ),
+              ),
+              SizedBox(height: screenHeight * 0.06),
+              // Email Display
+              Neumorphic(
+                style: AppNeumorphic.card,
+                child: Padding(
+                  padding: EdgeInsets.all(screenWidth * 0.06),
+                  child: Column(
+                    children: [
+                      Text(
+                        'Email Address',
+                        style: AppTextStyles.body.copyWith(
+                          fontSize: screenWidth * 0.04,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      SizedBox(height: screenWidth * 0.02),
+                      Text(
+                        widget.email,
+                        style: AppTextStyles.headline.copyWith(
+                          fontSize: screenWidth * 0.045,
+                          color: AppColors.primaryGreen,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              SizedBox(height: screenHeight * 0.04),
+              // Instructions
+              Neumorphic(
+                style: AppNeumorphic.card,
+                child: Padding(
+                  padding: EdgeInsets.all(screenWidth * 0.06),
+                  child: Column(
+                    children: [
+                      Text(
+                        'What to do next:',
+                        style: AppTextStyles.headline.copyWith(
+                          fontSize: screenWidth * 0.05,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      SizedBox(height: screenWidth * 0.04),
+                      _buildInstructionItem(screenWidth, '1', 'Check your email inbox', Icons.inbox),
+                      SizedBox(height: screenWidth * 0.02),
+                      _buildInstructionItem(screenWidth, '2', 'Click the verification link', Icons.link),
+                      SizedBox(height: screenWidth * 0.02),
+                      _buildInstructionItem(screenWidth, '3', 'Return to the app', Icons.arrow_back),
+                    ],
+                  ),
+                ),
+              ),
+              SizedBox(height: screenHeight * 0.04),
+              // Action Buttons
+              Column(
+                children: [
+                  NeumorphicButton(
+                    style: AppNeumorphic.button.copyWith(
+                      color: AppColors.primaryGreen,
+                    ),
+                    onPressed: _isLoading ? null : _checkVerified,
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: screenWidth * 0.04),
+                      child: _isLoading
+                          ? SizedBox(
+                              height: screenWidth * 0.05,
+                              width: screenWidth * 0.05,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            )
+                          : Text(
+                              'I\'ve Verified My Email',
+                              style: AppTextStyles.button.copyWith(
+                                color: Colors.white,
+                                fontSize: screenWidth * 0.045,
+                              ),
+                            ),
+                    ),
+                  ),
+                  SizedBox(height: screenWidth * 0.04),
+                  NeumorphicButton(
+                    style: AppNeumorphic.button.copyWith(
+                      color: Colors.transparent,
+                    ),
+                    onPressed: _resendEmail,
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: screenWidth * 0.04),
+                      child: Text(
+                        'Resend Verification Email',
+                        style: AppTextStyles.button.copyWith(
+                          color: AppColors.primaryGreen,
+                          fontSize: screenWidth * 0.045,
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: screenWidth * 0.04),
+                  TextButton(
+                    onPressed: () {
+                      Navigator.of(context).pushAndRemoveUntil(
+                        MaterialPageRoute(builder: (_) => const LoginPage()),
+                        (route) => false,
+                      );
+                    },
+                    child: Text(
+                      'Back to Login',
+                      style: AppTextStyles.body.copyWith(
+                        color: AppColors.textSecondary,
+                        fontSize: screenWidth * 0.035,
+                      ),
+                    ),
+                  ),
                 ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInstructionItem(double screenWidth, String number, String text, IconData icon) {
+    return Row(
+      children: [
+        Container(
+          width: screenWidth * 0.08,
+          height: screenWidth * 0.08,
+          decoration: BoxDecoration(
+            color: AppColors.primaryGreen,
+            borderRadius: BorderRadius.circular(screenWidth * 0.04),
+          ),
+          child: Center(
+            child: Text(
+              number,
+              style: AppTextStyles.body.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: screenWidth * 0.035,
               ),
             ),
           ),
         ),
-      ),
+        SizedBox(width: screenWidth * 0.04),
+        Icon(icon, color: AppColors.primaryGreen, size: screenWidth * 0.05),
+        SizedBox(width: screenWidth * 0.03),
+        Expanded(
+          child: Text(
+            text,
+            style: AppTextStyles.body.copyWith(
+              fontSize: screenWidth * 0.04,
+            ),
+          ),
+        ),
+      ],
     );
   }
 } 

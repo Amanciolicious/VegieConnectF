@@ -1,6 +1,5 @@
 // ignore_for_file: use_build_context_synchronously
 
-import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:io';
@@ -9,7 +8,8 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../services/image_storage_service.dart';
-import '../widgets/product_image_widget.dart';
+import 'package:vegieconnect/theme.dart'; // For AppColors
+import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
 
 class AddProductPage extends StatefulWidget {
   final Map<String, dynamic>? product;
@@ -116,158 +116,297 @@ class _AddProductPageState extends State<AddProductPage> {
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
-    final green = const Color(0xFFA7C957);
-    final bg = const Color(0xFFF6F6F6);
-    final cardRadius = BorderRadius.circular(screenWidth * 0.05);
-    final neumorphicShadow = [
-      BoxShadow(
-        color: Colors.grey.shade300,
-        offset: Offset(screenWidth * 0.015, screenWidth * 0.015),
-        blurRadius: screenWidth * 0.04,
-      ),
-      BoxShadow(
-        color: Colors.white,
-        offset: Offset(-screenWidth * 0.015, -screenWidth * 0.015),
-        blurRadius: screenWidth * 0.04,
-      ),
-    ];
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text(widget.product != null ? 'Edit Product' : 'Add Product', style: TextStyle(fontSize: screenWidth * 0.055, fontWeight: FontWeight.bold)),
-        backgroundColor: green,
+        backgroundColor: AppColors.primaryGreen,
+        title: Text('Add Product', style: AppTextStyles.headline.copyWith(color: Colors.white, fontSize: screenWidth * 0.055)),
         elevation: 0,
       ),
-      backgroundColor: bg,
-      body: Padding(
-        padding: EdgeInsets.all(screenWidth * 0.05),
-        child: Form(
-          key: _formKey,
-          child: ListView(
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: EdgeInsets.all(screenWidth * 0.05),
+          child: Column(
             children: [
-              Center(
-                child: GestureDetector(
-                  onTap: _pickImage,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: cardRadius,
-                      boxShadow: neumorphicShadow,
-                    ),
-                    padding: EdgeInsets.all(screenWidth * 0.03),
-                    child: _webImageBytes != null
-                        ? Image.memory(_webImageBytes!, width: screenWidth * 0.3, height: screenWidth * 0.3, fit: BoxFit.cover)
-                        : _imageFile != null
-                            ? Image.file(_imageFile!, width: screenWidth * 0.3, height: screenWidth * 0.3, fit: BoxFit.cover)
-                            : ProductImageWidget(
-                                imagePath: _imageUrl ?? '',
-                                width: screenWidth * 0.3,
-                                height: screenWidth * 0.3,
-                              ),
+              SizedBox(height: screenHeight * 0.02),
+              // Header Section
+              Neumorphic(
+                style: AppNeumorphic.card,
+                child: Container(
+                  padding: EdgeInsets.all(screenWidth * 0.06),
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.add_shopping_cart,
+                        size: screenWidth * 0.12,
+                        color: AppColors.primaryGreen,
+                      ),
+                      SizedBox(height: screenWidth * 0.03),
+                      Text(
+                        'Add New Product',
+                        style: AppTextStyles.headline.copyWith(
+                          fontSize: screenWidth * 0.06,
+                          color: AppColors.primaryGreen,
+                        ),
+                      ),
+                      SizedBox(height: screenWidth * 0.02),
+                      Text(
+                        'List your fresh produce for customers to discover',
+                        style: AppTextStyles.body.copyWith(
+                          fontSize: screenWidth * 0.04,
+                          color: AppColors.textSecondary,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
                   ),
                 ),
               ),
-              SizedBox(height: screenWidth * 0.03),
-              TextFormField(
-                controller: _nameController,
-                decoration: InputDecoration(labelText: 'Product Name', border: OutlineInputBorder(borderRadius: cardRadius)),
-                validator: (value) => value == null || value.isEmpty ? 'Enter product name' : null,
-                style: TextStyle(fontSize: screenWidth * 0.045),
-              ),
-              SizedBox(height: screenWidth * 0.03),
-              TextFormField(
-                controller: _descController,
-                decoration: InputDecoration(labelText: 'Description', border: OutlineInputBorder(borderRadius: cardRadius)),
-                maxLines: 2,
-                style: TextStyle(fontSize: screenWidth * 0.045),
-              ),
-              SizedBox(height: screenWidth * 0.03),
-              TextFormField(
-                controller: _priceController,
-                decoration: InputDecoration(
-                  labelText: 'Price',
-                  prefixText: '₱ ',
-                  border: OutlineInputBorder(borderRadius: cardRadius),
-                ),
-                keyboardType: TextInputType.number,
-                validator: (value) => value == null || value.isEmpty ? 'Enter price' : null,
-                style: TextStyle(fontSize: screenWidth * 0.045),
-              ),
-              SizedBox(height: screenWidth * 0.03),
-              Row(
-                children: [
-                  Text('Quantity', style: TextStyle(fontSize: screenWidth * 0.045)),
-                  SizedBox(width: screenWidth * 0.04),
-                  Container(
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.blue),
-                      borderRadius: cardRadius,
-                      color: Colors.white,
-                      boxShadow: neumorphicShadow,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
+              SizedBox(height: screenHeight * 0.04),
+              // Product Form
+              Neumorphic(
+                style: AppNeumorphic.card,
+                child: Padding(
+                  padding: EdgeInsets.all(screenWidth * 0.06),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        IconButton(
-                          icon: Icon(Icons.remove, size: screenWidth * 0.06),
-                          onPressed: _quantity > 0 ? () => setState(() => _quantity--) : null,
+                        Text(
+                          'Product Details',
+                          style: AppTextStyles.headline.copyWith(
+                            fontSize: screenWidth * 0.055,
+                          ),
+                          textAlign: TextAlign.center,
                         ),
-                        Padding(
-                          padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.03),
-                          child: Text('$_quantity', style: TextStyle(fontSize: screenWidth * 0.045)),
+                        SizedBox(height: screenWidth * 0.05),
+                        // Product Name Field
+                        Neumorphic(
+                          style: AppNeumorphic.inset,
+                          child: TextFormField(
+                            controller: _nameController,
+                            decoration: InputDecoration(
+                              hintText: 'Product Name',
+                              hintStyle: AppTextStyles.body.copyWith(color: AppColors.textSecondary),
+                              prefixIcon: Icon(Icons.inventory, color: AppColors.primaryGreen),
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.symmetric(horizontal: screenWidth * 0.04, vertical: screenWidth * 0.04),
+                            ),
+                            style: AppTextStyles.body,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please enter product name';
+                              }
+                              return null;
+                            },
+                          ),
                         ),
-                        IconButton(
-                          icon: Icon(Icons.add, size: screenWidth * 0.06),
-                          onPressed: () => setState(() => _quantity++),
+                        SizedBox(height: screenWidth * 0.04),
+                        // Description Field
+                        Neumorphic(
+                          style: AppNeumorphic.inset,
+                          child: TextFormField(
+                            controller: _descController,
+                            maxLines: 3,
+                            decoration: InputDecoration(
+                              hintText: 'Product Description',
+                              hintStyle: AppTextStyles.body.copyWith(color: AppColors.textSecondary),
+                              prefixIcon: Icon(Icons.description, color: AppColors.primaryGreen),
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.symmetric(horizontal: screenWidth * 0.04, vertical: screenWidth * 0.04),
+                            ),
+                            style: AppTextStyles.body,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please enter product description';
+                              }
+                              return null;
+                            },
+                          ),
                         ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: screenWidth * 0.03),
-              DropdownButtonFormField<String>(
-                value: _unit,
-                items: const [
-                  DropdownMenuItem(value: 'kg', child: Text('kg')),
-                  DropdownMenuItem(value: 'pcs', child: Text('pcs')),
-                  DropdownMenuItem(value: 'g', child: Text('g')),
-                ],
-                onChanged: (val) => setState(() => _unit = val ?? 'kg'),
-                decoration: InputDecoration(labelText: 'Unit', border: OutlineInputBorder(borderRadius: cardRadius)),
-                style: TextStyle(fontSize: screenWidth * 0.045),
-              ),
-              SizedBox(height: screenWidth * 0.03),
-              DropdownButtonFormField<String>(
-                value: _category,
-                items: const [
-                  DropdownMenuItem(value: 'Vegetable', child: Text('Vegetable')),
-                  DropdownMenuItem(value: 'Fruit', child: Text('Fruit')),
-                  DropdownMenuItem(value: 'Other', child: Text('Other')),
-                ],
-                onChanged: (val) => setState(() => _category = val ?? 'Vegetable'),
-                decoration: InputDecoration(labelText: 'Category', border: OutlineInputBorder(borderRadius: cardRadius)),
-                style: TextStyle(fontSize: screenWidth * 0.045),
-              ),
-              SizedBox(height: screenWidth * 0.03),
-              SwitchListTile(
-                value: _isActive,
-                onChanged: (val) => setState(() => _isActive = val),
-                title: Text('Active', style: TextStyle(fontSize: screenWidth * 0.045)),
-                contentPadding: EdgeInsets.zero,
-              ),
-              SizedBox(height: screenWidth * 0.05),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: Text('Cancel', style: TextStyle(fontSize: screenWidth * 0.045)),
-                  ),
-                  SizedBox(width: screenWidth * 0.04),
-                  ElevatedButton(
-                    onPressed: _isUploading
-                        ? null
-                        : () async {
+                        SizedBox(height: screenWidth * 0.04),
+                        // Price Field
+                        Neumorphic(
+                          style: AppNeumorphic.inset,
+                          child: TextFormField(
+                            controller: _priceController,
+                            keyboardType: TextInputType.number,
+                            decoration: InputDecoration(
+                              hintText: 'Price per unit',
+                              hintStyle: AppTextStyles.body.copyWith(color: AppColors.textSecondary),
+                              prefixIcon: Icon(Icons.attach_money, color: AppColors.primaryGreen),
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.symmetric(horizontal: screenWidth * 0.04, vertical: screenWidth * 0.04),
+                            ),
+                            style: AppTextStyles.body,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please enter price';
+                              }
+                              if (double.tryParse(value) == null) {
+                                return 'Please enter a valid price';
+                              }
+                              return null;
+                            },
+                          ),
+                        ),
+                        SizedBox(height: screenWidth * 0.04),
+                        // Quantity Field
+                        Neumorphic(
+                          style: AppNeumorphic.inset,
+                          child: TextFormField(
+                            initialValue: _quantity.toString(),
+                            keyboardType: TextInputType.number,
+                            decoration: InputDecoration(
+                              hintText: 'Available Quantity',
+                              hintStyle: AppTextStyles.body.copyWith(color: AppColors.textSecondary),
+                              prefixIcon: Icon(Icons.shopping_basket, color: AppColors.primaryGreen),
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.symmetric(horizontal: screenWidth * 0.04, vertical: screenWidth * 0.04),
+                            ),
+                            style: AppTextStyles.body,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please enter quantity';
+                              }
+                              if (int.tryParse(value) == null) {
+                                return 'Please enter a valid quantity';
+                              }
+                              return null;
+                            },
+                            onChanged: (value) {
+                              setState(() {
+                                _quantity = int.tryParse(value) ?? 0;
+                              });
+                            },
+                          ),
+                        ),
+                        SizedBox(height: screenWidth * 0.04),
+                        // Unit Field
+                        Neumorphic(
+                          style: AppNeumorphic.inset,
+                          child: TextFormField(
+                            initialValue: _unit,
+                            decoration: InputDecoration(
+                              hintText: 'Unit (e.g., KG, pieces)',
+                              hintStyle: AppTextStyles.body.copyWith(color: AppColors.textSecondary),
+                              prefixIcon: Icon(Icons.straighten, color: AppColors.primaryGreen),
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.symmetric(horizontal: screenWidth * 0.04, vertical: screenWidth * 0.04),
+                            ),
+                            style: AppTextStyles.body,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please enter unit';
+                              }
+                              return null;
+                            },
+                            onChanged: (value) {
+                              setState(() {
+                                _unit = value;
+                              });
+                            },
+                          ),
+                        ),
+                        SizedBox(height: screenWidth * 0.04),
+                        // Category Field
+                        Neumorphic(
+                          style: AppNeumorphic.inset,
+                          child: TextFormField(
+                            initialValue: _category,
+                            decoration: InputDecoration(
+                              hintText: 'Category (e.g., Vegetables, Fruits)',
+                              hintStyle: AppTextStyles.body.copyWith(color: AppColors.textSecondary),
+                              prefixIcon: Icon(Icons.category, color: AppColors.primaryGreen),
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.symmetric(horizontal: screenWidth * 0.04, vertical: screenWidth * 0.04),
+                            ),
+                            style: AppTextStyles.body,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please enter category';
+                              }
+                              return null;
+                            },
+                            onChanged: (value) {
+                              setState(() {
+                                _category = value;
+                              });
+                            },
+                          ),
+                        ),
+                        SizedBox(height: screenWidth * 0.05),
+                        // Image Upload Section
+                        Neumorphic(
+                          style: AppNeumorphic.card,
+                          child: Padding(
+                            padding: EdgeInsets.all(screenWidth * 0.04),
+                            child: Column(
+                              children: [
+                                Text(
+                                  'Product Image',
+                                  style: AppTextStyles.headline.copyWith(
+                                    fontSize: screenWidth * 0.045,
+                                  ),
+                                ),
+                                SizedBox(height: screenWidth * 0.03),
+                                if (_imageFile != null)
+                                  Container(
+                                    width: screenWidth * 0.3,
+                                    height: screenWidth * 0.3,
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(screenWidth * 0.03),
+                                      image: DecorationImage(
+                                        image: FileImage(_imageFile!),
+                                        fit: BoxFit.cover,
+                                      ),
+                                    ),
+                                  )
+                                else
+                                  Container(
+                                    width: screenWidth * 0.3,
+                                    height: screenWidth * 0.3,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.background,
+                                      borderRadius: BorderRadius.circular(screenWidth * 0.03),
+                                    ),
+                                    child: Icon(
+                                      Icons.add_photo_alternate,
+                                      size: screenWidth * 0.1,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                SizedBox(height: screenWidth * 0.03),
+                                NeumorphicButton(
+                                  style: AppNeumorphic.button.copyWith(
+                                    color: AppColors.primaryGreen,
+                                  ),
+                                  onPressed: _pickImage,
+                                  child: Padding(
+                                    padding: EdgeInsets.symmetric(vertical: screenWidth * 0.03),
+                                    child: Text(
+                                      'Select Image',
+                                      style: AppTextStyles.button.copyWith(
+                                        color: Colors.white,
+                                        fontSize: screenWidth * 0.04,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        SizedBox(height: screenWidth * 0.05),
+                        // Submit Button
+                        NeumorphicButton(
+                          style: AppNeumorphic.button.copyWith(
+                            color: AppColors.primaryGreen,
+                          ),
+                          onPressed: _isUploading
+                                ? null
+                                : () async {
                             if (_formKey.currentState!.validate()) {
                               if (widget.product != null) {
                                 // Show confirmation dialog before updating
@@ -354,17 +493,27 @@ class _AddProductPageState extends State<AddProductPage> {
                               }
                             }
                           },
-                    style: ElevatedButton.styleFrom(backgroundColor: green),
-                    child: _isUploading
-                        ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : Text(widget.product == null ? 'Add' : 'Update'),
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(vertical: screenWidth * 0.03),
+                            child: _isUploading
+                                ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                                : Text(
+                                    widget.product == null ? 'Add Product' : 'Update Product',
+                                    style: AppTextStyles.button.copyWith(
+                                      color: Colors.white,
+                                      fontSize: screenWidth * 0.045,
+                                    ),
+                                  ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ],
-              ),
-            ],
+                ),
+          ),],
+            ),
           ),
         ),
-      ),
-    );
+      );
   }
 } 

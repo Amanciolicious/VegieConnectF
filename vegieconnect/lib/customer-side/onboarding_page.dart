@@ -1,6 +1,7 @@
-import 'package:flutter/material.dart';
 import 'landing_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:vegieconnect/theme.dart'; // For AppColors
+import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
 
 class OnboardingPage extends StatefulWidget {
   const OnboardingPage({super.key});
@@ -42,9 +43,8 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   @override
   Widget build(BuildContext context) {
-    final green = const Color(0xFFA7C957);
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F6F6),
+      backgroundColor: AppColors.background,
       body: SafeArea(
         child: Column(
           children: [
@@ -60,11 +60,20 @@ class _OnboardingPageState extends State<OnboardingPage> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(page.icon, size: 120, color: green),
+                        Neumorphic(
+                          style: AppNeumorphic.card.copyWith(
+                            color: AppColors.accentGreen.withOpacity(0.18),
+                            boxShape: NeumorphicBoxShape.circle(),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(18.0),
+                            child: Icon(page.icon, size: 120, color: AppColors.primaryGreen),
+                          ),
+                        ),
                         const SizedBox(height: 32),
-                        Text(page.title, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+                        Text(page.title, style: AppTextStyles.headline.copyWith(fontSize: 28)),
                         const SizedBox(height: 18),
-                        Text(page.desc, style: const TextStyle(fontSize: 18, color: Colors.black54), textAlign: TextAlign.center),
+                        Text(page.desc, style: AppTextStyles.body.copyWith(fontSize: 18, color: AppColors.textSecondary), textAlign: TextAlign.center),
                       ],
                     ),
                   );
@@ -73,13 +82,16 @@ class _OnboardingPageState extends State<OnboardingPage> {
             ),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(_pages.length, (i) => Container(
-                margin: const EdgeInsets.symmetric(horizontal: 4),
-                width: 10,
-                height: 10,
-                decoration: BoxDecoration(
-                  color: i == _pageIndex ? green : Colors.grey[300],
-                  shape: BoxShape.circle,
+              children: List.generate(_pages.length, (i) => Neumorphic(
+                style: AppNeumorphic.card.copyWith(
+                  color: i == _pageIndex ? AppColors.primaryGreen : AppColors.oliveGreen.withOpacity(0.18),
+                  boxShape: NeumorphicBoxShape.circle(),
+                  depth: i == _pageIndex ? 3 : 1,
+                ),
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  width: 10,
+                  height: 10,
                 ),
               )),
             ),
@@ -89,12 +101,10 @@ class _OnboardingPageState extends State<OnboardingPage> {
               child: SizedBox(
                 width: double.infinity,
                 height: 56,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: green,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(28),
-                    ),
+                child: NeumorphicButton(
+                  style: AppNeumorphic.button.copyWith(
+                    color: AppColors.primaryGreen,
+                    boxShape: NeumorphicBoxShape.roundRect(BorderRadius.circular(28)),
                   ),
                   onPressed: () {
                     if (_pageIndex == _pages.length - 1) {
@@ -103,7 +113,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
                       _controller.nextPage(duration: const Duration(milliseconds: 400), curve: Curves.easeInOut);
                     }
                   },
-                  child: Text(_pageIndex == _pages.length - 1 ? 'Get Started' : 'Next', style: const TextStyle(fontSize: 20, color: Colors.white)),
+                  child: Text(_pageIndex == _pages.length - 1 ? 'Get Started' : 'Next', style: AppTextStyles.button.copyWith(fontSize: 20)),
                 ),
               ),
             ),

@@ -1,24 +1,33 @@
-import 'package:flutter/material.dart';
 import 'customer_home_page.dart';
+import 'package:vegieconnect/theme.dart';
+import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
 
 class LandingPage extends StatelessWidget {
   const LandingPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final green = const Color(0xFFA7C957);
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F6F6),
+      backgroundColor: AppColors.background,
       body: SafeArea(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Spacer(),
-            Icon(Icons.eco, size: 100, color: green),
+            Neumorphic(
+              style: AppNeumorphic.card.copyWith(
+                color: AppColors.accentGreen.withOpacity(0.18),
+                boxShape: NeumorphicBoxShape.circle(),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(18.0),
+                child: Icon(Icons.eco, size: 100, color: AppColors.primaryGreen),
+              ),
+            ),
             const SizedBox(height: 24),
-            const Text(
+            Text(
               'Welcome to VegieConnect!',
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.black87),
+              style: AppTextStyles.headline.copyWith(fontSize: 28),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 12),
@@ -26,7 +35,7 @@ class LandingPage extends StatelessWidget {
               padding: EdgeInsets.symmetric(horizontal: 32.0),
               child: Text(
                 'Your one-stop shop for fresh vegetables. Get started and enjoy healthy living!',
-                style: TextStyle(fontSize: 16, color: Colors.black54),
+                style: AppTextStyles.body,
                 textAlign: TextAlign.center,
               ),
             ),
@@ -36,12 +45,10 @@ class LandingPage extends StatelessWidget {
               child: SizedBox(
                 width: 180,
                 height: 56,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: green,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(28),
-                    ),
+                child: NeumorphicButton(
+                  style: AppNeumorphic.button.copyWith(
+                    color: AppColors.primaryGreen,
+                    boxShape: NeumorphicBoxShape.roundRect(BorderRadius.circular(28)),
                   ),
                   onPressed: () {
                     Navigator.of(context).pushReplacement(
@@ -50,10 +57,10 @@ class LandingPage extends StatelessWidget {
                   },
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    children: const [
-                      Text('Enter', style: TextStyle(fontSize: 20, color: Colors.white)),
-                      SizedBox(width: 12),
-                      Icon(Icons.arrow_downward, color: Colors.white, size: 28),
+                    children: [
+                      Text('Enter', style: AppTextStyles.button.copyWith(fontSize: 20)),
+                      const SizedBox(width: 12),
+                      const Icon(Icons.arrow_downward, color: Colors.white, size: 28),
                     ],
                   ),
                 ),

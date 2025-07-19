@@ -1,5 +1,7 @@
-import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
+import 'package:path/path.dart';
+import 'package:vegieconnect/theme.dart';
 
 class AdminManageAccountsPage extends StatelessWidget {
   const AdminManageAccountsPage({super.key});
@@ -7,84 +9,285 @@ class AdminManageAccountsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
-    final green = const Color(0xFFA7C957);
-    final bg = const Color(0xFFF6F6F6);
-    final cardRadius = BorderRadius.circular(screenWidth * 0.05);
-    final neumorphicShadow = [
-      BoxShadow(
-        color: Colors.grey.shade300,
-        offset: Offset(screenWidth * 0.015, screenWidth * 0.015),
-        blurRadius: screenWidth * 0.04,
-      ),
-      BoxShadow(
-        color: Colors.white,
-        offset: Offset(-screenWidth * 0.015, -screenWidth * 0.015),
-        blurRadius: screenWidth * 0.04,
-      ),
-    ];
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text('Manage Accounts', style: TextStyle(fontSize: screenWidth * 0.055, fontWeight: FontWeight.bold)),
-        backgroundColor: green,
+        backgroundColor: AppColors.primaryGreen,
+        title: Text('Manage Accounts', style: AppTextStyles.headline.copyWith(color: Colors.white, fontSize: screenWidth * 0.055)),
         elevation: 0,
       ),
-      backgroundColor: bg,
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance.collection('users').orderBy('createdAt', descending: true).snapshots(),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-          final docs = snapshot.data!.docs;
-          if (docs.isEmpty) return const Center(child: Text('No users found.'));
-          return ListView(
-            padding: EdgeInsets.symmetric(vertical: screenWidth * 0.03),
-            children: docs.map((doc) {
-              final data = doc.data() as Map<String, dynamic>;
-              return Container(
-                margin: EdgeInsets.symmetric(horizontal: screenWidth * 0.04, vertical: screenWidth * 0.02),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: cardRadius,
-                  boxShadow: neumorphicShadow,
-                ),
-                child: ListTile(
-                  contentPadding: EdgeInsets.symmetric(horizontal: screenWidth * 0.04, vertical: screenWidth * 0.03),
-                  title: Text(data['name'] ?? '', style: TextStyle(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.045)),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Email: ${data['email'] ?? ''}', style: TextStyle(fontSize: screenWidth * 0.04)),
-                      Text('Role: ${data['role'] ?? ''}', style: TextStyle(fontSize: screenWidth * 0.04)),
-                      Text('Status: ${data['status'] ?? 'active'}', style: TextStyle(fontSize: screenWidth * 0.04)),
-                    ],
-                  ),
-                  trailing: PopupMenuButton<String>(
-                    onSelected: (value) async {
-                      if (value == 'suspend') {
-                        await doc.reference.update({'status': 'suspended'});
-                      } else if (value == 'activate') {
-                        await doc.reference.update({'status': 'active'});
-                      } else if (value == 'delete') {
-                        await doc.reference.delete();
-                      }
+      body: Padding(
+        padding: EdgeInsets.all(screenWidth * 0.04),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'User Accounts',
+              style: AppTextStyles.headline.copyWith(fontSize: screenWidth * 0.06),
+            ),
+            SizedBox(height: screenWidth * 0.04),
+            Expanded(
+              child: StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('users')
+                    .orderBy('createdAt', descending: true)
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return Center(
+                      child: CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryGreen),
+                      ),
+                    );
+                  }
+
+                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                    return Center(
+                      child: Neumorphic(
+                        style: AppNeumorphic.card,
+                        child: Padding(
+                          padding: EdgeInsets.all(screenWidth * 0.08),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.people,
+                                size: screenWidth * 0.15,
+                                color: AppColors.primaryGreen,
+                              ),
+                              SizedBox(height: screenWidth * 0.04),
+                              Text(
+                                'No Users',
+                                style: AppTextStyles.headline.copyWith(
+                                  fontSize: screenWidth * 0.06,
+                                  color: AppColors.primaryGreen,
+                                ),
+                              ),
+                              SizedBox(height: screenWidth * 0.02),
+                              Text(
+                                'No user accounts found',
+                                style: AppTextStyles.body.copyWith(
+                                  fontSize: screenWidth * 0.04,
+                                  color: AppColors.textSecondary,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+
+                  final users = snapshot.data!.docs;
+                  return ListView.builder(
+                    itemCount: users.length,
+                    itemBuilder: (context, index) {
+                      final user = users[index].data() as Map<String, dynamic>;
+                      return _buildUserCard(screenWidth, users[index].id, user);
                     },
-                    itemBuilder: (context) => [
-                      PopupMenuItem(
-                        value: data['status'] == 'active' ? 'suspend' : 'activate',
-                        child: Text(data['status'] == 'active' ? 'Suspend' : 'Activate'),
-                      ),
-                      const PopupMenuItem(
-                        value: 'delete',
-                        child: Text('Delete'),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }).toList(),
-          );
-        },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  Widget _buildUserCard(double screenWidth, String userId, Map<String, dynamic> user) {
+    final createdAt = user['createdAt'] as Timestamp?;
+    final date = createdAt?.toDate() ?? DateTime.now();
+    
+    return Neumorphic(
+      style: AppNeumorphic.card,
+      margin: EdgeInsets.only(bottom: screenWidth * 0.04),
+      child: Padding(
+        padding: EdgeInsets.all(screenWidth * 0.04),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // User Header
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: screenWidth * 0.04,
+                  backgroundColor: AppColors.primaryGreen,
+                  child: Text(
+                    (user['fullName'] ?? 'U')[0].toUpperCase(),
+                    style: AppTextStyles.body.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                SizedBox(width: screenWidth * 0.03),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        user['fullName'] ?? 'Unknown User',
+                        style: AppTextStyles.headline.copyWith(
+                          fontSize: screenWidth * 0.045,
+                        ),
+                      ),
+                      Text(
+                        user['email'] ?? 'No email',
+                        style: AppTextStyles.body.copyWith(
+                          fontSize: screenWidth * 0.035,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.03, vertical: screenWidth * 0.01),
+                  decoration: BoxDecoration(
+                    color: _getRoleColor(user['role']).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(screenWidth * 0.02),
+                  ),
+                  child: Text(
+                    user['role'] ?? 'User',
+                    style: AppTextStyles.body.copyWith(
+                      fontSize: screenWidth * 0.035,
+                      color: _getRoleColor(user['role']),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: screenWidth * 0.03),
+            // User Details
+            Container(
+              padding: EdgeInsets.all(screenWidth * 0.03),
+              decoration: BoxDecoration(
+                color: AppColors.primaryGreen.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(screenWidth * 0.02),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.phone, size: screenWidth * 0.04, color: AppColors.primaryGreen),
+                      SizedBox(width: screenWidth * 0.02),
+                      Text(
+                        'Phone: ${user['phone'] ?? 'Not provided'}',
+                        style: AppTextStyles.body.copyWith(
+                          fontSize: screenWidth * 0.035,
+                          color: AppColors.primaryGreen,
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: screenWidth * 0.02),
+                  Row(
+                    children: [
+                      Icon(Icons.calendar_today, size: screenWidth * 0.04, color: AppColors.primaryGreen),
+                      SizedBox(width: screenWidth * 0.02),
+                      Text(
+                        'Joined: ${date.day}/${date.month}/${date.year}',
+                        style: AppTextStyles.body.copyWith(
+                          fontSize: screenWidth * 0.035,
+                          color: AppColors.primaryGreen,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(height: screenWidth * 0.03),
+            // Action Buttons
+            Row(
+              children: [
+                Expanded(
+                  child: NeumorphicButton(
+                    style: AppNeumorphic.button.copyWith(
+                      color: user['isActive'] == true ? Colors.red : AppColors.primaryGreen,
+                    ),
+                    onPressed: () => _toggleUserStatus(userId, user['isActive'] != true),
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: screenWidth * 0.03),
+                      child: Text(
+                        user['isActive'] == true ? 'Deactivate' : 'Activate',
+                        style: AppTextStyles.button.copyWith(
+                          color: Colors.white,
+                          fontSize: screenWidth * 0.04,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(width: screenWidth * 0.03),
+                Expanded(
+                  child: NeumorphicButton(
+                    style: AppNeumorphic.button.copyWith(
+                      color: Colors.transparent,
+                    ),
+                    onPressed: () => _deleteUser(userId),
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: screenWidth * 0.03),
+                      child: Text(
+                        'Delete',
+                        style: AppTextStyles.button.copyWith(
+                          color: Colors.red,
+                          fontSize: screenWidth * 0.04,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Color _getRoleColor(String? role) {
+    switch (role?.toLowerCase()) {
+      case 'admin':
+        return Colors.red;
+      case 'supplier':
+        return Colors.blue;
+      case 'buyer':
+        return Colors.green;
+      default:
+        return AppColors.primaryGreen;
+    }
+  }
+
+  Future<void> _toggleUserStatus(String userId, bool newStatus) async {
+    try {
+      await FirebaseFirestore.instance.collection('users').doc(userId).update({
+        'isActive': newStatus,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      ScaffoldMessenger.of(context as BuildContext).showSnackBar(
+        SnackBar(content: Text('User status updated successfully!')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context as BuildContext).showSnackBar(
+        SnackBar(content: Text('Error updating user status: $e')),
+      );
+    }
+  }
+
+  Future<void> _deleteUser(String userId) async {
+    try {
+      await FirebaseFirestore.instance.collection('users').doc(userId).delete();
+      ScaffoldMessenger.of(context as BuildContext).showSnackBar(
+        SnackBar(content: Text('User deleted successfully!')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context as BuildContext).showSnackBar(
+        SnackBar(content: Text('Error deleting user: $e')),
+      );
+    }
   }
 } 

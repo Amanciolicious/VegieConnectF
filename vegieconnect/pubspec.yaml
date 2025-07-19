@@ -37,6 +37,14 @@ dependencies:
   universal_platform: ^1.1.0
   file_picker: ^8.0.7
   flutter_neumorphic_plus: ^3.3.0
+  firebase_messaging: ^14.7.20
+  flutter_local_notifications: ^17.2.2
+  cached_network_image: ^3.3.1
+  flutter_staggered_animations: ^1.1.1
+  shimmer: ^3.0.0
+  connectivity_plus: ^5.0.2
+  flutter_native_splash: ^2.4.0
+  flutter_launcher_icons: ^0.13.1
 
 dev_dependencies:
   flutter_test:
@@ -48,10 +56,18 @@ flutter:
 
   uses-material-design: true
 
- 
   assets:
     - assets/
+    - assets/fonts/Poppins/
 
+  fonts:
+    - family: Poppins
+      fonts:
+        - asset: assets/fonts/Poppins/Poppins-Regular.ttf
+        - asset: assets/fonts/Poppins/Poppins-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Poppins/Poppins-SemiBold.ttf
+          weight: 600
   # To add custom fonts to your application, add a fonts section here,
   # in this "flutter" section. Each entry in this list should have a
   # "family" key with the font family name, and a "fonts" key with a

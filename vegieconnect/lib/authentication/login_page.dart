@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'signup_page.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -7,6 +6,8 @@ import '../customer-side/onboarding_page.dart';
 import '../admin-side/admin_dashboard.dart';
 import '../supplier-side/supplier_dashboard.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:vegieconnect/theme.dart'; // For AppColors
+import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -20,7 +21,7 @@ class _LoginPageState extends State<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
-  bool _obscurePassword = true;
+  bool _isPasswordVisible = false;
 
   @override
   void dispose() {
@@ -29,7 +30,7 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  Future<void> _login() async {
+  Future<void> _handleLogin() async {
     setState(() {
       _isLoading = true;
     });
@@ -92,174 +93,195 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    final green = const Color(0xFFA7C957);
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F6F6),
-      body: Center(
+      backgroundColor: AppColors.background,
+      body: SafeArea(
         child: SingleChildScrollView(
+          padding: EdgeInsets.all(screenWidth * 0.05),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const SizedBox(height: 32),
-              FlutterLogo(size: 120),
-              const SizedBox(height: 18),
-              const Text(
-                'Welcome to VegieConnect',
-                style: TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                'Login to continue',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 14, color: Colors.black54),
-              ),
-              const SizedBox(height: 24),
-              Card(
-                elevation: 8,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                margin: const EdgeInsets.symmetric(horizontal: 24),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text('Login Account', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              SizedBox(height: screenHeight * 0.08),
+              // Logo and Title
+              Neumorphic(
+                style: AppNeumorphic.card,
+                child: Container(
+                  padding: EdgeInsets.all(screenWidth * 0.08),
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.eco,
+                        size: screenWidth * 0.15,
+                        color: AppColors.primaryGreen,
+                      ),
+                      SizedBox(height: screenWidth * 0.04),
+                      Text(
+                        'VegieConnect',
+                        style: AppTextStyles.headline.copyWith(
+                          fontSize: screenWidth * 0.08,
+                          color: AppColors.primaryGreen,
                         ),
-                        const SizedBox(height: 18),
-                        TextFormField(
+                      ),
+                      SizedBox(height: screenWidth * 0.02),
+                      Text(
+                        'Fresh from Farm to Table',
+                        style: AppTextStyles.body.copyWith(
+                          fontSize: screenWidth * 0.04,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              SizedBox(height: screenHeight * 0.06),
+              // Login Form
+              Neumorphic(
+                style: AppNeumorphic.card,
+                child: Padding(
+                  padding: EdgeInsets.all(screenWidth * 0.06),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        'Welcome Back!',
+                        style: AppTextStyles.headline.copyWith(
+                          fontSize: screenWidth * 0.06,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      SizedBox(height: screenWidth * 0.05),
+                      // Email Field
+                      Neumorphic(
+                        style: AppNeumorphic.inset,
+                        child: TextField(
                           controller: _emailController,
                           keyboardType: TextInputType.emailAddress,
                           decoration: InputDecoration(
-                            labelText: 'Email Address',
-                            filled: true,
-                            fillColor: Colors.grey[100],
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              borderSide: BorderSide.none,
-                            ),
-                            prefixIcon: const Icon(Icons.email),
+                            hintText: 'Email',
+                            hintStyle: AppTextStyles.body.copyWith(color: AppColors.textSecondary),
+                            prefixIcon: Icon(Icons.email, color: AppColors.primaryGreen),
+                            border: InputBorder.none,
+                            contentPadding: EdgeInsets.symmetric(horizontal: screenWidth * 0.04, vertical: screenWidth * 0.04),
                           ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please enter your email';
-                            }
-                            if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+').hasMatch(value)) {
-                              return 'Please enter a valid email';
-                            }
-                            return null;
-                          },
+                          style: AppTextStyles.body,
                         ),
-                        const SizedBox(height: 14),
-                        TextFormField(
+                      ),
+                      SizedBox(height: screenWidth * 0.04),
+                      // Password Field
+                      Neumorphic(
+                        style: AppNeumorphic.inset,
+                        child: TextField(
                           controller: _passwordController,
-                          obscureText: _obscurePassword,
+                          obscureText: !_isPasswordVisible,
                           decoration: InputDecoration(
-                            labelText: 'Password',
-                            filled: true,
-                            fillColor: Colors.grey[100],
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              borderSide: BorderSide.none,
-                            ),
-                            prefixIcon: const Icon(Icons.lock),
+                            hintText: 'Password',
+                            hintStyle: AppTextStyles.body.copyWith(color: AppColors.textSecondary),
+                            prefixIcon: Icon(Icons.lock, color: AppColors.primaryGreen),
                             suffixIcon: IconButton(
-                              icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
+                              icon: Icon(
+                                _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
+                                color: AppColors.primaryGreen,
+                              ),
                               onPressed: () {
                                 setState(() {
-                                  _obscurePassword = !_obscurePassword;
+                                  _isPasswordVisible = !_isPasswordVisible;
                                 });
                               },
                             ),
+                            border: InputBorder.none,
+                            contentPadding: EdgeInsets.symmetric(horizontal: screenWidth * 0.04, vertical: screenWidth * 0.04),
                           ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please enter your password';
-                            }
-                            if (value.length < 6) {
-                              return 'Password must be at least 6 characters';
-                            }
-                            return null;
+                          style: AppTextStyles.body,
+                        ),
+                      ),
+                      SizedBox(height: screenWidth * 0.04),
+                      // Forgot Password
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: () {
+                            // TODO: Implement forgot password
                           },
-                        ),
-                        const SizedBox(height: 8),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton(
-                            onPressed: () {},
-                            child: const Text('Forgot Password?'),
+                          child: Text(
+                            'Forgot Password?',
+                            style: AppTextStyles.body.copyWith(
+                              color: AppColors.primaryGreen,
+                              fontSize: screenWidth * 0.035,
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 12),
-                        SizedBox(
-                          width: double.infinity,
-                          height: 48,
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: green,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                            ),
-                            onPressed: _isLoading ? null : _login,
-                            child: _isLoading
-                                ? const CircularProgressIndicator(color: Colors.white)
-                                : const Text('Log in', style: TextStyle(fontSize: 18, color: Colors.white)),
-                          ),
+                      ),
+                      SizedBox(height: screenWidth * 0.05),
+                      // Login Button
+                      NeumorphicButton(
+                        style: AppNeumorphic.button.copyWith(
+                          color: AppColors.primaryGreen,
                         ),
-                        const SizedBox(height: 18),
-                        Row(
-                          children: [
-                            Expanded(child: Divider()),
-                            const Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 8),
-                              child: Text('or continue with'),
-                            ),
-                            Expanded(child: Divider()),
-                          ],
+                        onPressed: _isLoading ? null : _handleLogin,
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(vertical: screenWidth * 0.04),
+                          child: _isLoading
+                              ? SizedBox(
+                                  height: screenWidth * 0.05,
+                                  width: screenWidth * 0.05,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                  ),
+                                )
+                              : Text(
+                                  'Login',
+                                  style: AppTextStyles.button.copyWith(
+                                    color: Colors.white,
+                                    fontSize: screenWidth * 0.045,
+                                  ),
+                                ),
                         ),
-                        const SizedBox(height: 12),
-                        SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              IconButton(
-                                icon: Icon(Icons.g_mobiledata, size: 32),
-                                onPressed: () {},
+                      ),
+                      SizedBox(height: screenWidth * 0.04),
+                      // Or Divider
+                      Row(
+                        children: [
+                          Expanded(child: Divider(color: AppColors.textSecondary)),
+                          Padding(
+                            padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.04),
+                            child: Text(
+                              'OR',
+                              style: AppTextStyles.body.copyWith(
+                                color: AppColors.textSecondary,
+                                fontSize: screenWidth * 0.035,
                               ),
-                              const SizedBox(width: 16),
-                              IconButton(
-                                icon: Icon(Icons.facebook, size: 32, color: Colors.blue),
-                                onPressed: () {},
-                              ),
-                            ],
+                            ),
+                          ),
+                          Expanded(child: Divider(color: AppColors.textSecondary)),
+                        ],
+                      ),
+                      SizedBox(height: screenWidth * 0.04),
+                      // Sign Up Button
+                      NeumorphicButton(
+                        style: AppNeumorphic.button.copyWith(
+                          color: Colors.transparent,
+                        ),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) =>  SignUpPage()),
+                          );
+                        },
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(vertical: screenWidth * 0.04),
+                          child: Text(
+                            'Create Account',
+                            style: AppTextStyles.button.copyWith(
+                              color: AppColors.primaryGreen,
+                              fontSize: screenWidth * 0.045,
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 12),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Text("Don't have an account? "),
-                            GestureDetector(
-                              onTap: () {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(builder: (_) => const SignUpPage()),
-                                );
-                              },
-                              child: Text('Sign up', style: TextStyle(color: green, fontWeight: FontWeight.bold)),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ),

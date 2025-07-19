@@ -11,7 +11,6 @@ class HomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
     final green = const Color(0xFFA7C957);
     final darkGreen = const Color(0xFF6CA04A);
     final cardRadius = BorderRadius.circular(screenWidth * 0.05);

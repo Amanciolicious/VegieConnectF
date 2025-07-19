@@ -1,5 +1,7 @@
-import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
+import 'package:path/path.dart';
+import 'package:vegieconnect/theme.dart';
 
 class AdminVerifyListingsPage extends StatelessWidget {
   const AdminVerifyListingsPage({super.key});
@@ -7,120 +9,269 @@ class AdminVerifyListingsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
-    final green = const Color(0xFFA7C957);
-    final bg = const Color(0xFFF6F6F6);
-    final cardRadius = BorderRadius.circular(screenWidth * 0.05);
-    final neumorphicShadow = [
-      BoxShadow(
-        color: Colors.grey.shade300,
-        offset: Offset(screenWidth * 0.015, screenWidth * 0.015),
-        blurRadius: screenWidth * 0.04,
-      ),
-      BoxShadow(
-        color: Colors.white,
-        offset: Offset(-screenWidth * 0.015, -screenWidth * 0.015),
-        blurRadius: screenWidth * 0.04,
-      ),
-    ];
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text('Verify Listings', style: TextStyle(fontSize: screenWidth * 0.055, fontWeight: FontWeight.bold)),
-        backgroundColor: green,
+        backgroundColor: AppColors.primaryGreen,
+        title: Text('Verify Listings', style: AppTextStyles.headline.copyWith(color: Colors.white, fontSize: screenWidth * 0.055)),
         elevation: 0,
       ),
-      backgroundColor: bg,
-      body: ListView(
-        padding: EdgeInsets.symmetric(vertical: screenWidth * 0.03),
-        children: [
-          Padding(
-            padding: EdgeInsets.all(screenWidth * 0.04),
-            child: Text('Pending Product Listings', style: TextStyle(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.048)),
-          ),
-          StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance.collection('products').where('isActive', isEqualTo: false).snapshots(),
-            builder: (context, snapshot) {
-              if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-              final docs = snapshot.data!.docs;
-              if (docs.isEmpty) return const Center(child: Text('No pending products.'));
-              return Column(
-                children: docs.map((doc) {
-                  final data = doc.data() as Map<String, dynamic>;
-                  return Container(
-                    margin: EdgeInsets.symmetric(horizontal: screenWidth * 0.04, vertical: screenWidth * 0.02),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: cardRadius,
-                      boxShadow: neumorphicShadow,
-                    ),
-                    child: ListTile(
-                      contentPadding: EdgeInsets.symmetric(horizontal: screenWidth * 0.04, vertical: screenWidth * 0.03),
-                      title: Text(data['name'] ?? '', style: TextStyle(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.045)),
-                      subtitle: Text('Supplier: ${data['supplierName'] ?? ''}', style: TextStyle(fontSize: screenWidth * 0.04)),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: Icon(Icons.check, color: Colors.green, size: screenWidth * 0.06),
-                            onPressed: () => doc.reference.update({'isActive': true}),
-                          ),
-                          IconButton(
-                            icon: Icon(Icons.close, color: Colors.red, size: screenWidth * 0.06),
-                            onPressed: () => doc.reference.delete(),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                }).toList(),
+      body: Padding(
+        padding: EdgeInsets.all(screenWidth * 0.04),
+        child: StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('products')
+              .where('isVerified', isEqualTo: false)
+              .snapshots(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return Center(
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryGreen),
+                ),
               );
-            },
-          ),
-          Padding(
-            padding: EdgeInsets.all(screenWidth * 0.04),
-            child: Text('Pending Farm Locations', style: TextStyle(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.048)),
-          ),
-          StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance.collection('farm_locations').where('isActive', isEqualTo: false).snapshots(),
-            builder: (context, snapshot) {
-              if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-              final docs = snapshot.data!.docs;
-              if (docs.isEmpty) return const Center(child: Text('No pending farms.'));
-              return Column(
-                children: docs.map((doc) {
-                  final data = doc.data() as Map<String, dynamic>;
-                  return Container(
-                    margin: EdgeInsets.symmetric(horizontal: screenWidth * 0.04, vertical: screenWidth * 0.02),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: cardRadius,
-                      boxShadow: neumorphicShadow,
-                    ),
-                    child: ListTile(
-                      contentPadding: EdgeInsets.symmetric(horizontal: screenWidth * 0.04, vertical: screenWidth * 0.03),
-                      title: Text(data['name'] ?? '', style: TextStyle(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.045)),
-                      subtitle: Text('Supplier: ${data['supplierName'] ?? ''}', style: TextStyle(fontSize: screenWidth * 0.04)),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: Icon(Icons.check, color: Colors.green, size: screenWidth * 0.06),
-                            onPressed: () => doc.reference.update({'isActive': true}),
+            }
+
+            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+              return Center(
+                child: Neumorphic(
+                  style: AppNeumorphic.card,
+                  child: Padding(
+                    padding: EdgeInsets.all(screenWidth * 0.08),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.verified,
+                          size: screenWidth * 0.15,
+                          color: AppColors.primaryGreen,
+                        ),
+                        SizedBox(height: screenWidth * 0.04),
+                        Text(
+                          'All Listings Verified!',
+                          style: AppTextStyles.headline.copyWith(
+                            fontSize: screenWidth * 0.06,
+                            color: AppColors.primaryGreen,
                           ),
-                          IconButton(
-                            icon: Icon(Icons.close, color: Colors.red, size: screenWidth * 0.06),
-                            onPressed: () => doc.reference.delete(),
+                        ),
+                        SizedBox(height: screenWidth * 0.02),
+                        Text(
+                          'No pending listings to verify',
+                          style: AppTextStyles.body.copyWith(
+                            fontSize: screenWidth * 0.04,
+                            color: AppColors.textSecondary,
                           ),
-                        ],
-                      ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
                     ),
-                  );
-                }).toList(),
+                  ),
+                ),
               );
-            },
-          ),
-        ],
+            }
+
+            final products = snapshot.data!.docs;
+            return ListView.builder(
+              itemCount: products.length,
+              itemBuilder: (context, index) {
+                final product = products[index].data() as Map<String, dynamic>;
+                return _buildProductCard(screenWidth, products[index].id, product);
+              },
+            );
+          },
+        ),
       ),
     );
+  }
+
+  Widget _buildProductCard(double screenWidth, String productId, Map<String, dynamic> product) {
+    return Neumorphic(
+      style: AppNeumorphic.card,
+      margin: EdgeInsets.only(bottom: screenWidth * 0.04),
+      child: Padding(
+        padding: EdgeInsets.all(screenWidth * 0.04),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Product Image and Basic Info
+            Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(screenWidth * 0.03),
+                  child: SizedBox(
+                    width: screenWidth * 0.2,
+                    height: screenWidth * 0.2,
+                    child: product['imageUrl'] != null
+                        ? Image.network(
+                            product['imageUrl'],
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                color: AppColors.background,
+                                child: Icon(
+                                  Icons.image,
+                                  color: AppColors.textSecondary,
+                                  size: screenWidth * 0.08,
+                                ),
+                              );
+                            },
+                          )
+                        : Container(
+                            color: AppColors.background,
+                            child: Icon(
+                              Icons.image,
+                              color: AppColors.textSecondary,
+                              size: screenWidth * 0.08,
+                            ),
+                          ),
+                  ),
+                ),
+                SizedBox(width: screenWidth * 0.04),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        product['name'] ?? 'Unknown Product',
+                        style: AppTextStyles.headline.copyWith(
+                          fontSize: screenWidth * 0.045,
+                        ),
+                      ),
+                      SizedBox(height: screenWidth * 0.01),
+                      Text(
+                        '\u20b1${product['price']?.toStringAsFixed(2) ?? '0.00'}',
+                        style: AppTextStyles.price.copyWith(
+                          fontSize: screenWidth * 0.04,
+                        ),
+                      ),
+                      SizedBox(height: screenWidth * 0.01),
+                      Text(
+                        'Stock: ${product['quantity'] ?? 0} ${product['unit'] ?? ''}',
+                        style: AppTextStyles.body.copyWith(
+                          fontSize: screenWidth * 0.035,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: screenWidth * 0.03),
+            // Supplier Info
+            Container(
+              padding: EdgeInsets.all(screenWidth * 0.03),
+              decoration: BoxDecoration(
+                color: AppColors.primaryGreen.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(screenWidth * 0.02),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.person,
+                    size: screenWidth * 0.05,
+                    color: AppColors.primaryGreen,
+                  ),
+                  SizedBox(width: screenWidth * 0.02),
+                  Expanded(
+                    child: Text(
+                      'Supplier: ${product['supplierName'] ?? 'Unknown'}',
+                      style: AppTextStyles.body.copyWith(
+                        fontSize: screenWidth * 0.035,
+                        color: AppColors.primaryGreen,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(height: screenWidth * 0.03),
+            // Description
+            if (product['description'] != null && product['description'].toString().isNotEmpty)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Description:',
+                    style: AppTextStyles.body.copyWith(
+                      fontSize: screenWidth * 0.035,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  SizedBox(height: screenWidth * 0.01),
+                  Text(
+                    product['description'],
+                    style: AppTextStyles.body.copyWith(
+                      fontSize: screenWidth * 0.035,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  SizedBox(height: screenWidth * 0.03),
+                ],
+              ),
+            // Action Buttons
+            Row(
+              children: [
+                Expanded(
+                  child: NeumorphicButton(
+                    style: AppNeumorphic.button.copyWith(
+                      color: AppColors.primaryGreen,
+                    ),
+                    onPressed: () => _verifyProduct(productId, true),
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: screenWidth * 0.03),
+                      child: Text(
+                        'Approve',
+                        style: AppTextStyles.button.copyWith(
+                          color: Colors.white,
+                          fontSize: screenWidth * 0.04,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(width: screenWidth * 0.03),
+                Expanded(
+                  child: NeumorphicButton(
+                    style: AppNeumorphic.button.copyWith(
+                      color: Colors.red,
+                    ),
+                    onPressed: () => _verifyProduct(productId, false),
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: screenWidth * 0.03),
+                      child: Text(
+                        'Reject',
+                        style: AppTextStyles.button.copyWith(
+                          color: Colors.white,
+                          fontSize: screenWidth * 0.04,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _verifyProduct(String productId, bool isApproved) async {
+    try {
+      await FirebaseFirestore.instance.collection('products').doc(productId).update({
+        'isVerified': true,
+        'isActive': true,
+        'verifiedBy': 'admin',
+        'verificationDate': FieldValue.serverTimestamp(),
+      });
+      ScaffoldMessenger.of(context as BuildContext).showSnackBar(
+        SnackBar(content: Text('Product verified successfully!')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context as BuildContext).showSnackBar(
+        SnackBar(content: Text('Error verifying product: $e')),
+      );
+    }
   }
 } 

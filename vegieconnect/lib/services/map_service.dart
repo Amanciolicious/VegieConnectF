@@ -1,5 +1,6 @@
 import 'package:geocoding/geocoding.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:geolocator/geolocator.dart';
 import 'dart:math';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -8,6 +9,71 @@ class MapService {
   static const String _apiKey = 'eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImUzNDFmOTFmNGJlODQxOWRiNDY2M2UxNWE3N2VhMWI2IiwiaCI6Im11cm11cjY0In0='; // Replace with your actual API key
 
   MapService();
+
+  // Get current device location with automatic detection
+  Future<LatLng?> getCurrentLocation() async {
+    try {
+      // Check if location services are enabled
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        throw Exception('Location services are disabled');
+      }
+
+      // Check location permissions
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          throw Exception('Location permissions denied');
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        throw Exception('Location permissions permanently denied');
+      }
+
+      // Get current position with high accuracy
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 10),
+      );
+
+      return LatLng(position.latitude, position.longitude);
+    } catch (e) {
+      throw Exception('Failed to get current location: $e');
+    }
+  }
+
+  // Get current location with address
+  Future<Map<String, dynamic>> getCurrentLocationWithAddress() async {
+    try {
+      final location = await getCurrentLocation();
+      if (location == null) {
+        throw Exception('Could not get current location');
+      }
+
+      final address = await getAddressFromCoordinates(location);
+      
+      return {
+        'location': location,
+        'address': address,
+        'latitude': location.latitude,
+        'longitude': location.longitude,
+      };
+    } catch (e) {
+      throw Exception('Failed to get location with address: $e');
+    }
+  }
+
+  // Start location tracking for real-time updates
+  Stream<Position> startLocationTracking() {
+    const LocationSettings locationSettings = LocationSettings(
+      accuracy: LocationAccuracy.high,
+      distanceFilter: 10, // Update every 10 meters
+    );
+
+    return Geolocator.getPositionStream(locationSettings: locationSettings);
+  }
 
   // Get route between two points
   Future<Map<String, dynamic>> getRoute({
@@ -107,5 +173,33 @@ class MapService {
   bool isWithinRadius(LatLng center, LatLng point, double radiusKm) {
     double distance = calculateDistance(center, point);
     return distance <= radiusKm;
+  }
+
+  // Validate if location is within Bogo City limits
+  bool isWithinBogoCityLimits(LatLng location) {
+    // Bogo City center coordinates
+    const LatLng bogoCenter = LatLng(11.0474, 124.0051);
+    const double maxRadius = 15.0; // 15km radius from city center
+    
+    return isWithinRadius(bogoCenter, location, maxRadius);
+  }
+
+  // Get location accuracy information
+  Future<Map<String, dynamic>> getLocationAccuracy() async {
+    try {
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      return {
+        'accuracy': position.accuracy,
+        'altitude': position.altitude,
+        'speed': position.speed,
+        'heading': position.heading,
+        'timestamp': position.timestamp,
+      };
+    } catch (e) {
+      throw Exception('Failed to get location accuracy: $e');
+    }
   }
 } 

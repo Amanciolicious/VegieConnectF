@@ -1,0 +1,65 @@
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAdmin() {
+      // If using custom claims:
+      // return request.auth.token.admin == true;
+      // If using a field in the user document:
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    function isSupplier() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'supplier';
+    }
+
+    function isBuyer() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'buyer';
+    }
+
+    // Users: Admins can read/write any, users can read/write their own
+    match /users/{userId} {
+      allow read, write: if isAdmin() || (request.auth != null && request.auth.uid == userId);
+
+      // Cart: Only the user can read/write their own cart
+      match /cart/{cartItemId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+
+    // Orders: Admins, seller, or buyer can read/write; create if involved
+    match /orders/{orderId} {
+      allow read, update, delete: if isAdmin() || (
+        request.auth != null &&
+        (request.auth.uid == resource.data.sellerId || request.auth.uid == resource.data.buyerId)
+      );
+      allow create: if isAdmin() || (
+        request.auth != null &&
+        (request.resource.data.sellerId == request.auth.uid || request.resource.data.buyerId == request.auth.uid)
+      );
+    }
+
+    // Products: Anyone can read, only seller or admin can write/create
+    match /products/{productId} {
+      allow read: if true;
+      allow update, delete: if isAdmin() || (request.auth != null && request.auth.uid == resource.data.sellerId);
+      allow create: if isAdmin() || (request.auth != null && request.resource.data.sellerId == request.auth.uid);
+    }
+
+    // Farm Locations: Anyone can read, only admin or authenticated users can write
+    match /farm_locations/{farmId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin() || request.auth != null;
+    }
+
+    // Supplier Locations: Anyone can read, only admin or the supplier can write
+    match /supplier_locations/{supplierId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin() || (request.auth != null && request.auth.uid == supplierId);
+    }
+
+    // Supplier Ratings: Anyone can read, only admin or authenticated users can write
+    match /supplier_ratings/{ratingId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin() || request.auth != null;
+    }
+  }
+} 

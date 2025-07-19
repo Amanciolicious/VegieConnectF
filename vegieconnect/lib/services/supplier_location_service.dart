@@ -1,36 +1,39 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:latlong2/latlong.dart';
 import '../models/supplier_location.dart';
-import 'dart:math';
+import 'map_service.dart';
 
 class SupplierLocationService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final String _collection = 'supplier_locations';
-
-  // Add a new supplier location
-  Future<void> addSupplierLocation(SupplierLocation supplierLocation) async {
-    try {
-      await _firestore.collection(_collection).doc(supplierLocation.id).set({
-        ...supplierLocation.toMap(),
-        'createdAt': Timestamp.fromDate(supplierLocation.createdAt),
-      });
-    } catch (e) {
-      throw Exception('Failed to add supplier location: $e');
-    }
-  }
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final MapService _mapService = MapService();
 
   // Get all supplier locations
   Future<List<SupplierLocation>> getAllSupplierLocations() async {
     try {
-      QuerySnapshot snapshot = await _firestore
-          .collection(_collection)
+      final snapshot = await _firestore
+          .collection('supplier_locations')
           .where('isActive', isEqualTo: true)
-          .orderBy('createdAt', descending: true)
           .get();
 
       return snapshot.docs.map((doc) {
-        Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-        data['id'] = doc.id;
-        return SupplierLocation.fromMap(data);
+        final data = doc.data();
+        return SupplierLocation(
+          id: doc.id,
+          supplierId: data['supplierId'] ?? '',
+          supplierName: data['supplierName'] ?? '',
+          locationName: data['locationName'] ?? '',
+          description: data['description'] ?? '',
+          address: data['address'] ?? '',
+          latitude: data['latitude'] ?? 0.0,
+          longitude: data['longitude'] ?? 0.0,
+          rating: data['rating'] ?? 0.0,
+          isActive: data['isActive'] ?? true,
+          createdAt: data['createdAt']?.toDate(),
+          updatedAt: data['updatedAt']?.toDate(),
+        );
       }).toList();
     } catch (e) {
       throw Exception('Failed to get supplier locations: $e');
@@ -40,8 +43,8 @@ class SupplierLocationService {
   // Get supplier location by supplier ID
   Future<SupplierLocation?> getSupplierLocationBySupplierId(String supplierId) async {
     try {
-      QuerySnapshot snapshot = await _firestore
-          .collection(_collection)
+      final snapshot = await _firestore
+          .collection('supplier_locations')
           .where('supplierId', isEqualTo: supplierId)
           .where('isActive', isEqualTo: true)
           .limit(1)
@@ -51,20 +54,123 @@ class SupplierLocationService {
         return null;
       }
 
-      Map<String, dynamic> data = snapshot.docs.first.data() as Map<String, dynamic>;
-      data['id'] = snapshot.docs.first.id;
-      return SupplierLocation.fromMap(data);
+      final data = snapshot.docs.first.data();
+      return SupplierLocation(
+        id: snapshot.docs.first.id,
+        supplierId: data['supplierId'] ?? '',
+        supplierName: data['supplierName'] ?? '',
+        locationName: data['locationName'] ?? '',
+        description: data['description'] ?? '',
+        address: data['address'] ?? '',
+        latitude: data['latitude'] ?? 0.0,
+        longitude: data['longitude'] ?? 0.0,
+        rating: data['rating'] ?? 0.0,
+        isActive: data['isActive'] ?? true,
+        createdAt: data['createdAt']?.toDate(),
+        updatedAt: data['updatedAt']?.toDate(),
+      );
     } catch (e) {
       throw Exception('Failed to get supplier location: $e');
     }
   }
 
-  // Update supplier location
-  Future<void> updateSupplierLocation(SupplierLocation supplierLocation) async {
+  // Create or update supplier location with automatic location detection
+  Future<void> createOrUpdateSupplierLocation({
+    required String supplierId,
+    required String supplierName,
+    required String locationName,
+    required String description,
+    LatLng? location,
+    String? address,
+  }) async {
     try {
-      await _firestore.collection(_collection).doc(supplierLocation.id).update({
-        ...supplierLocation.toMap(),
-        'createdAt': Timestamp.fromDate(supplierLocation.createdAt),
+      // If location is not provided, get current device location
+      LatLng finalLocation;
+      String finalAddress;
+
+      if (location != null) {
+        finalLocation = location;
+        finalAddress = address ?? await _mapService.getAddressFromCoordinates(location);
+      } else {
+        // Get current device location
+        final locationData = await _mapService.getCurrentLocationWithAddress();
+        finalLocation = locationData['location'] as LatLng;
+        finalAddress = locationData['address'] as String;
+      }
+
+      // Validate if location is within Bogo City limits
+      if (!_mapService.isWithinBogoCityLimits(finalLocation)) {
+        throw Exception('Location must be within Bogo City limits');
+      }
+
+      // Check if supplier location already exists
+      final existingLocation = await getSupplierLocationBySupplierId(supplierId);
+
+      if (existingLocation != null) {
+        // Update existing location
+        await _firestore
+            .collection('supplier_locations')
+            .doc(existingLocation.id)
+            .update({
+          'locationName': locationName,
+          'description': description,
+          'address': finalAddress,
+          'latitude': finalLocation.latitude,
+          'longitude': finalLocation.longitude,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      } else {
+        // Create new location
+        await _firestore.collection('supplier_locations').add({
+          'supplierId': supplierId,
+          'supplierName': supplierName,
+          'locationName': locationName,
+          'description': description,
+          'address': finalAddress,
+          'latitude': finalLocation.latitude,
+          'longitude': finalLocation.longitude,
+          'rating': 0.0,
+          'isActive': true,
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+    } catch (e) {
+      throw Exception('Failed to create/update supplier location: $e');
+    }
+  }
+
+  // Update supplier location manually (for suppliers to edit their location)
+  Future<void> updateSupplierLocation({
+    required String supplierId,
+    required LatLng newLocation,
+    String? newAddress,
+    String? newLocationName,
+    String? newDescription,
+  }) async {
+    try {
+      // Validate if location is within Bogo City limits
+      if (!_mapService.isWithinBogoCityLimits(newLocation)) {
+        throw Exception('Location must be within Bogo City limits');
+      }
+
+      final existingLocation = await getSupplierLocationBySupplierId(supplierId);
+      if (existingLocation == null) {
+        throw Exception('Supplier location not found');
+      }
+
+      final finalAddress = newAddress ?? await _mapService.getAddressFromCoordinates(newLocation);
+
+      await _firestore
+          .collection('supplier_locations')
+          .doc(existingLocation.id)
+          .update({
+        if (newLocationName != null) 'locationName': newLocationName,
+        if (newDescription != null) 'description': newDescription,
+        'address': finalAddress,
+        'latitude': newLocation.latitude,
+        'longitude': newLocation.longitude,
+        'updatedAt': FieldValue.serverTimestamp(),
       });
     } catch (e) {
       throw Exception('Failed to update supplier location: $e');
@@ -72,61 +178,80 @@ class SupplierLocationService {
   }
 
   // Delete supplier location
-  Future<void> deleteSupplierLocation(String locationId) async {
+  Future<void> deleteSupplierLocation(String supplierId) async {
     try {
-      await _firestore.collection(_collection).doc(locationId).delete();
+      final existingLocation = await getSupplierLocationBySupplierId(supplierId);
+      if (existingLocation == null) {
+        throw Exception('Supplier location not found');
+      }
+
+      await _firestore
+          .collection('supplier_locations')
+          .doc(existingLocation.id)
+          .update({
+        'isActive': false,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
     } catch (e) {
       throw Exception('Failed to delete supplier location: $e');
     }
   }
 
-  // Soft delete supplier location (set isActive to false)
-  Future<void> deactivateSupplierLocation(String locationId) async {
-    try {
-      await _firestore.collection(_collection).doc(locationId).update({
-        'isActive': false,
-      });
-    } catch (e) {
-      throw Exception('Failed to deactivate supplier location: $e');
-    }
-  }
-
-  // Get supplier locations within a certain radius
-  Future<List<SupplierLocation>> getSupplierLocationsInRadius({
-    required double centerLat,
-    required double centerLng,
+  // Get nearby supplier locations
+  Future<List<SupplierLocation>> getNearbySupplierLocations({
+    required LatLng userLocation,
     required double radiusKm,
   }) async {
     try {
-      // Note: This is a simplified approach. For production, consider using
-      // Firestore's GeoPoint and geohashing for more efficient geospatial queries
-      List<SupplierLocation> allLocations = await getAllSupplierLocations();
+      final allLocations = await getAllSupplierLocations();
       
       return allLocations.where((location) {
-        double distance = _calculateDistance(
-          centerLat, centerLng,
-          location.latitude, location.longitude,
+        final distance = _mapService.calculateDistance(
+          userLocation,
+          LatLng(location.latitude, location.longitude),
         );
         return distance <= radiusKm;
       }).toList();
     } catch (e) {
-      throw Exception('Failed to get supplier locations in radius: $e');
+      throw Exception('Failed to get nearby supplier locations: $e');
     }
   }
 
-  // Helper method to calculate distance between two points
-  double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
-    const double earthRadius = 6371; // Earth's radius in kilometers
-    
-    double lat1Rad = lat1 * (pi / 180);
-    double lat2Rad = lat2 * (pi / 180);
-    double deltaLat = (lat2 - lat1) * (pi / 180);
-    double deltaLon = (lon2 - lon1) * (pi / 180);
+  // Get current user's supplier location (if they are a supplier)
+  Future<SupplierLocation?> getCurrentUserSupplierLocation() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) {
+        return null;
+      }
 
-    double a = pow(sin(deltaLat / 2), 2) +
-        cos(lat1Rad) * cos(lat2Rad) * pow(sin(deltaLon / 2), 2);
-    double c = 2 * atan2(sqrt(a), sqrt(1 - a));
+      return await getSupplierLocationBySupplierId(user.uid);
+    } catch (e) {
+      throw Exception('Failed to get current user supplier location: $e');
+    }
+  }
 
-    return earthRadius * c;
+  // Check if current user has a supplier location
+  Future<bool> hasCurrentUserSupplierLocation() async {
+    try {
+      final location = await getCurrentUserSupplierLocation();
+      return location != null;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Get location accuracy for current user
+  Future<Map<String, dynamic>> getCurrentLocationAccuracy() async {
+    try {
+      return await _mapService.getLocationAccuracy();
+    } catch (e) {
+      throw Exception('Failed to get location accuracy: $e');
+    }
+  }
+
+  // Start real-time location tracking for suppliers
+  Stream<Position> startLocationTracking() {
+    return _mapService.startLocationTracking();
   }
 } 

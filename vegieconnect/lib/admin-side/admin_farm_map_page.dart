@@ -22,7 +22,6 @@ class _AdminFarmMapPageState extends State<AdminFarmMapPage> {
   final MapService _mapService = MapService();
   
   List<FarmLocation> _farmLocations = [];
-  LatLng? _selectedLocation;
   bool _isLoading = true;
   bool _isAddingPin = false;
   String _selectedSupplierFilter = 'All Suppliers';
@@ -83,7 +82,6 @@ class _AdminFarmMapPageState extends State<AdminFarmMapPage> {
     // If in pin addition mode, add the pin immediately
     if (_isAddingPin) {
       setState(() {
-        _selectedLocation = point;
         _isAddingPin = false; // Exit pin addition mode
       });
       _showAddFarmDialog(point);
@@ -101,7 +99,7 @@ class _AdminFarmMapPageState extends State<AdminFarmMapPage> {
   void _enablePinAdditionMode() {
     setState(() {
       _isAddingPin = true;
-      _selectedLocation = null; // Clear any existing selection
+// Clear any existing selection
     });
     
     ScaffoldMessenger.of(context).showSnackBar(
@@ -116,7 +114,6 @@ class _AdminFarmMapPageState extends State<AdminFarmMapPage> {
   void _cancelPinAdditionMode() {
     setState(() {
       _isAddingPin = false;
-      _selectedLocation = null;
     });
     
     ScaffoldMessenger.of(context).showSnackBar(
@@ -370,7 +367,6 @@ class _AdminFarmMapPageState extends State<AdminFarmMapPage> {
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
     final green = const Color(0xFFA7C957);
     final bg = const Color(0xFFF6F6F6);
     final cardRadius = BorderRadius.circular(screenWidth * 0.05);
@@ -391,7 +387,7 @@ class _AdminFarmMapPageState extends State<AdminFarmMapPage> {
     return Scaffold(
       backgroundColor: bg,
       appBar: AppBar(
-        title: Text('Admin Farm Management - Bogo City', style: TextStyle(fontSize: screenWidth * 0.055, fontWeight: FontWeight.bold)),
+        title: Text('Farm Locations (Admin Only)', style: TextStyle(fontSize: screenWidth * 0.055, fontWeight: FontWeight.bold)),
         backgroundColor: green,
         foregroundColor: Colors.white,
         elevation: 0,
@@ -492,6 +488,33 @@ class _AdminFarmMapPageState extends State<AdminFarmMapPage> {
                         SizedBox(width: screenWidth * 0.01),
                         Text(
                           'Bogo City Boundary',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: screenWidth * 0.03,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: screenWidth * 0.04,
+                  right: screenWidth * 0.04,
+                  child: Container(
+                    padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.04, vertical: screenWidth * 0.02),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.9),
+                      borderRadius: BorderRadius.circular(screenWidth * 0.05),
+                      boxShadow: neumorphicShadow,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.admin_panel_settings, color: Colors.white, size: screenWidth * 0.04),
+                        SizedBox(width: screenWidth * 0.01),
+                        Text(
+                          'Canvassed Farms Only',
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: screenWidth * 0.03,

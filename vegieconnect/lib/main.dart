@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'authentication/login_page.dart';
+import 'services/notification_service.dart';
+import 'services/messaging_service.dart';
+import 'services/performance_service.dart';
 import 'theme.dart';
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized() ;
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialize Firebase
   await Firebase.initializeApp(
-      options: const FirebaseOptions(
+    options: const FirebaseOptions(
       apiKey: "AIzaSyDQQoWOIpRRe2tVISTfPHLZZZYlEZSPAoM",
       authDomain: "vegieconnect-6bd73.firebaseapp.com",
       projectId: "vegieconnect-6bd73",
@@ -16,6 +21,12 @@ void main() async {
       measurementId: "G-0WZB3ZJ4N0"
     ),
   );
+
+  // Initialize services
+  await NotificationService().initialize();
+  await MessagingService().initialize();
+  await PerformanceService().initialize();
+
   runApp(const MyApp());
 }
 

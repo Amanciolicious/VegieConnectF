@@ -1,15 +1,101 @@
-import 'package:flutter/material.dart';
+// ignore_for_file: use_build_context_synchronously
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:vegieconnect/theme.dart'; // For AppColors
+import 'package:image_picker/image_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
 
-class ProfilePage extends StatelessWidget {
+class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
+
+  @override
+  State<ProfilePage> createState() => _ProfilePageState();
+}
+
+class _ProfilePageState extends State<ProfilePage> {
+  String? _avatarUrl;
+  final _nameController = TextEditingController();
+  final _emailController = TextEditingController();
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickAvatar() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: ImageSource.gallery);
+    if (picked != null) {
+      final ref = FirebaseStorage.instance.ref('avatars/${FirebaseAuth.instance.currentUser!.uid}.jpg');
+      await ref.putData(await picked.readAsBytes());
+      final url = await ref.getDownloadURL();
+      setState(() => _avatarUrl = url);
+      await FirebaseFirestore.instance.collection('users').doc(FirebaseAuth.instance.currentUser!.uid).update({'avatarUrl': url});
+    }
+  }
+
+  void _showEditProfile(Map<String, dynamic> data) {
+    _nameController.text = data['name'] ?? '';
+    _emailController.text = data['email'] ?? '';
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, left: 24, right: 24, top: 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              GestureDetector(
+                onTap: _pickAvatar,
+                child: CircleAvatar(
+                  radius: 40,
+                  backgroundColor: AppColors.primaryGreen.withOpacity(0.1),
+                  backgroundImage: _avatarUrl != null ? NetworkImage(_avatarUrl!) : (data['avatarUrl'] != null ? NetworkImage(data['avatarUrl']) : null),
+                  child: _avatarUrl == null && data['avatarUrl'] == null ? Icon(Icons.camera_alt, color: AppColors.primaryGreen, size: 32) : null,
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _nameController,
+                decoration: const InputDecoration(labelText: 'Name'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _emailController,
+                decoration: const InputDecoration(labelText: 'Email'),
+                enabled: false,
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryGreen, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+                  onPressed: () async {
+                    await FirebaseFirestore.instance.collection('users').doc(FirebaseAuth.instance.currentUser!.uid).update({'name': _nameController.text.trim()});
+                    
+                    Navigator.pop(context);
+                    setState(() {});
+                  },
+                  child: const Text('Save Changes', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
-    final green = const Color(0xFFA7C957);
     final user = FirebaseAuth.instance.currentUser;
     return FutureBuilder<DocumentSnapshot>(
       future: FirebaseFirestore.instance.collection('users').doc(user!.uid).get(),
@@ -22,43 +108,60 @@ class ProfilePage extends StatelessWidget {
         }
         final data = snapshot.data!.data() as Map<String, dynamic>;
         return Scaffold(
-          backgroundColor: const Color(0xFFF6F6F6),
+          backgroundColor: AppColors.background,
           appBar: AppBar(
-            backgroundColor: green,
-            title: const Text('Profile'),
+            backgroundColor: AppColors.primaryGreen,
+            title: Text('Profile', style: AppTextStyles.headline.copyWith(color: Colors.white)),
           ),
           body: ListView(
             padding: const EdgeInsets.all(24),
             children: [
-              const CircleAvatar(
-                radius: 40,
-                backgroundColor: Colors.white,
-                child: Icon(Icons.person, size: 48, color: Colors.black38),
+              Center(
+                child: Neumorphic(
+                  style: AppNeumorphic.card.copyWith(
+                    boxShape: NeumorphicBoxShape.circle(),
+                  ),
+                  child: CircleAvatar(
+                    radius: 48,
+                    backgroundColor: AppColors.primaryGreen.withOpacity(0.1),
+                    backgroundImage: data['avatarUrl'] != null ? NetworkImage(data['avatarUrl']) : null,
+                    child: data['avatarUrl'] == null ? Icon(Icons.person, color: AppColors.primaryGreen, size: 48) : null,
+                  ),
+                ),
+              ),
+              Align(
+                alignment: Alignment.topRight,
+                child: IconButton(
+                  icon: Icon(Icons.edit, color: AppColors.primaryGreen),
+                  onPressed: () => _showEditProfile(data),
+                ),
               ),
               const SizedBox(height: 18),
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Name: ${data['name'] ?? ''}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 8),
-                    Text('Email: ${data['email'] ?? ''}', style: const TextStyle(fontSize: 16)),
-                    const SizedBox(height: 8),
-                    Text('Role: ${data['role'] ?? ''}', style: const TextStyle(fontSize: 16)),
-                    // Add more fields as needed
-                  ],
+              Neumorphic(
+                style: AppNeumorphic.card,
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Name: ${data['name'] ?? ''}', style: AppTextStyles.headline.copyWith(fontSize: 18)),
+                      const SizedBox(height: 8),
+                      Text('Email: ${data['email'] ?? ''}', style: AppTextStyles.body.copyWith(fontSize: 16)),
+                      const SizedBox(height: 8),
+                      Text('Role: ${data['role'] ?? ''}', style: AppTextStyles.body.copyWith(fontSize: 16)),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 24),
               const Divider(),
               const SizedBox(height: 12),
-              const Text('Order History', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              Text('Order History', style: AppTextStyles.headline.copyWith(fontSize: 18)),
               const SizedBox(height: 12),
               StreamBuilder<QuerySnapshot>(
                 stream: FirebaseFirestore.instance
                     .collection('orders')
-                    .where('buyerId', isEqualTo: user!.uid)
+                    .where('buyerId', isEqualTo: user.uid)
                     .orderBy('createdAt', descending: true)
                     .snapshots(),
                 builder: (context, snapshot) {
@@ -67,8 +170,8 @@ class ProfilePage extends StatelessWidget {
                   }
                   if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                     return ListTile(
-                      leading: Icon(Icons.receipt_long, color: green),
-                      title: const Text('No orders yet.'),
+                      leading: Icon(Icons.receipt_long, color: AppColors.primaryGreen),
+                      title: Text('No orders yet.', style: AppTextStyles.body),
                     );
                   }
                   final orders = snapshot.data!.docs;
@@ -94,36 +197,21 @@ class ProfilePage extends StatelessWidget {
                         default:
                           statusColor = Colors.grey;
                       }
-                      return Container(
+                      return Neumorphic(
+                        style: AppNeumorphic.card,
                         margin: EdgeInsets.symmetric(horizontal: screenWidth * 0.03),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(screenWidth * 0.05),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.grey.shade300,
-                              offset: Offset(screenWidth * 0.015, screenWidth * 0.015),
-                              blurRadius: screenWidth * 0.04,
-                            ),
-                            BoxShadow(
-                              color: Colors.white,
-                              offset: Offset(-screenWidth * 0.015, -screenWidth * 0.015),
-                              blurRadius: screenWidth * 0.04,
-                            ),
-                          ],
-                        ),
                         child: ListTile(
                           contentPadding: EdgeInsets.symmetric(horizontal: screenWidth * 0.04, vertical: screenWidth * 0.03),
-                          leading: Icon(Icons.receipt_long, color: green, size: screenWidth * 0.09),
-                          title: Text(order['productName'] ?? '', style: TextStyle(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.045)),
+                          leading: Icon(Icons.receipt_long, color: AppColors.primaryGreen, size: screenWidth * 0.09),
+                          title: Text(order['productName'] ?? '', style: AppTextStyles.body.copyWith(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.045)),
                           subtitle: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('Qty: ${order['quantity']} ${order['unit']}', style: TextStyle(fontSize: screenWidth * 0.04)),
-                              Text('₱${order['price']?.toStringAsFixed(2) ?? '0.00'}', style: TextStyle(fontSize: screenWidth * 0.04)),
-                              Text('Status: $status', style: TextStyle(color: statusColor, fontSize: screenWidth * 0.04)),
-                              Text('Payment: ${order['paymentMethod'] == 'cash_on_pickup' ? 'Cash on Pick Up' : (order['paymentMethod'] ?? 'N/A')}', style: TextStyle(fontSize: screenWidth * 0.038)),
-                              Text('Payment Status: ${order['paymentStatus'] ?? 'N/A'}', style: TextStyle(fontSize: screenWidth * 0.038)),
+                              Text('Qty: ${order['quantity']} ${order['unit']}', style: AppTextStyles.body.copyWith(fontSize: screenWidth * 0.04)),
+                              Text('\u20b1${order['price']?.toStringAsFixed(2) ?? '0.00'}', style: AppTextStyles.body.copyWith(fontSize: screenWidth * 0.04)),
+                              Text('Status: $status', style: AppTextStyles.body.copyWith(color: statusColor, fontSize: screenWidth * 0.04)),
+                              Text('Payment: ${order['paymentMethod'] == 'cash_on_pickup' ? 'Cash on Pick Up' : (order['paymentMethod'] ?? 'N/A')}', style: AppTextStyles.body.copyWith(fontSize: screenWidth * 0.038)),
+                              Text('Payment Status: ${order['paymentStatus'] ?? 'N/A'}', style: AppTextStyles.body.copyWith(fontSize: screenWidth * 0.038)),
                             ],
                           ),
                           trailing: Container(
@@ -134,7 +222,7 @@ class ProfilePage extends StatelessWidget {
                             ),
                             child: Text(
                               status,
-                              style: TextStyle(fontSize: screenWidth * 0.04, color: statusColor, fontWeight: FontWeight.bold),
+                              style: AppTextStyles.body.copyWith(fontSize: screenWidth * 0.04, color: statusColor, fontWeight: FontWeight.bold),
                             ),
                           ),
                         ),
@@ -147,20 +235,18 @@ class ProfilePage extends StatelessWidget {
               SizedBox(
                 width: double.infinity,
                 height: 48,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: green,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
+                child: NeumorphicButton(
+                  style: AppNeumorphic.button.copyWith(
+                    color: AppColors.primaryGreen,
+                    boxShape: NeumorphicBoxShape.roundRect(BorderRadius.circular(16)),
                   ),
                   onPressed: () async {
                     await FirebaseAuth.instance.signOut();
                     if (context.mounted) {
-                      Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+                      Navigator.of(context).pushReplacementNamed('/login');
                     }
                   },
-                  child: const Text('Logout', style: TextStyle(fontSize: 18, color: Colors.white)),
+                  child: Text('Logout', style: AppTextStyles.button.copyWith(fontSize: 18)),
                 ),
               ),
             ],

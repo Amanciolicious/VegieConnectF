@@ -1,9 +1,10 @@
 // ignore_for_file: deprecated_member_use
 
-import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import '../services/map_service.dart';
+import 'package:vegieconnect/theme.dart'; // For AppColors
+import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
 
 class LocationSelectionPage extends StatefulWidget {
   final Function(LatLng location, String address) onLocationSelected;
@@ -28,17 +29,105 @@ class _LocationSelectionPageState extends State<LocationSelectionPage> {
   String _currentAddress = '';
   String _manualAddress = '';
   LatLng? _manualLocation;
+  String? _selectedLocationId;
+  List<Map<String, dynamic>> _filteredLocations = [];
 
   @override
   void initState() {
     super.initState();
     _checkLocationPermission();
+    _initializeLocations();
   }
 
   @override
   void dispose() {
     _addressController.dispose();
     super.dispose();
+  }
+
+  void _initializeLocations() {
+    _filteredLocations = [
+      {
+        'id': 'bogo_city',
+        'name': 'Bogo City',
+        'description': 'Cebu, Philippines',
+        'coordinates': LatLng(11.0474, 124.0051),
+      },
+      {
+        'id': 'cebu_city',
+        'name': 'Cebu City',
+        'description': 'Cebu, Philippines',
+        'coordinates': LatLng(10.3157, 123.8854),
+      },
+      {
+        'id': 'mandaue_city',
+        'name': 'Mandaue City',
+        'description': 'Cebu, Philippines',
+        'coordinates': LatLng(10.3233, 123.9400),
+      },
+      {
+        'id': 'lapu_lapu_city',
+        'name': 'Lapu-Lapu City',
+        'description': 'Cebu, Philippines',
+        'coordinates': LatLng(10.3103, 123.9494),
+      },
+      {
+        'id': 'talamban',
+        'name': 'Talamban',
+        'description': 'Cebu City, Philippines',
+        'coordinates': LatLng(10.3500, 123.9500),
+      },
+    ];
+  }
+
+  void _filterLocations(String query) {
+    if (query.isEmpty) {
+      setState(() {
+        _filteredLocations = _getAllLocations();
+      });
+    } else {
+      setState(() {
+        _filteredLocations = _getAllLocations().where((location) {
+          return location['name'].toString().toLowerCase().contains(query.toLowerCase()) ||
+                 location['description'].toString().toLowerCase().contains(query.toLowerCase());
+        }).toList();
+      });
+    }
+  }
+
+  List<Map<String, dynamic>> _getAllLocations() {
+    return [
+      {
+        'id': 'bogo_city',
+        'name': 'Bogo City',
+        'description': 'Cebu, Philippines',
+        'coordinates': LatLng(11.0474, 124.0051),
+      },
+      {
+        'id': 'cebu_city',
+        'name': 'Cebu City',
+        'description': 'Cebu, Philippines',
+        'coordinates': LatLng(10.3157, 123.8854),
+      },
+      {
+        'id': 'mandaue_city',
+        'name': 'Mandaue City',
+        'description': 'Cebu, Philippines',
+        'coordinates': LatLng(10.3233, 123.9400),
+      },
+      {
+        'id': 'lapu_lapu_city',
+        'name': 'Lapu-Lapu City',
+        'description': 'Cebu, Philippines',
+        'coordinates': LatLng(10.3103, 123.9494),
+      },
+      {
+        'id': 'talamban',
+        'name': 'Talamban',
+        'description': 'Cebu City, Philippines',
+        'coordinates': LatLng(10.3500, 123.9500),
+      },
+    ];
   }
 
   Future<void> _checkLocationPermission() async {
@@ -189,331 +278,212 @@ class _LocationSelectionPageState extends State<LocationSelectionPage> {
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
-    final green = const Color(0xFFA7C957);
-    final cardRadius = BorderRadius.circular(screenWidth * 0.05);
-    final neumorphicShadow = [
-      BoxShadow(
-        color: Colors.grey.shade300,
-        offset: Offset(screenWidth * 0.015, screenWidth * 0.015),
-        blurRadius: screenWidth * 0.04,
-      ),
-      BoxShadow(
-        color: Colors.white,
-        offset: Offset(-screenWidth * 0.015, -screenWidth * 0.015),
-        blurRadius: screenWidth * 0.04,
-      ),
-    ];
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text('Choose Your Location', style: TextStyle(fontSize: screenWidth * 0.05, fontWeight: FontWeight.bold)),
-        backgroundColor: green,
-        foregroundColor: Colors.white,
+        backgroundColor: AppColors.primaryGreen,
+        title: Text('Select Location', style: AppTextStyles.headline.copyWith(color: Colors.white, fontSize: screenWidth * 0.055)),
         elevation: 0,
       ),
-      body: _isLoading
-          ? Center(
+      body: Column(
+        children: [
+          // Header Section
+          Neumorphic(
+            style: AppNeumorphic.card,
+            margin: EdgeInsets.all(screenWidth * 0.04),
+            child: Padding(
+              padding: EdgeInsets.all(screenWidth * 0.06),
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  CircularProgressIndicator(color: green),
-                  SizedBox(height: screenWidth * 0.04),
-                  Text('Getting location...', style: TextStyle(fontSize: screenWidth * 0.04)),
-                ],
-              ),
-            )
-          : SingleChildScrollView(
-              padding: EdgeInsets.all(screenWidth * 0.05),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Header
-                  Container(
-                    padding: EdgeInsets.all(screenWidth * 0.05),
-                    decoration: BoxDecoration(
-                      color: green.withOpacity(0.1),
-                      borderRadius: cardRadius,
-                      border: Border.all(color: green.withOpacity(0.3)),
-                      boxShadow: neumorphicShadow,
-                    ),
-                    child: Column(
-                      children: [
-                        Icon(
-                          Icons.location_on,
-                          size: screenWidth * 0.12,
-                          color: green,
-                        ),
-                        SizedBox(height: screenWidth * 0.03),
-                        Text(
-                          'Select Your Location',
-                          style: TextStyle(
-                            fontSize: screenWidth * 0.05,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        SizedBox(height: screenWidth * 0.02),
-                        Text(
-                          'Choose how you want to set your location for finding nearby suppliers',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Colors.grey,
-                            fontSize: screenWidth * 0.035,
-                          ),
-                        ),
-                      ],
+                  Icon(
+                    Icons.location_on,
+                    size: screenWidth * 0.12,
+                    color: AppColors.primaryGreen,
+                  ),
+                  SizedBox(height: screenWidth * 0.03),
+                  Text(
+                    'Choose Your Location',
+                    style: AppTextStyles.headline.copyWith(
+                      fontSize: screenWidth * 0.06,
+                      color: AppColors.primaryGreen,
                     ),
                   ),
-                  SizedBox(height: screenWidth * 0.06),
-
-                  // Current Location Option
-                  Card(
-                    elevation: 2,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      side: BorderSide(
-                        color: _useCurrentLocation ? Colors.green : Colors.transparent,
-                        width: 2,
-                      ),
+                  SizedBox(height: screenWidth * 0.02),
+                  Text(
+                    'Select your delivery location to find nearby suppliers',
+                    style: AppTextStyles.body.copyWith(
+                      fontSize: screenWidth * 0.04,
+                      color: AppColors.textSecondary,
                     ),
-                    child: InkWell(
-                      onTap: _getCurrentLocation,
-                      borderRadius: BorderRadius.circular(12),
-                      child: Padding(
-                        padding: const EdgeInsets.all(20),
-                        child: Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: Colors.green.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Icon(
-                                Icons.my_location,
-                                color: Colors.green,
-                                size: 24,
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Use My Current Location',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  const Text(
-                                    'Automatically detect your location using GPS',
-                                    style: TextStyle(
-                                      color: Colors.grey,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                  if (_useCurrentLocation && _currentAddress.isNotEmpty) ...[
-                                    const SizedBox(height: 8),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 4,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Colors.green.withOpacity(0.1),
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      child: Text(
-                                        _currentAddress,
-                                        style: const TextStyle(
-                                          color: Colors.green,
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            ),
-                            if (_useCurrentLocation)
-                              const Icon(
-                                Icons.check_circle,
-                                color: Colors.green,
-                                size: 24,
-                              ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // Manual Location Option
-                  Card(
-                    elevation: 2,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      side: BorderSide(
-                        color: _useManualLocation ? Colors.green : Colors.transparent,
-                        width: 2,
-                      ),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: Colors.blue.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: const Icon(
-                                  Icons.edit_location,
-                                  color: Colors.blue,
-                                  size: 24,
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text(
-                                      'Set My Location Manually',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    const Text(
-                                      'Enter your address or preferred location',
-                                      style: TextStyle(
-                                        color: Colors.grey,
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              if (_useManualLocation)
-                                const Icon(
-                                  Icons.check_circle,
-                                  color: Colors.green,
-                                  size: 24,
-                                ),
-                            ],
-                          ),
-                          
-                          const SizedBox(height: 16),
-                          
-                          TextField(
-                            controller: _addressController,
-                            decoration: InputDecoration(
-                              hintText: 'Enter your address (e.g., Bogo City, Cebu)',
-                              prefixIcon: const Icon(Icons.search),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              filled: true,
-                              fillColor: Colors.grey.withOpacity(0.05),
-                            ),
-                            onChanged: (value) {
-                              setState(() {
-                                _useManualLocation = false;
-                              });
-                            },
-                          ),
-                          
-                          const SizedBox(height: 12),
-                          
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton.icon(
-                              onPressed: _getManualLocation,
-                              icon: const Icon(Icons.search),
-                              label: const Text('Find Location'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.blue,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                            ),
-                          ),
-                          
-                          if (_useManualLocation && _manualAddress.isNotEmpty) ...[
-                            const SizedBox(height: 12),
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: Colors.blue.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: Colors.blue.withOpacity(0.3)),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Selected Location:',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    _manualAddress,
-                                    style: const TextStyle(
-                                      color: Colors.blue,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 32),
-
-                  // Confirm Button
-                  ElevatedButton(
-                    onPressed: (_useCurrentLocation && _currentLocation != null) ||
-                              (_useManualLocation && _manualLocation != null)
-                        ? _confirmLocation
-                        : null,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: const Text(
-                      'Confirm Location',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    textAlign: TextAlign.center,
                   ),
                 ],
               ),
             ),
+          ),
+          // Search Bar
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.04),
+            child: Neumorphic(
+              style: AppNeumorphic.inset,
+              child: TextField(
+                controller: _addressController,
+                decoration: InputDecoration(
+                  hintText: 'Enter your address (e.g., Bogo City, Cebu)',
+                  hintStyle: AppTextStyles.body.copyWith(color: AppColors.textSecondary),
+                  prefixIcon: Icon(Icons.search, color: AppColors.primaryGreen),
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.symmetric(horizontal: screenWidth * 0.04, vertical: screenWidth * 0.04),
+                ),
+                style: AppTextStyles.body,
+                onChanged: (value) {
+                  setState(() {
+                    _useManualLocation = false;
+                  });
+                  _filterLocations(value);
+                },
+              ),
+            ),
+          ),
+          SizedBox(height: screenWidth * 0.04),
+          // Location List
+          Expanded(
+            child: ListView.builder(
+              padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.04),
+              itemCount: _filteredLocations.length,
+              itemBuilder: (context, index) {
+                final location = _filteredLocations[index];
+                return _buildLocationCard(screenWidth, location);
+              },
+            ),
+          ),
+          // Action Buttons
+          Padding(
+            padding: EdgeInsets.all(screenWidth * 0.04),
+            child: Row(
+              children: [
+                Expanded(
+                  child: NeumorphicButton(
+                    style: AppNeumorphic.button.copyWith(
+                      color: AppColors.primaryGreen,
+                    ),
+                    onPressed: _isLoading ? null : _getCurrentLocation,
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: screenWidth * 0.04),
+                      child: _isLoading
+                          ? SizedBox(
+                              height: screenWidth * 0.05,
+                              width: screenWidth * 0.05,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            )
+                          : Text(
+                              'Use Current Location',
+                              style: AppTextStyles.button.copyWith(
+                                color: Colors.white,
+                                fontSize: screenWidth * 0.045,
+                              ),
+                            ),
+                    ),
+                  ),
+                ),
+                SizedBox(width: screenWidth * 0.04),
+                Expanded(
+                  child: NeumorphicButton(
+                    style: AppNeumorphic.button.copyWith(
+                      color: _selectedLocationId != null ? AppColors.primaryGreen : AppColors.textSecondary,
+                    ),
+                    onPressed: _selectedLocationId != null ? _confirmLocation : null,
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: screenWidth * 0.04),
+                      child: Text(
+                        'Confirm Location',
+                        style: AppTextStyles.button.copyWith(
+                          color: Colors.white,
+                          fontSize: screenWidth * 0.045,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLocationCard(double screenWidth, Map<String, dynamic> location) {
+    final isSelected = _selectedLocationId == location['id'];
+    
+    return Neumorphic(
+      style: AppNeumorphic.card.copyWith(
+        color: isSelected ? AppColors.primaryGreen.withOpacity(0.1) : Colors.white,
+      ),
+      margin: EdgeInsets.only(bottom: screenWidth * 0.03),
+      child: InkWell(
+        onTap: () {
+          setState(() {
+            _selectedLocationId = location['id'];
+            _manualLocation = location['coordinates'];
+            _manualAddress = '${location['name']}, ${location['description']}';
+            _useManualLocation = true;
+            _useCurrentLocation = false;
+          });
+        },
+        child: Padding(
+          padding: EdgeInsets.all(screenWidth * 0.04),
+          child: Row(
+            children: [
+              Container(
+                width: screenWidth * 0.12,
+                height: screenWidth * 0.12,
+                decoration: BoxDecoration(
+                  color: AppColors.primaryGreen.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(screenWidth * 0.06),
+                ),
+                child: Icon(
+                  Icons.location_city,
+                  color: AppColors.primaryGreen,
+                  size: screenWidth * 0.06,
+                ),
+              ),
+              SizedBox(width: screenWidth * 0.04),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      location['name'] ?? 'Unknown Location',
+                      style: AppTextStyles.headline.copyWith(
+                        fontSize: screenWidth * 0.045,
+                        color: isSelected ? AppColors.primaryGreen : AppColors.textPrimary,
+                      ),
+                    ),
+                    SizedBox(height: screenWidth * 0.01),
+                    Text(
+                      location['description'] ?? 'No description available',
+                      style: AppTextStyles.body.copyWith(
+                        fontSize: screenWidth * 0.035,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (isSelected)
+                Icon(
+                  Icons.check_circle,
+                  color: AppColors.primaryGreen,
+                  size: screenWidth * 0.06,
+                ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 } 

@@ -10,7 +10,10 @@ class SupplierLocation {
   final double longitude;
   final String address;
   final DateTime createdAt;
+  final DateTime? updatedAt;
   final bool isActive;
+  final double? rating;
+  final bool? isNearest;
 
   SupplierLocation({
     required this.id,
@@ -22,7 +25,10 @@ class SupplierLocation {
     required this.longitude,
     required this.address,
     required this.createdAt,
+    this.updatedAt,
     this.isActive = true,
+    this.rating,
+    this.isNearest = false,
   });
 
   Map<String, dynamic> toMap() {
@@ -36,7 +42,10 @@ class SupplierLocation {
       'longitude': longitude,
       'address': address,
       'createdAt': createdAt,
+      'updatedAt': updatedAt,
       'isActive': isActive,
+      'rating': rating,
+      'isNearest': isNearest,
     };
   }
 
@@ -51,7 +60,10 @@ class SupplierLocation {
       longitude: (map['longitude'] ?? 0.0).toDouble(),
       address: map['address'] ?? '',
       createdAt: (map['createdAt'] as Timestamp).toDate(),
+      updatedAt: map['updatedAt'] != null ? (map['updatedAt'] as Timestamp).toDate() : null,
       isActive: map['isActive'] ?? true,
+      rating: map['rating'] != null ? (map['rating'] as num).toDouble() : null,
+      isNearest: map['isNearest'] ?? false,
     );
   }
 
@@ -65,7 +77,10 @@ class SupplierLocation {
     double? longitude,
     String? address,
     DateTime? createdAt,
+    DateTime? updatedAt,
     bool? isActive,
+    double? rating,
+    bool? isNearest,
   }) {
     return SupplierLocation(
       id: id ?? this.id,
@@ -77,7 +92,10 @@ class SupplierLocation {
       longitude: longitude ?? this.longitude,
       address: address ?? this.address,
       createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
       isActive: isActive ?? this.isActive,
+      rating: rating ?? this.rating,
+      isNearest: isNearest ?? this.isNearest,
     );
   }
 } 

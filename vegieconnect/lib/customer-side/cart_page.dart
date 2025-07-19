@@ -1,6 +1,7 @@
-import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:vegieconnect/theme.dart'; // For AppColors
+import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
 
 class CartPage extends StatefulWidget {
   const CartPage({super.key});
@@ -121,32 +122,17 @@ class _CartPageState extends State<CartPage> {
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
-    final green = const Color(0xFFA7C957);
-    final bg = const Color(0xFFF6F6F6);
     final cardRadius = BorderRadius.circular(screenWidth * 0.05);
-    final neumorphicShadow = [
-      BoxShadow(
-        color: Colors.grey.shade300,
-        offset: Offset(screenWidth * 0.015, screenWidth * 0.015),
-        blurRadius: screenWidth * 0.04,
-      ),
-      BoxShadow(
-        color: Colors.white,
-        offset: Offset(-screenWidth * 0.015, -screenWidth * 0.015),
-        blurRadius: screenWidth * 0.04,
-      ),
-    ];
     if (user == null) {
       return const Scaffold(
         body: Center(child: Text('Not logged in.')),
       );
     }
     return Scaffold(
-      backgroundColor: bg,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: green,
-        title: Text('Cart', style: TextStyle(fontSize: screenWidth * 0.055, fontWeight: FontWeight.bold)),
+        backgroundColor: AppColors.primaryGreen,
+        title: Text('Cart', style: AppTextStyles.headline.copyWith(color: Colors.white, fontSize: screenWidth * 0.055)),
         elevation: 0,
       ),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
@@ -157,8 +143,14 @@ class _CartPageState extends State<CartPage> {
           }
           final cartItems = snapshot.data?.docs ?? [];
           if (cartItems.isEmpty) {
-            return const Center(
-              child: Text('Your cart is empty.', style: TextStyle(color: Colors.black54, fontSize: 18)),
+            return Center(
+              child: Neumorphic(
+                style: AppNeumorphic.card,
+                child: Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Text('Your cart is empty.', style: AppTextStyles.body.copyWith(color: AppColors.textSecondary, fontSize: 18)),
+                ),
+              ),
             );
           }
           final total = _calculateTotal(cartItems);
@@ -170,18 +162,14 @@ class _CartPageState extends State<CartPage> {
                   padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.03, vertical: screenWidth * 0.01),
                   itemBuilder: (context, i) {
                     final item = cartItems[i].data();
-                    return Container(
+                    return Neumorphic(
+                      style: AppNeumorphic.card,
                       margin: EdgeInsets.symmetric(vertical: screenWidth * 0.015),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: cardRadius,
-                        boxShadow: neumorphicShadow,
-                      ),
                       child: ListTile(
                         contentPadding: EdgeInsets.symmetric(horizontal: screenWidth * 0.04, vertical: screenWidth * 0.02),
-                        leading: Icon(Icons.eco, color: green, size: screenWidth * 0.09),
-                        title: Text(item['name'] ?? '', style: TextStyle(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.045)),
-                        subtitle: Text('₱${item['price']} x ${item['quantity']}', style: TextStyle(fontSize: screenWidth * 0.04)),
+                        leading: Icon(Icons.eco, color: AppColors.primaryGreen, size: screenWidth * 0.09),
+                        title: Text(item['name'] ?? '', style: AppTextStyles.body.copyWith(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.045)),
+                        subtitle: Text('\u20b1${item['price']} x ${item['quantity']}', style: AppTextStyles.body.copyWith(fontSize: screenWidth * 0.04)),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -189,7 +177,7 @@ class _CartPageState extends State<CartPage> {
                               icon: Icon(Icons.remove, size: screenWidth * 0.07),
                               onPressed: () => _updateQuantity(cartItems[i].id, (item['quantity'] ?? 1) - 1),
                             ),
-                            Text('${item['quantity']}', style: TextStyle(fontSize: screenWidth * 0.045)),
+                            Text('${item['quantity']}', style: AppTextStyles.body.copyWith(fontSize: screenWidth * 0.045)),
                             IconButton(
                               icon: Icon(Icons.add, size: screenWidth * 0.07),
                               onPressed: () => _updateQuantity(cartItems[i].id, (item['quantity'] ?? 1) + 1),
@@ -212,26 +200,23 @@ class _CartPageState extends State<CartPage> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('Total:', style: TextStyle(fontSize: screenWidth * 0.05, fontWeight: FontWeight.bold)),
-                        Text('₱${total.toStringAsFixed(2)}', style: TextStyle(fontSize: screenWidth * 0.05, fontWeight: FontWeight.bold)),
+                        Text('Total:', style: AppTextStyles.headline.copyWith(fontSize: screenWidth * 0.05)),
+                        Text('\u20b1${total.toStringAsFixed(2)}', style: AppTextStyles.headline.copyWith(fontSize: screenWidth * 0.05)),
                       ],
                     ),
                     SizedBox(height: screenWidth * 0.04),
                     SizedBox(
                       width: double.infinity,
                       height: screenWidth * 0.13,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFFFA500), // Orange accent
-                          elevation: 2,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(screenWidth * 0.04),
-                          ),
+                      child: NeumorphicButton(
+                        style: AppNeumorphic.button.copyWith(
+                          color: AppColors.primaryGreen,
+                          boxShape: NeumorphicBoxShape.roundRect(BorderRadius.circular(screenWidth * 0.04)),
                         ),
                         onPressed: _isProcessing || cartItems.isEmpty
                             ? null
                             : () => _checkout(cartItems),
-                        child: Text('Checkout', style: TextStyle(fontSize: screenWidth * 0.05, color: Colors.white, fontWeight: FontWeight.bold)),
+                        child: Text('Checkout', style: AppTextStyles.button.copyWith(fontSize: screenWidth * 0.05)),
                       ),
                     ),
                   ],

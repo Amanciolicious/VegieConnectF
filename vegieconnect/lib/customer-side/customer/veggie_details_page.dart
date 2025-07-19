@@ -1,7 +1,8 @@
 // ignore_for_file: deprecated_member_use
 
-import 'package:flutter/material.dart';
 import 'data/veggies_data.dart';
+import 'package:vegieconnect/theme.dart'; // For AppColors
+import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
 
 class VeggieDetailsPage extends StatefulWidget {
   final Map<String, dynamic> veggie;
@@ -18,26 +19,12 @@ class _VeggieDetailsPageState extends State<VeggieDetailsPage> {
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
-    final green = const Color(0xFFA7C957);
     final cardRadius = BorderRadius.circular(screenWidth * 0.05);
-    final neumorphicShadow = [
-      BoxShadow(
-        color: Colors.grey.shade300,
-        offset: Offset(screenWidth * 0.015, screenWidth * 0.015),
-        blurRadius: screenWidth * 0.04,
-      ),
-      BoxShadow(
-        color: Colors.white,
-        offset: Offset(-screenWidth * 0.015, -screenWidth * 0.015),
-        blurRadius: screenWidth * 0.04,
-      ),
-    ];
     final veggie = widget.veggie;
     final desc = veggie['desc'] as String;
     final showReadMore = desc.length > 90;
     return Scaffold(
-      backgroundColor: const Color(0xFFEAF6EA),
+      backgroundColor: AppColors.background,
       body: Stack(
         children: [
           ListView(
@@ -45,14 +32,12 @@ class _VeggieDetailsPageState extends State<VeggieDetailsPage> {
             children: [
               Stack(
                 children: [
-                  Container(
+                  Neumorphic(
+                    style: AppNeumorphic.card.copyWith(
+                      boxShape: NeumorphicBoxShape.roundRect(cardRadius),
+                    ),
                     margin: EdgeInsets.only(top: screenWidth * 0.11, left: screenWidth * 0.04, right: screenWidth * 0.04),
                     padding: EdgeInsets.only(top: screenWidth * 0.16, bottom: screenWidth * 0.06),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: cardRadius,
-                      boxShadow: neumorphicShadow,
-                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -63,24 +48,24 @@ class _VeggieDetailsPageState extends State<VeggieDetailsPage> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(veggie['name'], style: TextStyle(fontSize: screenWidth * 0.065, fontWeight: FontWeight.bold)),
+                              Text(veggie['name'], style: AppTextStyles.headline.copyWith(fontSize: screenWidth * 0.065)),
                               SizedBox(height: screenWidth * 0.015),
                               Row(
                                 children: [
-                                  ...List.generate(5, (i) => Icon(Icons.star, color: i < veggie['rating'].round() ? Colors.orange : Colors.grey[300], size: screenWidth * 0.05)),
+                                  ...List.generate(5, (i) => Icon(Icons.star, color: i < veggie['rating'].round() ? AppColors.primaryGreen : AppColors.oliveGreen.withOpacity(0.2), size: screenWidth * 0.05)),
                                   SizedBox(width: screenWidth * 0.02),
-                                  Text(veggie['rating'].toString(), style: TextStyle(fontSize: screenWidth * 0.04)),
+                                  Text(veggie['rating'].toString(), style: AppTextStyles.body.copyWith(fontSize: screenWidth * 0.04)),
                                 ],
                               ),
                               SizedBox(height: screenWidth * 0.02),
                               Row(
                                 children: [
-                                  Text('\u20b1${veggie['price']}/KG', style: TextStyle(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.055, color: green)),
+                                  Text('\u20b1${veggie['price']}/KG', style: AppTextStyles.price.copyWith(fontSize: screenWidth * 0.055)),
                                   const Spacer(),
-                                  Container(
-                                    decoration: BoxDecoration(
-                                      color: green.withOpacity(0.12),
-                                      borderRadius: cardRadius,
+                                  Neumorphic(
+                                    style: AppNeumorphic.inset.copyWith(
+                                      color: AppColors.primaryGreen.withOpacity(0.12),
+                                      boxShape: NeumorphicBoxShape.roundRect(cardRadius),
                                     ),
                                     child: Row(
                                       children: [
@@ -88,7 +73,7 @@ class _VeggieDetailsPageState extends State<VeggieDetailsPage> {
                                           icon: Icon(Icons.remove, size: screenWidth * 0.05),
                                           onPressed: _qty > 1 ? () => setState(() => _qty--) : null,
                                         ),
-                                        Text('$_qty KG', style: TextStyle(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.045)),
+                                        Text('$_qty KG', style: AppTextStyles.body.copyWith(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.045)),
                                         IconButton(
                                           icon: Icon(Icons.add, size: screenWidth * 0.05),
                                           onPressed: () => setState(() => _qty++),
@@ -99,16 +84,16 @@ class _VeggieDetailsPageState extends State<VeggieDetailsPage> {
                                 ],
                               ),
                               SizedBox(height: screenWidth * 0.045),
-                              Text('Product Details', style: TextStyle(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.045)),
+                              Text('Product Details', style: AppTextStyles.headline.copyWith(fontSize: screenWidth * 0.045)),
                               SizedBox(height: screenWidth * 0.015),
                               Text(
                                 showReadMore && !_readMore ? '${desc.substring(0, 90)}...' : desc,
-                                style: TextStyle(fontSize: screenWidth * 0.04, color: Colors.black87),
+                                style: AppTextStyles.body.copyWith(fontSize: screenWidth * 0.04),
                               ),
                               if (showReadMore && !_readMore)
                                 GestureDetector(
                                   onTap: () => setState(() => _readMore = true),
-                                  child: Text('Read More', style: TextStyle(color: green, fontWeight: FontWeight.bold, fontSize: screenWidth * 0.04)),
+                                  child: Text('Read More', style: AppTextStyles.body.copyWith(color: AppColors.primaryGreen, fontWeight: FontWeight.bold, fontSize: screenWidth * 0.04)),
                                 ),
                             ],
                           ),
@@ -135,7 +120,7 @@ class _VeggieDetailsPageState extends State<VeggieDetailsPage> {
                       backgroundColor: Colors.white,
                       radius: screenWidth * 0.06,
                       child: IconButton(
-                        icon: Icon(Icons.favorite_border, color: green, size: screenWidth * 0.06),
+                        icon: Icon(Icons.favorite_border, color: AppColors.primaryGreen, size: screenWidth * 0.06),
                         onPressed: () {},
                       ),
                     ),
@@ -145,7 +130,7 @@ class _VeggieDetailsPageState extends State<VeggieDetailsPage> {
               SizedBox(height: screenWidth * 0.06),
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.06),
-                child: Text('Related Products', style: TextStyle(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.045)),
+                child: Text('Related Products', style: AppTextStyles.headline.copyWith(fontSize: screenWidth * 0.045)),
               ),
               SizedBox(height: screenWidth * 0.02),
               SizedBox(
@@ -159,21 +144,19 @@ class _VeggieDetailsPageState extends State<VeggieDetailsPage> {
                         onTap: () => Navigator.of(context).pushReplacement(
                           MaterialPageRoute(builder: (_) => VeggieDetailsPage(veggie: v)),
                         ),
-                        child: Container(
-                          width: screenWidth * 0.22,
+                        child: Neumorphic(
+                          style: AppNeumorphic.card.copyWith(color: AppColors.primaryGreen.withOpacity(0.10)),
                           margin: EdgeInsets.only(right: screenWidth * 0.03),
-                          decoration: BoxDecoration(
-                            color: green.withOpacity(0.10),
-                            borderRadius: cardRadius,
-                            boxShadow: neumorphicShadow,
-                          ),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(v['image'], style: TextStyle(fontSize: screenWidth * 0.08)),
-                              SizedBox(height: screenWidth * 0.015),
-                              Text(v['name'], style: TextStyle(fontWeight: FontWeight.w600, fontSize: screenWidth * 0.04)),
-                            ],
+                          child: SizedBox(
+                            width: screenWidth * 0.22,
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(v['image'], style: TextStyle(fontSize: screenWidth * 0.08)),
+                                SizedBox(height: screenWidth * 0.015),
+                                Text(v['name'], style: AppTextStyles.body.copyWith(fontWeight: FontWeight.w600, fontSize: screenWidth * 0.04)),
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -188,40 +171,35 @@ class _VeggieDetailsPageState extends State<VeggieDetailsPage> {
             left: 0,
             right: 0,
             bottom: 0,
-            child: Container(
-              padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.06, vertical: screenWidth * 0.04),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(screenWidth * 0.05),
-                  topRight: Radius.circular(screenWidth * 0.05),
-                ),
-                boxShadow: neumorphicShadow,
+            child: Neumorphic(
+              style: AppNeumorphic.card.copyWith(
+                boxShape: NeumorphicBoxShape.roundRect(BorderRadius.only(
+                  topLeft: cardRadius.topLeft,
+                  topRight: cardRadius.topRight,
+                )),
               ),
-              child: Row(
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Total Price', style: TextStyle(color: Colors.black54, fontSize: screenWidth * 0.035)),
-                      Text('\u20b1${(veggie['price'] * _qty).toStringAsFixed(2)}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.055, color: green)),
-                    ],
-                  ),
-                  const Spacer(),
-                  SizedBox(
-                    height: screenWidth * 0.13,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: green,
-                        shape: RoundedRectangleBorder(borderRadius: cardRadius),
-                        elevation: 0,
-                        shadowColor: Colors.transparent,
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.06, vertical: screenWidth * 0.04),
+                child: Row(
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Total Price', style: AppTextStyles.body.copyWith(color: AppColors.textSecondary, fontSize: screenWidth * 0.035)),
+                        Text('\u20b1${(veggie['price'] * _qty).toStringAsFixed(2)}', style: AppTextStyles.price.copyWith(fontSize: screenWidth * 0.055)),
+                      ],
+                    ),
+                    const Spacer(),
+                    NeumorphicButton(
+                      style: AppNeumorphic.button.copyWith(
+                        color: AppColors.primaryGreen,
+                        boxShape: NeumorphicBoxShape.roundRect(cardRadius),
                       ),
                       onPressed: () {},
-                      child: Text('Add to Cart', style: TextStyle(fontSize: screenWidth * 0.045, color: Colors.white)),
+                      child: Text('Add to Cart', style: AppTextStyles.button.copyWith(fontSize: screenWidth * 0.045)),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

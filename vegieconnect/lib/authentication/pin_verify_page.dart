@@ -1,6 +1,5 @@
 // ignore_for_file: avoid_print, use_build_context_synchronously
 
-import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:vegieconnect/admin-side/admin_dashboard.dart';
@@ -8,6 +7,8 @@ import 'login_page.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:math';
+import 'package:vegieconnect/theme.dart'; // For AppColors
+import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
 
 class PinVerifyPage extends StatefulWidget {
   final String userId;
@@ -164,96 +165,248 @@ class _PinVerifyPageState extends State<PinVerifyPage> {
 
   @override
   Widget build(BuildContext context) {
-    final green = const Color(0xFFA7C957);
-    final minutes = (_secondsLeft ~/ 60).toString().padLeft(2, '0');
-    final seconds = (_secondsLeft % 60).toString().padLeft(2, '0');
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F6F6),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32.0),
-          child: Card(
-            elevation: 8,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.lock, size: 48, color: Color(0xFFA7C957)),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Enter PIN',
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'A 5-digit PIN was sent to:',
-                    style: TextStyle(fontSize: 15, color: Colors.black54),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    widget.email,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: _pinController,
-                    keyboardType: TextInputType.number,
-                    maxLength: 5,
-                    decoration: const InputDecoration(
-                      labelText: 'PIN',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text('Expires in $minutes:$seconds', style: const TextStyle(color: Colors.red)),
-                  const SizedBox(height: 16),
-                  if (_errorMessage != null)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8.0),
-                      child: Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
-                    ),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: green,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: AppColors.primaryGreen,
+        title: Text('PIN Verification', style: AppTextStyles.headline.copyWith(color: Colors.white, fontSize: screenWidth * 0.055)),
+        elevation: 0,
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: EdgeInsets.all(screenWidth * 0.05),
+          child: Column(
+            children: [
+              SizedBox(height: screenHeight * 0.05),
+              // Header Section
+              Neumorphic(
+                style: AppNeumorphic.card,
+                child: Container(
+                  padding: EdgeInsets.all(screenWidth * 0.08),
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.security,
+                        size: screenWidth * 0.15,
+                        color: AppColors.primaryGreen,
+                      ),
+                      SizedBox(height: screenWidth * 0.04),
+                      Text(
+                        'Secure Verification',
+                        style: AppTextStyles.headline.copyWith(
+                          fontSize: screenWidth * 0.06,
+                          color: AppColors.primaryGreen,
                         ),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
-                      onPressed: _isLoading || _secondsLeft == 0 ? null : _verifyPin,
-                      child: _isLoading
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                color: Colors.white,
-                                strokeWidth: 2,
-                              ),
-                            )
-                          : const Text('Verify'),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  OutlinedButton(
-                    style: OutlinedButton.styleFrom(
-                      side: BorderSide(color: green),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
+                      SizedBox(height: screenWidth * 0.02),
+                      Text(
+                        'Enter your 6-digit PIN to continue',
+                        style: AppTextStyles.body.copyWith(
+                          fontSize: screenWidth * 0.04,
+                          color: AppColors.textSecondary,
+                        ),
+                        textAlign: TextAlign.center,
                       ),
-                      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-                    ),
-                    onPressed: _resendPin,
-                    child: const Text('Resend PIN'),
+                    ],
                   ),
-                ],
+                ),
               ),
+              SizedBox(height: screenHeight * 0.06),
+              // PIN Input Section
+              Neumorphic(
+                style: AppNeumorphic.card,
+                child: Padding(
+                  padding: EdgeInsets.all(screenWidth * 0.06),
+                  child: Column(
+                    children: [
+                      Text(
+                        'Enter PIN',
+                        style: AppTextStyles.headline.copyWith(
+                          fontSize: screenWidth * 0.055,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      SizedBox(height: screenWidth * 0.05),
+                      // PIN Input Fields
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: List.generate(6, (index) {
+                          return Neumorphic(
+                            style: AppNeumorphic.inset.copyWith(
+                              color: _pinController.text.length > index 
+                                  ? AppColors.primaryGreen.withOpacity(0.1) 
+                                  : Colors.white,
+                            ),
+                            child: SizedBox(
+                              width: screenWidth * 0.12,
+                              height: screenWidth * 0.12,
+                              child: Center(
+                                child: index < _pinController.text.length
+                                    ? Icon(
+                                        Icons.circle,
+                                        size: screenWidth * 0.06,
+                                        color: AppColors.primaryGreen,
+                                      )
+                                    : Text(
+                                        '',
+                                        style: AppTextStyles.headline.copyWith(
+                                          fontSize: screenWidth * 0.06,
+                                        ),
+                                      ),
+                              ),
+                            ),
+                          );
+                        }),
+                      ),
+                      SizedBox(height: screenWidth * 0.05),
+                      // Hidden TextField for PIN input
+                      Opacity(
+                        opacity: 0,
+                        child: TextField(
+                          controller: _pinController,
+                          keyboardType: TextInputType.number,
+                          maxLength: 6,
+                          onChanged: (value) {
+                            setState(() {});
+                            if (value.length == 6) {
+                              _verifyPin();
+                            }
+                          },
+                          decoration: InputDecoration(
+                            counterText: '',
+                            border: InputBorder.none,
+                          ),
+                        ),
+                      ),
+                      // Number Pad
+                      SizedBox(height: screenWidth * 0.05),
+                      Column(
+                        children: [
+                          for (int i = 0; i < 3; i++)
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                              children: [
+                                for (int j = 1; j <= 3; j++)
+                                  _buildNumberButton(screenWidth, (i * 3 + j).toString()),
+                              ],
+                            ),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              _buildNumberButton(screenWidth, ''),
+                              _buildNumberButton(screenWidth, '0'),
+                              _buildBackspaceButton(screenWidth),
+                            ],
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: screenWidth * 0.05),
+                      // Verify Button
+                      NeumorphicButton(
+                        style: AppNeumorphic.button.copyWith(
+                          color: AppColors.primaryGreen,
+                        ),
+                        onPressed: _isLoading ? null : _verifyPin,
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(vertical: screenWidth * 0.04),
+                          child: _isLoading
+                              ? SizedBox(
+                                  height: screenWidth * 0.05,
+                                  width: screenWidth * 0.05,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                  ),
+                                )
+                              : Text(
+                                  'Verify PIN',
+                                  style: AppTextStyles.button.copyWith(
+                                    color: Colors.white,
+                                    fontSize: screenWidth * 0.045,
+                                  ),
+                                ),
+                        ),
+                      ),
+                      SizedBox(height: screenWidth * 0.04),
+                      // Forgot PIN
+                      TextButton(
+                        onPressed: () {
+                          // TODO: Implement forgot PIN functionality
+                        },
+                        child: Text(
+                          'Forgot PIN?',
+                          style: AppTextStyles.body.copyWith(
+                            color: AppColors.primaryGreen,
+                            fontSize: screenWidth * 0.035,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNumberButton(double screenWidth, String number) {
+    if (number.isEmpty) {
+      return SizedBox(width: screenWidth * 0.12, height: screenWidth * 0.12);
+    }
+    
+    return NeumorphicButton(
+      style: AppNeumorphic.button.copyWith(
+        color: Colors.white,
+      ),
+      onPressed: () {
+        if (_pinController.text.length < 6) {
+          _pinController.text += number;
+          setState(() {});
+          if (_pinController.text.length == 6) {
+            _verifyPin();
+          }
+        }
+      },
+      child: SizedBox(
+        width: screenWidth * 0.12,
+        height: screenWidth * 0.12,
+        child: Center(
+          child: Text(
+            number,
+            style: AppTextStyles.headline.copyWith(
+              fontSize: screenWidth * 0.06,
+              color: AppColors.primaryGreen,
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBackspaceButton(double screenWidth) {
+    return NeumorphicButton(
+      style: AppNeumorphic.button.copyWith(
+        color: Colors.white,
+      ),
+      onPressed: () {
+        if (_pinController.text.isNotEmpty) {
+          _pinController.text = _pinController.text.substring(0, _pinController.text.length - 1);
+          setState(() {});
+        }
+      },
+      child: SizedBox(
+        width: screenWidth * 0.12,
+        height: screenWidth * 0.12,
+        child: Center(
+          child: Icon(
+            Icons.backspace,
+            size: screenWidth * 0.06,
+            color: AppColors.primaryGreen,
           ),
         ),
       ),

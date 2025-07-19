@@ -1,15 +1,17 @@
 // ignore_for_file: deprecated_member_use, empty_catches, use_build_context_synchronously
 
-import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:vegieconnect/supplier-side/add_product_page.dart';
 import 'package:vegieconnect/supplier-side/farm_map_page.dart' show SupplierLocationPage;
+import 'package:vegieconnect/supplier-side/supplier_location_management_page.dart';
 import '../authentication/login_page.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import '../widgets/product_image_widget.dart';
 import '../services/image_storage_service.dart';
 import '../customer-side/product_details_page.dart';
+import 'package:vegieconnect/theme.dart'; // For AppColors
+import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
 
 class SupplierDashboard extends StatefulWidget {
   const SupplierDashboard({super.key});
@@ -24,30 +26,15 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
-    final green = const Color(0xFFA7C957);
-    final bg = const Color(0xFFF6F6F6);
     final cardRadius = BorderRadius.circular(screenWidth * 0.05);
-    final neumorphicShadow = [
-      BoxShadow(
-        color: Colors.grey.shade300,
-        offset: Offset(screenWidth * 0.015, screenWidth * 0.015),
-        blurRadius: screenWidth * 0.04,
-      ),
-      BoxShadow(
-        color: Colors.white,
-        offset: Offset(-screenWidth * 0.015, -screenWidth * 0.015),
-        blurRadius: screenWidth * 0.04,
-      ),
-    ];
     return Scaffold(
-      backgroundColor: bg,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text(
           'Supplier Dashboard',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.055),
+          style: AppTextStyles.headline.copyWith(color: Colors.white, fontSize: screenWidth * 0.055),
         ),
-        backgroundColor: green,
+        backgroundColor: AppColors.primaryGreen,
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
@@ -71,13 +58,13 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
           children: [
             DrawerHeader(
               decoration: BoxDecoration(
-                color: green,
+                color: AppColors.primaryGreen,
               ),
-              child: const Text('Supplier Menu', style: TextStyle(color: Colors.white, fontSize: 24)),
+              child: Text('Supplier Menu', style: AppTextStyles.headline.copyWith(color: Colors.white, fontSize: 24)),
             ),
             ListTile(
               leading: const Icon(Icons.dashboard),
-              title: const Text('Overview'),
+              title: Text('Overview', style: AppTextStyles.body),
               selected: _selectedIndex == 0,
               onTap: () {
                 setState(() {
@@ -88,7 +75,7 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
             ),
             ListTile(
               leading: const Icon(Icons.inventory),
-              title: const Text('Products'),
+              title: Text('Manage Products', style: AppTextStyles.body),
               selected: _selectedIndex == 1,
               onTap: () {
                 setState(() {
@@ -98,8 +85,8 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.shopping_cart),
-              title: const Text('Orders'),
+              leading: const Icon(Icons.inventory_2),
+              title: Text('Stock Management', style: AppTextStyles.body),
               selected: _selectedIndex == 2,
               onTap: () {
                 setState(() {
@@ -110,7 +97,7 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
             ),
             ListTile(
               leading: const Icon(Icons.person),
-              title: const Text('Profile'),
+              title: Text('Profile', style: AppTextStyles.body),
               selected: _selectedIndex == 3,
               onTap: () {
                 setState(() {
@@ -121,7 +108,7 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
             ),
             ListTile(
               leading: const Icon(Icons.person_pin),
-              title: const Text('Supplier Location'),
+              title: Text('Supplier Location', style: AppTextStyles.body),
               onTap: () {
                 Navigator.pop(context);
                 Navigator.push(
@@ -130,10 +117,21 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
                 );
               },
             ),
+            ListTile(
+              leading: const Icon(Icons.location_on),
+              title: Text('Manage Location', style: AppTextStyles.body),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const SupplierLocationManagementPage()),
+                );
+              },
+            ),
             const Divider(),
             ListTile(
               leading: const Icon(Icons.logout),
-              title: const Text('Logout'),
+              title: Text('Logout', style: AppTextStyles.body),
               onTap: () async {
                 await FirebaseAuth.instance.signOut();
                 if (!mounted) return;
@@ -150,17 +148,19 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
       body: IndexedStack(
         index: _selectedIndex,
         children: [
-          _buildOverviewTab(screenWidth, cardRadius, neumorphicShadow),
+          _buildOverviewTab(screenWidth, cardRadius),
           _buildProductsTab(),
-          _buildOrdersTab(),
+          _buildStockManagementTab(),
           _buildProfileTab(),
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
         currentIndex: _selectedIndex,
-        selectedItemColor: green,
-        unselectedItemColor: Colors.grey,
+        selectedItemColor: AppColors.primaryGreen,
+        unselectedItemColor: AppColors.textSecondary,
+        backgroundColor: Colors.white,
+        elevation: 8,
         onTap: (index) {
           setState(() {
             _selectedIndex = index;
@@ -176,8 +176,8 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
             label: 'Products',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.shopping_cart),
-            label: 'Orders',
+            icon: Icon(Icons.inventory_2),
+            label: 'Stock',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.person),
@@ -188,7 +188,7 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
     );
   }
 
-  Widget _buildOverviewTab(double screenWidth, BorderRadius cardRadius, List<BoxShadow> neumorphicShadow) {
+  Widget _buildOverviewTab(double screenWidth, BorderRadius cardRadius) {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       return const Center(child: Text('Not logged in.'));
@@ -200,7 +200,7 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
         children: [
           Text(
             'Business Overview',
-            style: TextStyle(fontSize: screenWidth * 0.06, fontWeight: FontWeight.bold),
+            style: AppTextStyles.headline.copyWith(fontSize: screenWidth * 0.06),
           ),
           SizedBox(height: screenWidth * 0.05),
           SizedBox(
@@ -221,7 +221,7 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
                       .snapshots(),
                   builder: (context, snapshot) {
                     final count = snapshot.hasData ? snapshot.data!.docs.length : 0;
-                    return _buildStatCard(screenWidth, cardRadius, neumorphicShadow, 'Total Products', '$count', Icons.inventory, Colors.blue);
+                    return _buildStatCard(screenWidth, cardRadius, 'Total Products', '$count', Icons.inventory, Colors.blue);
                   },
                 ),
                 // Active Orders
@@ -233,7 +233,7 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
                       .snapshots(),
                   builder: (context, snapshot) {
                     final count = snapshot.hasData ? snapshot.data!.docs.length : 0;
-                    return _buildStatCard(screenWidth, cardRadius, neumorphicShadow, 'Active Orders', '$count', Icons.shopping_cart, Colors.green);
+                    return _buildStatCard(screenWidth, cardRadius, 'Active Orders', '$count', Icons.shopping_cart, Colors.green);
                   },
                 ),
                 // Revenue
@@ -248,57 +248,34 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
                     if (snapshot.hasData) {
                       for (var doc in snapshot.data!.docs) {
                         final data = doc.data() as Map<String, dynamic>;
-                        revenue += (data['price'] ?? 0) is int
-                          ? (data['price'] ?? 0).toDouble()
-                          : (data['price'] ?? 0);
+                        revenue += (data['price'] ?? 0) * (data['quantity'] ?? 1);
                       }
                     }
-                    return _buildStatCard(screenWidth, cardRadius, neumorphicShadow, 'Revenue', '₱${revenue.toStringAsFixed(2)}', Icons.attach_money, Colors.orange);
+                    return _buildStatCard(screenWidth, cardRadius, 'Revenue', '\u20b1${revenue.toStringAsFixed(2)}', Icons.attach_money, Colors.green);
                   },
                 ),
-                // Rating
+                // Total Orders
                 StreamBuilder<QuerySnapshot>(
                   stream: FirebaseFirestore.instance
-                      .collection('supplier_ratings')
-                      .where('supplierId', isEqualTo: user.uid)
+                      .collection('orders')
+                      .where('sellerId', isEqualTo: user.uid)
                       .snapshots(),
                   builder: (context, snapshot) {
-                    double avg = 0;
-                    if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
-                      double sum = 0;
-                      for (var doc in snapshot.data!.docs) {
-                        sum += (doc['rating'] ?? 0) is int
-                          ? (doc['rating'] ?? 0).toDouble()
-                          : (doc['rating'] ?? 0);
-                      }
-                      avg = sum / snapshot.data!.docs.length;
-                    }
-                    return _buildStatCard(screenWidth, cardRadius, neumorphicShadow, 'Rating', avg > 0 ? avg.toStringAsFixed(1) : 'N/A', Icons.star, Colors.purple);
+                    final count = snapshot.hasData ? snapshot.data!.docs.length : 0;
+                    return _buildStatCard(screenWidth, cardRadius, 'Total Orders', '$count', Icons.receipt_long, Colors.orange);
                   },
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: 24),
-          const Text(
-            'Recent Orders',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 12),
-          // Fix: Wrap _buildRecentOrders in SizedBox to prevent overflow
-          SizedBox(
-            height: 320, // Adjust as needed for your UI
-            child: _buildRecentOrders(screenWidth),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildStatCard(double screenWidth, BorderRadius cardRadius, List<BoxShadow> neumorphicShadow, String title, String value, IconData icon, Color color) {
-    return Card(
-      elevation: 0, // Removed elevation for neumorphic effect
-      shape: RoundedRectangleBorder(borderRadius: cardRadius),
+  Widget _buildStatCard(double screenWidth, BorderRadius cardRadius, String title, String value, IconData icon, Color color) {
+    return Neumorphic(
+      style: AppNeumorphic.card,
       child: Padding(
         padding: EdgeInsets.all(screenWidth * 0.04),
         child: Column(
@@ -308,18 +285,13 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
               children: [
                 Icon(icon, color: color, size: screenWidth * 0.06),
                 const Spacer(),
-                Icon(Icons.trending_up, color: Colors.green, size: screenWidth * 0.05),
+                Icon(Icons.trending_up, color: color, size: screenWidth * 0.05),
               ],
             ),
-            const Spacer(),
-            Text(
-              value,
-              style: TextStyle(fontSize: screenWidth * 0.06, fontWeight: FontWeight.bold),
-            ),
-            Text(
-              title,
-              style: TextStyle(fontSize: screenWidth * 0.035, color: Colors.grey),
-            ),
+            SizedBox(height: screenWidth * 0.03),
+            Text(title, style: AppTextStyles.body.copyWith(fontSize: screenWidth * 0.04, color: AppColors.textSecondary)),
+            SizedBox(height: screenWidth * 0.01),
+            Text(value, style: AppTextStyles.headline.copyWith(fontSize: screenWidth * 0.05, color: color)),
           ],
         ),
       ),
@@ -350,39 +322,69 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
           separatorBuilder: (context, index) => const Divider(height: 1),
           itemBuilder: (context, index) {
             final order = orders[index].data() as Map<String, dynamic>;
-            final status = order['status'] ?? 'pending';
-            final statusColor = status == 'Delivered'
-                ? Colors.green
-                : status == 'Processing'
-                    ? Colors.orange
-                    : Colors.grey;
-            return ListTile(
-              leading: CircleAvatar(
-                backgroundColor: const Color(0xFFA7C957).withOpacity(0.1),
-                child: Text(
-                  order['id'] != null && order['id'].toString().isNotEmpty
-                      ? order['id'].toString().replaceAll(RegExp(r'[^0-9]'), '')
-                      : '?',
-                  style: const TextStyle(
-                    color: Color(0xFFA7C957),
-                    fontWeight: FontWeight.bold,
+            final status = (order['status'] ?? 'pending').toString().toLowerCase();
+            Color statusColor;
+            switch (status) {
+              case 'delivered':
+                statusColor = AppColors.primaryGreen;
+                break;
+              case 'processing':
+                statusColor = Colors.orange;
+                break;
+              default:
+                statusColor = Colors.grey;
+            }
+            return Container(
+              margin: EdgeInsets.symmetric(vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(screenWidth * 0.04),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 8,
+                    offset: Offset(0, 2),
                   ),
-                ),
+                ],
               ),
-              title: Text('Order #${order['id'] ?? ''}'),
-              subtitle: Text('${order['customer'] ?? ''} • ₱${(order['price'] ?? 0).toStringAsFixed(2)}'),
-              trailing: Container(
-                padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.02, vertical: screenWidth * 0.01),
-                decoration: BoxDecoration(
-                  color: statusColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(screenWidth * 0.05),
-                ),
-                child: Text(
-                  status,
-                  style: TextStyle(
-                    fontSize: screenWidth * 0.035,
-                    color: statusColor,
-                    fontWeight: FontWeight.bold,
+              child: ListTile(
+                leading: order['productImage'] != null && order['productImage'].toString().isNotEmpty
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.network(
+                        order['productImage'],
+                        width: 44,
+                        height: 44,
+                        fit: BoxFit.cover,
+                      ),
+                    )
+                  : CircleAvatar(
+                      backgroundColor: AppColors.primaryGreen.withOpacity(0.1),
+                      child: Text(
+                        order['id'] != null && order['id'].toString().isNotEmpty
+                            ? order['id'].toString().replaceAll(RegExp(r'[^0-9]'), '')
+                            : '?',
+                        style: const TextStyle(
+                          color: AppColors.primaryGreen,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                title: Text('Order #${order['id'] ?? ''}', style: TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: Text('${order['customer'] ?? ''} • ₱${(order['price'] ?? 0).toStringAsFixed(2)}'),
+                trailing: Container(
+                  padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.02, vertical: screenWidth * 0.01),
+                  decoration: BoxDecoration(
+                    color: statusColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(screenWidth * 0.05),
+                  ),
+                  child: Text(
+                    status[0].toUpperCase() + status.substring(1),
+                    style: TextStyle(
+                      fontSize: screenWidth * 0.035,
+                      color: statusColor,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
@@ -395,7 +397,6 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
 
   Widget _buildProductsTab() {
     final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
     return SingleChildScrollView(
       padding: EdgeInsets.all(screenWidth * 0.04),
       child: Column(
@@ -417,7 +418,7 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
                 icon: const Icon(Icons.add),
                 label: const Text('Add Product'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFA7C957),
+                  backgroundColor: AppColors.primaryGreen,
                   foregroundColor: Colors.white,
                 ),
               ),
@@ -432,7 +433,6 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
 
   Widget _buildProductList() {
     final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       return const Center(child: Text('Not logged in.'));
@@ -441,7 +441,6 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
       stream: FirebaseFirestore.instance
           .collection('products')
           .where('sellerId', isEqualTo: user.uid)
-          .orderBy('createdAt', descending: true)
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -478,127 +477,134 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
                   ),
                 );
               },
-              child: Card(
-                elevation: 0, // Removed elevation for neumorphic effect
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(screenWidth * 0.05)),
-                child: Padding(
-                  padding: EdgeInsets.all(screenWidth * 0.02),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Center(
-                        child: SizedBox(
-                          height: screenWidth * 0.12,
-                          child: ProductImageWidget(
-                            imagePath: product['imageUrl'] ?? '',
-                            width: screenWidth * 0.16,
-                            height: screenWidth * 0.125,
-                            placeholder: Icon(Icons.shopping_basket, size: screenWidth * 0.08, color: const Color(0xFFA7C957)),
-                          ),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(screenWidth * 0.05),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.04),
+                      blurRadius: 8,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
+                ),
+                padding: EdgeInsets.all(screenWidth * 0.03),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: SizedBox(
+                        height: screenWidth * 0.12,
+                        child: ProductImageWidget(
+                          imagePath: product['imageUrl'] ?? '',
+                          width: screenWidth * 0.16,
+                          height: screenWidth * 0.125,
+                          placeholder: Icon(Icons.shopping_basket, size: screenWidth * 0.08, color: AppColors.primaryGreen),
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        product['name'] ?? '',
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      product['name'] ?? '',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '\u20b1${product['price']?.toStringAsFixed(2) ?? '0.00'}',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primaryGreen,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Stock: ${product['quantity'] ?? 0} ${product['unit'] ?? ''}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Supplier: ${product['supplierName'] ?? 'Unknown'}',
+                      style: const TextStyle(fontSize: 12, color: Colors.blueGrey),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const Spacer(),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.edit, color: Colors.blue, size: 18),
+                          tooltip: 'Edit',
+                          onPressed: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => AddProductPage(
+                                  product: product,
+                                  docId: docId,
+                                ),
+                              ),
+                            );
+                          },
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '₱${product['price']?.toStringAsFixed(2) ?? '0.00'}',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFFA7C957),
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Stock: ${product['quantity'] ?? 0} ${product['unit'] ?? ''}',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Supplier: ${product['supplierName'] ?? 'Unknown'}',
-                        style: const TextStyle(fontSize: 12, color: Colors.blueGrey),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const Spacer(),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.edit, color: Colors.blue, size: 18),
-                            tooltip: 'Edit',
-                            onPressed: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => AddProductPage(
-                                    product: product,
-                                    docId: docId,
+                        IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.red, size: 18),
+                          tooltip: 'Delete',
+                          onPressed: () async {
+                            final confirm = await showDialog<bool>(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: const Text('Delete Product'),
+                                content: const Text('Are you sure you want to delete this product?'),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context, false),
+                                    child: const Text('Cancel'),
                                   ),
-                                ),
-                              );
-                            },
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.delete, color: Colors.red, size: 18),
-                            tooltip: 'Delete',
-                            onPressed: () async {
-                              final confirm = await showDialog<bool>(
-                                context: context,
-                                builder: (context) => AlertDialog(
-                                  title: const Text('Delete Product'),
-                                  content: const Text('Are you sure you want to delete this product?'),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () => Navigator.pop(context, false),
-                                      child: const Text('Cancel'),
-                                    ),
-                                    TextButton(
-                                      onPressed: () => Navigator.pop(context, true),
-                                      child: const Text('Delete', style: TextStyle(color: Colors.red)),
-                                    ),
-                                  ],
-                                ),
-                              );
-                              if (confirm == true) {
-                                try {
-                                  final imageUrl = product['imageUrl'] ?? '';
-                                  if (imageUrl.isNotEmpty) {
-                                    if (ImageStorageService.isLocalPath(imageUrl)) {
-                                      await ImageStorageService.deleteImage(imageUrl);
-                                    } else if (ImageStorageService.isNetworkUrl(imageUrl)) {
-                                      try {
-                                        final ref = FirebaseStorage.instance.refFromURL(imageUrl);
-                                        await ref.delete();
-                                      } catch (e) {}
-                                    }
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context, true),
+                                    child: const Text('Delete', style: TextStyle(color: Colors.red)),
+                                  ),
+                                ],
+                              ),
+                            );
+                            if (confirm == true) {
+                              try {
+                                final imageUrl = product['imageUrl'] ?? '';
+                                if (imageUrl.isNotEmpty) {
+                                  if (ImageStorageService.isLocalPath(imageUrl)) {
+                                    await ImageStorageService.deleteImage(imageUrl);
+                                  } else if (ImageStorageService.isNetworkUrl(imageUrl)) {
+                                    try {
+                                      final ref = FirebaseStorage.instance.refFromURL(imageUrl);
+                                      await ref.delete();
+                                    } catch (e) {}
                                   }
-                                  await FirebaseFirestore.instance.collection('products').doc(docId).delete();
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Product deleted.')),
-                                  );
-                                } catch (e) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('Failed to delete product: $e')),
-                                  );
                                 }
+                                await FirebaseFirestore.instance.collection('products').doc(docId).delete();
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Product deleted.')),
+                                );
+                              } catch (e) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Failed to delete product: $e')),
+                                );
                               }
-                            },
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
             );
@@ -608,172 +614,293 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
     );
   }
 
-  Widget _buildOrdersTab() {
+  Widget _buildStockManagementTab() {
     final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
     return SingleChildScrollView(
       padding: EdgeInsets.all(screenWidth * 0.04),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Order Management',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          Text(
+            'Stock Management',
+            style: AppTextStyles.headline.copyWith(fontSize: screenWidth * 0.06),
           ),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  decoration: InputDecoration(
-                    hintText: 'Search orders...',
-                    prefixIcon: const Icon(Icons.search),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(screenWidth * 0.05),
-                    ),
-                    filled: true,
-                    fillColor: Colors.white,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              ElevatedButton.icon(
-                onPressed: () {},
-                icon: const Icon(Icons.filter_list),
-                label: const Text('Filter'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFA7C957),
-                  foregroundColor: Colors.white,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          _buildOrderList(),
+          SizedBox(height: screenWidth * 0.05),
+          _buildStockOverview(),
+          SizedBox(height: screenWidth * 0.05),
+          _buildStockList(),
         ],
       ),
     );
   }
 
-  Widget _buildOrderList() {
+    Widget _buildStockOverview() {
     final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       return const Center(child: Text('Not logged in.'));
     }
+    
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
-          .collection('orders')
+          .collection('products')
           .where('sellerId', isEqualTo: user.uid)
-          .orderBy('createdAt', descending: true)
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return const Center(child: Text('No orders yet.'));
+        if (snapshot.hasError) {
+          return Center(
+            child: Text(
+              'Error loading data',
+              style: AppTextStyles.body.copyWith(color: Colors.red),
+            ),
+          );
         }
-        final orders = snapshot.data!.docs;
-        // Notification: Show SnackBar if a new order is received
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (orders.isNotEmpty) {
-            final now = DateTime.now();
-            final createdAt = orders.first['createdAt'];
-            if (createdAt != null &&
-                createdAt is Timestamp &&
-                now.difference(createdAt.toDate()).inSeconds < 5) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('New order received!')),
-              );
-            }
+        if (!snapshot.hasData) {
+          return const SizedBox.shrink();
+        }
+        
+        int totalProducts = snapshot.data!.docs.length;
+        int lowStockProducts = 0;
+        int outOfStockProducts = 0;
+        double totalValue = 0;
+        
+        for (var doc in snapshot.data!.docs) {
+          final product = doc.data() as Map<String, dynamic>;
+          final quantity = product['quantity'] ?? 0;
+          final price = product['price'] ?? 0;
+          
+          if (quantity <= 0) {
+            outOfStockProducts++;
+          } else if (quantity <= 5) {
+            lowStockProducts++;
           }
-        });
-        return ListView.separated(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: orders.length,
-          separatorBuilder: (context, index) => const Divider(height: 1),
-          itemBuilder: (context, index) {
-            final order = orders[index].data() as Map<String, dynamic>;
-            final docId = orders[index].id;
-            final status = order['status'] ?? 'pending';
-            switch (status) {
-              case 'completed':
-                break;
-              case 'processing':
-                break;
-              default:
-            }
-            return ListTile(
-              leading: CircleAvatar(
-                backgroundColor: const Color(0xFFA7C957).withOpacity(0.1),
-                child: Text(
-                  order['productName'] != null && order['productName'].isNotEmpty
-                      ? order['productName'][0].toUpperCase()
-                      : '?',
-                  style: const TextStyle(
-                    color: Color(0xFFA7C957),
-                    fontWeight: FontWeight.bold,
-                  ),
+          
+          totalValue += quantity * price;
+        }
+        
+        return SizedBox(
+          height: 200, // Fixed height to prevent overflow
+          child: GridView.count(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: 2,
+            crossAxisSpacing: screenWidth * 0.04,
+            mainAxisSpacing: screenWidth * 0.04,
+            childAspectRatio: 1.5,
+            children: [
+              _buildStatCard(screenWidth, BorderRadius.circular(screenWidth * 0.05), 'Total Products', '$totalProducts', Icons.inventory, Colors.blue),
+              _buildStatCard(screenWidth, BorderRadius.circular(screenWidth * 0.05), 'Low Stock', '$lowStockProducts', Icons.warning, Colors.orange),
+              _buildStatCard(screenWidth, BorderRadius.circular(screenWidth * 0.05), 'Out of Stock', '$outOfStockProducts', Icons.remove_shopping_cart, Colors.red),
+              _buildStatCard(screenWidth, BorderRadius.circular(screenWidth * 0.05), 'Total Value', '\u20b1${totalValue.toStringAsFixed(2)}', Icons.attach_money, Colors.green),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildStockList() {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      return const Center(child: Text('Not logged in.'));
+    }
+    
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('products')
+          .where('sellerId', isEqualTo: user.uid)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(
+            child: Neumorphic(
+              style: AppNeumorphic.card,
+              child: Padding(
+                padding: EdgeInsets.all(screenWidth * 0.08),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.error,
+                      size: screenWidth * 0.15,
+                      color: Colors.red,
+                    ),
+                    SizedBox(height: screenWidth * 0.04),
+                    Text(
+                      'Error Loading Products',
+                      style: AppTextStyles.headline.copyWith(
+                        fontSize: screenWidth * 0.06,
+                        color: Colors.red,
+                      ),
+                    ),
+                    SizedBox(height: screenWidth * 0.02),
+                    Text(
+                      'Please try again later',
+                      style: AppTextStyles.body.copyWith(
+                        fontSize: screenWidth * 0.04,
+                        color: AppColors.textSecondary,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
                 ),
               ),
-              title: Text(order['productName'] ?? ''),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Buyer: ${order['buyerId'] ?? ''}'),
-                  Text('Qty: ${order['quantity']} ${order['unit']}'),
-                  Text('₱${order['price']?.toStringAsFixed(2) ?? '0.00'}'),
-                  Text('Status: $status'),
-                ],
+            ),
+          );
+        }
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return Center(
+            child: Neumorphic(
+              style: AppNeumorphic.card,
+              child: Padding(
+                padding: EdgeInsets.all(screenWidth * 0.08),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.inventory_2,
+                      size: screenWidth * 0.15,
+                      color: AppColors.primaryGreen,
+                    ),
+                    SizedBox(height: screenWidth * 0.04),
+                    Text(
+                      'No Products Found',
+                      style: AppTextStyles.headline.copyWith(
+                        fontSize: screenWidth * 0.06,
+                        color: AppColors.primaryGreen,
+                      ),
+                    ),
+                    SizedBox(height: screenWidth * 0.02),
+                    Text(
+                      'Add your first product to start managing stock',
+                      style: AppTextStyles.body.copyWith(
+                        fontSize: screenWidth * 0.04,
+                        color: AppColors.textSecondary,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
               ),
-              trailing: DropdownButton<String>(
-                value: ['pending', 'processing', 'completed', 'cancelled'].contains(status) ? status : 'pending',
-                items: const [
-                  DropdownMenuItem(value: 'pending', child: Text('Pending')),
-                  DropdownMenuItem(value: 'processing', child: Text('Processing')),
-                  DropdownMenuItem(value: 'completed', child: Text('Completed')),
-                  DropdownMenuItem(value: 'cancelled', child: Text('Cancelled')),
-                ],
-                onChanged: (val) async {
-                  if (val != null && val != status) {
-                    await FirebaseFirestore.instance.collection('orders').doc(docId).update({'status': val});
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Order status updated to $val.')),
-                    );
-                  }
-                },
-              ),
-              onTap: () {
-                showDialog(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: Text('Order Details'),
-                    content: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
+            ),
+          );
+        }
+        
+        final products = snapshot.data!.docs;
+        return ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: products.length,
+          itemBuilder: (context, index) {
+            final product = products[index].data() as Map<String, dynamic>;
+            final docId = products[index].id;
+            final quantity = product['quantity'] ?? 0;
+            final price = product['price'] ?? 0;
+            
+            Color stockColor;
+            if (quantity <= 0) {
+              stockColor = Colors.red;
+            } else if (quantity <= 5) {
+              stockColor = Colors.orange;
+            } else {
+              stockColor = Colors.green;
+            }
+            
+            return Neumorphic(
+              style: AppNeumorphic.card,
+              margin: EdgeInsets.only(bottom: screenWidth * 0.03),
+              child: Padding(
+                padding: EdgeInsets.all(screenWidth * 0.04),
+                child: Row(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(screenWidth * 0.03),
+                      child: SizedBox(
+                        width: screenWidth * 0.15,
+                        height: screenWidth * 0.15,
+                        child: ProductImageWidget(
+                          imagePath: product['imageUrl'] ?? '',
+                          width: screenWidth * 0.15,
+                          height: screenWidth * 0.15,
+                          placeholder: Icon(Icons.shopping_basket, size: screenWidth * 0.08, color: AppColors.primaryGreen),
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: screenWidth * 0.04),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            product['name'] ?? 'Unknown Product',
+                            style: AppTextStyles.headline.copyWith(
+                              fontSize: screenWidth * 0.045,
+                            ),
+                          ),
+                          SizedBox(height: screenWidth * 0.01),
+                          Text(
+                            '\u20b1${price.toStringAsFixed(2)}',
+                            style: AppTextStyles.price.copyWith(
+                              fontSize: screenWidth * 0.04,
+                            ),
+                          ),
+                          SizedBox(height: screenWidth * 0.01),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.inventory_2,
+                                size: screenWidth * 0.04,
+                                color: stockColor,
+                              ),
+                              SizedBox(width: screenWidth * 0.02),
+                              Text(
+                                '$quantity ${product['unit'] ?? ''}',
+                                style: AppTextStyles.body.copyWith(
+                                  fontSize: screenWidth * 0.035,
+                                  color: stockColor,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    Column(
                       children: [
-                        Text('Product: ${order['productName'] ?? ''}'),
-                        Text('Quantity: ${order['quantity']} ${order['unit']}'),
-                        Text('Price: ₱${order['price']?.toStringAsFixed(2) ?? '0.00'}'),
-                        Text('Status: $status'),
-                        if (order['createdAt'] != null)
-                          Text('Ordered: ${order['createdAt'].toDate()}'),
-                        if (order['buyerId'] != null)
-                          Text('Buyer ID: ${order['buyerId']}'),
+                        NeumorphicButton(
+                          style: AppNeumorphic.button.copyWith(
+                            color: AppColors.primaryGreen,
+                          ),
+                          onPressed: () => _updateStock(docId, quantity + 1),
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.03, vertical: screenWidth * 0.02),
+                            child: Icon(Icons.add, color: Colors.white, size: screenWidth * 0.05),
+                          ),
+                        ),
+                        SizedBox(height: screenWidth * 0.02),
+                        NeumorphicButton(
+                          style: AppNeumorphic.button.copyWith(
+                            color: Colors.red,
+                          ),
+                          onPressed: () => _updateStock(docId, quantity > 0 ? quantity - 1 : 0),
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.03, vertical: screenWidth * 0.02),
+                            child: Icon(Icons.remove, color: Colors.white, size: screenWidth * 0.05),
+                          ),
+                        ),
                       ],
                     ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text('Close'),
-                      ),
-                    ],
-                  ),
-                );
-              },
+                  ],
+                ),
+              ),
             );
           },
         );
@@ -781,9 +908,25 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
     );
   }
 
+  Future<void> _updateStock(String productId, int newQuantity) async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('products')
+          .doc(productId)
+          .update({'quantity': newQuantity});
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Stock updated to $newQuantity')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to update stock: $e')),
+      );
+    }
+  }
+
   Widget _buildProfileTab() {
     final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
     final user = FirebaseAuth.instance.currentUser;
     return FutureBuilder<DocumentSnapshot>(
       future: FirebaseFirestore.instance.collection('users').doc(user!.uid).get(),
@@ -805,139 +948,107 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
                 style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 20),
-              Card(
-                elevation: 0, // Removed elevation for neumorphic effect
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(screenWidth * 0.05)),
-                child: Padding(
-                  padding: EdgeInsets.all(screenWidth * 0.05),
-                  child: Column(
-                    children: [
-                      CircleAvatar(
-                        radius: screenWidth * 0.125,
-                        backgroundColor: const Color(0xFFA7C957).withOpacity(0.1),
-                        child: const Icon(
-                          Icons.store,
-                          size: 50,
-                          color: Color(0xFFA7C957),
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(screenWidth * 0.05),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.04),
+                      blurRadius: 8,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
+                ),
+                padding: EdgeInsets.all(screenWidth * 0.05),
+                child: Column(
+                  children: [
+                    CircleAvatar(
+                      radius: screenWidth * 0.125,
+                      backgroundColor: AppColors.primaryGreen.withOpacity(0.1),
+                      child: const Icon(
+                        Icons.store,
+                        size: 50,
+                        color: AppColors.primaryGreen,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      data['name'] ?? '',
+                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    ),
+                    Text(
+                      data['email'] ?? '',
+                      style: const TextStyle(fontSize: 14, color: Colors.grey),
+                    ),
+                    Text(
+                      'Role: ${data['role'] ?? ''}',
+                      style: const TextStyle(fontSize: 14, color: Colors.grey),
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        // Products count
+                        StreamBuilder<QuerySnapshot>(
+                          stream: FirebaseFirestore.instance
+                              .collection('products')
+                              .where('sellerId', isEqualTo: user.uid)
+                              .snapshots(),
+                          builder: (context, snapshot) {
+                            final count = snapshot.hasData ? snapshot.data!.docs.length : 0;
+                            return _buildProfileStat(screenWidth, 'Products', '$count');
+                          },
                         ),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        data['name'] ?? '',
-                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                      ),
-                      Text(
-                        data['email'] ?? '',
-                        style: const TextStyle(fontSize: 14, color: Colors.grey),
-                      ),
-                      Text(
-                        'Role: ${data['role'] ?? ''}',
-                        style: const TextStyle(fontSize: 14, color: Colors.grey),
-                      ),
-                      const SizedBox(height: 20),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          // Products count
-                          StreamBuilder<QuerySnapshot>(
-                            stream: FirebaseFirestore.instance
-                                .collection('products')
-                                .where('sellerId', isEqualTo: user.uid)
-                                .snapshots(),
-                            builder: (context, snapshot) {
-                              final count = snapshot.hasData ? snapshot.data!.docs.length : 0;
-                              return _buildProfileStat(screenWidth, 'Products', '$count');
-                            },
-                          ),
-                          // Orders count
-                          StreamBuilder<QuerySnapshot>(
-                            stream: FirebaseFirestore.instance
-                                .collection('orders')
-                                .where('sellerId', isEqualTo: user.uid)
-                                .snapshots(),
-                            builder: (context, snapshot) {
-                              final count = snapshot.hasData ? snapshot.data!.docs.length : 0;
-                              return _buildProfileStat(screenWidth, 'Orders', '$count');
-                            },
-                          ),
-                          // Rating average
-                          StreamBuilder<QuerySnapshot>(
-                            stream: FirebaseFirestore.instance
-                                .collection('supplier_ratings')
-                                .where('supplierId', isEqualTo: user.uid)
-                                .snapshots(),
-                            builder: (context, snapshot) {
-                              double avg = 0;
-                              if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
-                                double sum = 0;
-                                for (var doc in snapshot.data!.docs) {
-                                  sum += (doc['rating'] ?? 0) is int
-                                    ? (doc['rating'] ?? 0).toDouble()
-                                    : (doc['rating'] ?? 0);
-                                }
-                                avg = sum / snapshot.data!.docs.length;
+                        // Orders count
+                        StreamBuilder<QuerySnapshot>(
+                          stream: FirebaseFirestore.instance
+                              .collection('orders')
+                              .where('sellerId', isEqualTo: user.uid)
+                              .snapshots(),
+                          builder: (context, snapshot) {
+                            final count = snapshot.hasData ? snapshot.data!.docs.length : 0;
+                            return _buildProfileStat(screenWidth, 'Orders', '$count');
+                          },
+                        ),
+                        // Rating average
+                        StreamBuilder<QuerySnapshot>(
+                          stream: FirebaseFirestore.instance
+                              .collection('supplier_ratings')
+                              .where('supplierId', isEqualTo: user.uid)
+                              .snapshots(),
+                          builder: (context, snapshot) {
+                            double avg = 0;
+                            if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
+                              double sum = 0;
+                              for (var doc in snapshot.data!.docs) {
+                                sum += (doc['rating'] ?? 0) is int
+                                  ? (doc['rating'] ?? 0).toDouble()
+                                  : (doc['rating'] ?? 0);
                               }
-                              return _buildProfileStat(screenWidth, 'Rating', avg > 0 ? avg.toStringAsFixed(1) : 'N/A');
-                            },
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
-                      // Farm location info
-                      FutureBuilder<QuerySnapshot>(
-                        future: FirebaseFirestore.instance
-                            .collection('farm_locations')
-                            .where('supplierId', isEqualTo: user.uid)
-                            .where('isActive', isEqualTo: true)
-                            .limit(1)
-                            .get(),
-                        builder: (context, snapshot) {
-                          if (snapshot.connectionState == ConnectionState.waiting) {
-                            return const Center(child: CircularProgressIndicator());
-                          }
-                          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                            return const Text(
-                              'No farm location set.',
-                              style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
-                            );
-                          }
-                          final farm = snapshot.data!.docs.first.data() as Map<String, dynamic>;
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Divider(height: 32),
-                              Row(
-                                children: const [
-                                  Icon(Icons.location_on, color: Colors.green),
-                                  SizedBox(width: 8),
-                                  Text('Farm Location', style: TextStyle(fontWeight: FontWeight.bold)),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                farm['name'] ?? 'Unnamed Farm',
-                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                              ),
-                              Text(
-                                'Lat: 9${(farm['latitude'] ?? 0.0).toStringAsFixed(6)}',
-                                style: const TextStyle(fontSize: 14, color: Colors.grey),
-                              ),
-                              Text(
-                                'Lng: 9${(farm['longitude'] ?? 0.0).toStringAsFixed(6)}',
-                                style: const TextStyle(fontSize: 14, color: Colors.grey),
-                              ),
-                            ],
-                          );
-                        },
-                      ),
-                    ],
-                  ),
+                              avg = sum / snapshot.data!.docs.length;
+                            }
+                            return _buildProfileStat(screenWidth, 'Rating', avg > 0 ? avg.toStringAsFixed(1) : 'N/A');
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 20),
-              Card(
-                elevation: 0, // Removed elevation for neumorphic effect
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(screenWidth * 0.05)),
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(screenWidth * 0.05),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.04),
+                      blurRadius: 8,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
+                ),
                 child: Column(
                   children: [
                     ListTile(
@@ -954,7 +1065,7 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
                       trailing: Switch(
                         value: true,
                         onChanged: (value) {},
-                        activeColor: const Color(0xFFA7C957),
+                        activeColor: AppColors.primaryGreen,
                       ),
                     ),
                     const Divider(height: 1),

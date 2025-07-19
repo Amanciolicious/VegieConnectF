@@ -78,7 +78,6 @@ class _AdminSupplierLocationPageState extends State<AdminSupplierLocationPage> {
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
     final green = const Color(0xFFA7C957);
     final bg = const Color(0xFFF6F6F6);
     final cardRadius = BorderRadius.circular(screenWidth * 0.05);

@@ -1,12 +1,13 @@
 // ignore_for_file: avoid_print
 
-import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:vegieconnect/customer-side/contact_info_page.dart';
 import 'dart:math';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:vegieconnect/theme.dart'; // For AppColors
+import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key, this.onLoginTap});
@@ -26,7 +27,7 @@ class _SignUpPageState extends State<SignUpPage> {
   bool _isLoading = false;
   bool _obscurePassword = true;
   String _selectedRole = 'buyer';
-  bool _acceptTerms = false;
+  final bool _acceptTerms = false;
 
   @override
   void dispose() {
@@ -113,304 +114,357 @@ class _SignUpPageState extends State<SignUpPage> {
 
   @override
   Widget build(BuildContext context) {
-    final blue = const Color(0xFF2196F3);
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F6F6),
-      body: Stack(
-        children: [
-          // Blue accent background (bottom left)
-          Positioned(
-            left: 0,
-            bottom: 0,
-            child: Container(
-              width: MediaQuery.of(context).size.width * 0.5,
-              height: 180,
-              decoration: BoxDecoration(
-                color: blue,
-                borderRadius: const BorderRadius.only(
-                  topRight: Radius.circular(80),
-                ),
-              ),
-            ),
-          ),
-          Center(
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const SizedBox(height: 32),
-                  const Text(
-                    'Join Us',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Learn more about our smart, convenient ordering and earn rewards in each transaction.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 14, color: Colors.black54),
-                  ),
-                  const SizedBox(height: 24),
-                  Card(
-                    elevation: 8,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(24),
-                    ),
-                    margin: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-                      child: Form(
-                        key: _formKey,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Align(
-                              alignment: Alignment.centerLeft,
-                              child: Text('Create Account', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                            ),
-                            const SizedBox(height: 18),
-                            TextFormField(
-                              controller: _nameController,
-                              decoration: InputDecoration(
-                                labelText: 'Full Name',
-                                filled: true,
-                                fillColor: Colors.grey[100],
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                  borderSide: BorderSide.none,
-                                ),
-                                prefixIcon: const Icon(Icons.person),
-                              ),
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'Please enter your full name';
-                                }
-                                return null;
-                              },
-                            ),
-                            const SizedBox(height: 14),
-                            TextFormField(
-                              controller: _emailController,
-                              keyboardType: TextInputType.emailAddress,
-                              decoration: InputDecoration(
-                                labelText: 'Email Address',
-                                filled: true,
-                                fillColor: Colors.grey[100],
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                  borderSide: BorderSide.none,
-                                ),
-                                prefixIcon: const Icon(Icons.email),
-                              ),
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'Please enter your email';
-                                }
-                                if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+').hasMatch(value)) {
-                                  return 'Please enter a valid email';
-                                }
-                                return null;
-                              },
-                            ),
-                            const SizedBox(height: 14),
-                            TextFormField(
-                              controller: _birthdayController,
-                              readOnly: true,
-                              onTap: () async {
-                                FocusScope.of(context).requestFocus(FocusNode());
-                                final picked = await showDatePicker(
-                                  context: context,
-                                  initialDate: _selectedBirthday ?? DateTime(2000, 1, 1),
-                                  firstDate: DateTime(1900),
-                                  lastDate: DateTime.now(),
-                                );
-                                if (picked != null) {
-                                  setState(() {
-                                    _selectedBirthday = picked;
-                                    _birthdayController.text = "${picked.month}/${picked.day}/${picked.year}";
-                                  });
-                                }
-                              },
-                              decoration: InputDecoration(
-                                labelText: 'Birth Date',
-                                filled: true,
-                                fillColor: Colors.grey[100],
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                  borderSide: BorderSide.none,
-                                ),
-                                prefixIcon: const Icon(Icons.cake),
-                                suffixIcon: const Icon(Icons.calendar_today),
-                              ),
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'Please select your birthday';
-                                }
-                                return null;
-                              },
-                            ),
-                            const SizedBox(height: 14),
-                            TextFormField(
-                              controller: _passwordController,
-                              obscureText: _obscurePassword,
-                              decoration: InputDecoration(
-                                labelText: 'Password',
-                                filled: true,
-                                fillColor: Colors.grey[100],
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                  borderSide: BorderSide.none,
-                                ),
-                                prefixIcon: const Icon(Icons.lock),
-                                suffixIcon: IconButton(
-                                  icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
-                                  onPressed: () {
-                                    setState(() {
-                                      _obscurePassword = !_obscurePassword;
-                                    });
-                                  },
-                                ),
-                              ),
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'Please enter a password';
-                                }
-                                if (value.length < 6) {
-                                  return 'Password must be at least 6 characters';
-                                }
-                                return null;
-                              },
-                            ),
-                            const SizedBox(height: 18),
-                            // Role selection
-                            Align(
-                              alignment: Alignment.centerLeft,
-                              child: Text('Register as:', style: TextStyle(fontWeight: FontWeight.bold)),
-                            ),
-                            Row(
-                              children: [
-                                Radio<String>(
-                                  value: 'buyer',
-                                  groupValue: _selectedRole,
-                                  onChanged: (value) {
-                                    setState(() {
-                                      _selectedRole = value!;
-                                    });
-                                  },
-                                ),
-                                const Text('Buyer'),
-                                const SizedBox(width: 20),
-                                Radio<String>(
-                                  value: 'supplier',
-                                  groupValue: _selectedRole,
-                                  onChanged: (value) {
-                                    setState(() {
-                                      _selectedRole = value!;
-                                    });
-                                  },
-                                ),
-                                const Text('Supplier'),
-                                const SizedBox(width: 20),
-                                ///
-                              ///  Radio<String>(
-                              ///    value: 'admin',
-                               ///   groupValue: _selectedRole,
-                                ///  onChanged: (value) {
-                                ///    setState(() {
-                                ///      _selectedRole = value!;
-                                  ///  });
-                                 /// },
-                               /// ),
-                                ///const Text('Admin'),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                Checkbox(
-                                  value: _acceptTerms,
-                                  onChanged: (val) {
-                                    setState(() {
-                                      _acceptTerms = val ?? false;
-                                    });
-                                  },
-                                ),
-                                const Expanded(
-                                  child: Text('I accept the Terms and Conditions', maxLines: 2),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            SizedBox(
-                              width: double.infinity,
-                              height: 48,
-                              child: ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFFA7C957),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                ),
-                                onPressed: _isLoading || !_acceptTerms ? null : _proceed,
-                                child: _isLoading
-                                    ? const CircularProgressIndicator(color: Colors.white)
-                                    : const Text('Sign up', style: TextStyle(fontSize: 18, color: Colors.white)),
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Text('Already have an account? '),
-                                GestureDetector(
-                                  onTap: () {
-                                    if (widget.onLoginTap != null) {
-                                      widget.onLoginTap!();
-                                    } else {
-                                      Navigator.of(context).pop();
-                                    }
-                                  },
-                                  child: const Text('Log in', style: TextStyle(color: Color(0xFFA7C957), fontWeight: FontWeight.bold)),
-                                ),
-                              ],
-                            ),
-                          ],
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: AppColors.primaryGreen,
+        title: Text('Create Account', style: AppTextStyles.headline.copyWith(color: Colors.white, fontSize: screenWidth * 0.055)),
+        elevation: 0,
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: EdgeInsets.all(screenWidth * 0.05),
+          child: Column(
+            children: [
+              SizedBox(height: screenHeight * 0.02),
+              // Welcome Section
+              Neumorphic(
+                style: AppNeumorphic.card,
+                child: Container(
+                  padding: EdgeInsets.all(screenWidth * 0.06),
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.eco,
+                        size: screenWidth * 0.12,
+                        color: AppColors.primaryGreen,
+                      ),
+                      SizedBox(height: screenWidth * 0.03),
+                      Text(
+                        'Join VegieConnect',
+                        style: AppTextStyles.headline.copyWith(
+                          fontSize: screenWidth * 0.06,
+                          color: AppColors.primaryGreen,
                         ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Text('Or, Register with'),
-                      const SizedBox(width: 10),
-                      Row(
-                        children: [
-                          CircleAvatar(
-                            backgroundColor: blue,
-                            child: const Text('A', style: TextStyle(color: Colors.white)),
-                          ),
-                          const SizedBox(width: 16),
-                          CircleAvatar(
-                            backgroundColor: Colors.orange,
-                            child: const Text('B', style: TextStyle(color: Colors.white)),
-                          ),
-                          const SizedBox(width: 16),
-                          CircleAvatar(
-                            backgroundColor: Colors.green,
-                            child: const Text('C', style: TextStyle(color: Colors.white)),
-                          ),
-                        ],
+                      SizedBox(height: screenWidth * 0.02),
+                      Text(
+                        'Connect with fresh produce from local farms',
+                        style: AppTextStyles.body.copyWith(
+                          fontSize: screenWidth * 0.04,
+                          color: AppColors.textSecondary,
+                        ),
+                        textAlign: TextAlign.center,
                       ),
                     ],
                   ),
-                ],
+                ),
               ),
-            ),
+              SizedBox(height: screenHeight * 0.04),
+              // Signup Form
+              Neumorphic(
+                style: AppNeumorphic.card,
+                child: Padding(
+                  padding: EdgeInsets.all(screenWidth * 0.06),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          'Account Details',
+                          style: AppTextStyles.headline.copyWith(
+                            fontSize: screenWidth * 0.055,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        SizedBox(height: screenWidth * 0.05),
+                        // Full Name Field
+                        Neumorphic(
+                          style: AppNeumorphic.inset,
+                          child: TextFormField(
+                            controller: _nameController,
+                            decoration: InputDecoration(
+                              hintText: 'Full Name',
+                              hintStyle: AppTextStyles.body.copyWith(color: AppColors.textSecondary),
+                              prefixIcon: Icon(Icons.person, color: AppColors.primaryGreen),
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.symmetric(horizontal: screenWidth * 0.04, vertical: screenWidth * 0.04),
+                            ),
+                            style: AppTextStyles.body,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please enter your full name';
+                              }
+                              return null;
+                            },
+                          ),
+                        ),
+                        SizedBox(height: screenWidth * 0.04),
+                        // Email Field
+                        Neumorphic(
+                          style: AppNeumorphic.inset,
+                          child: TextFormField(
+                            controller: _emailController,
+                            keyboardType: TextInputType.emailAddress,
+                            decoration: InputDecoration(
+                              hintText: 'Email Address',
+                              hintStyle: AppTextStyles.body.copyWith(color: AppColors.textSecondary),
+                              prefixIcon: Icon(Icons.email, color: AppColors.primaryGreen),
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.symmetric(horizontal: screenWidth * 0.04, vertical: screenWidth * 0.04),
+                            ),
+                            style: AppTextStyles.body,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please enter your email';
+                              }
+                              if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+').hasMatch(value)) {
+                                return 'Please enter a valid email';
+                              }
+                              return null;
+                            },
+                          ),
+                        ),
+                        SizedBox(height: screenWidth * 0.04),
+                        // Password Field
+                        Neumorphic(
+                          style: AppNeumorphic.inset,
+                          child: TextFormField(
+                            controller: _passwordController,
+                            obscureText: _obscurePassword,
+                            decoration: InputDecoration(
+                              hintText: 'Password',
+                              hintStyle: AppTextStyles.body.copyWith(color: AppColors.textSecondary),
+                              prefixIcon: Icon(Icons.lock, color: AppColors.primaryGreen),
+                              suffixIcon: IconButton(
+                                icon: Icon(
+                                  _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                                  color: AppColors.primaryGreen,
+                                ),
+                                onPressed: () {
+                                  setState(() {
+                                    _obscurePassword = !_obscurePassword;
+                                  });
+                                },
+                              ),
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.symmetric(horizontal: screenWidth * 0.04, vertical: screenWidth * 0.04),
+                            ),
+                            style: AppTextStyles.body,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please enter a password';
+                              }
+                              if (value.length < 6) {
+                                return 'Password must be at least 6 characters';
+                              }
+                              return null;
+                            },
+                          ),
+                        ),
+                        SizedBox(height: screenWidth * 0.04),
+                        // Confirm Password Field
+                        Neumorphic(
+                          style: AppNeumorphic.inset,
+                          child: TextFormField(
+                            controller: _passwordController, // This controller is used for both password and confirm password
+                            obscureText: _obscurePassword,
+                            decoration: InputDecoration(
+                              hintText: 'Confirm Password',
+                              hintStyle: AppTextStyles.body.copyWith(color: AppColors.textSecondary),
+                              prefixIcon: Icon(Icons.lock_outline, color: AppColors.primaryGreen),
+                              suffixIcon: IconButton(
+                                icon: Icon(
+                                  _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                                  color: AppColors.primaryGreen,
+                                ),
+                                onPressed: () {
+                                  setState(() {
+                                    _obscurePassword = !_obscurePassword;
+                                  });
+                                },
+                              ),
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.symmetric(horizontal: screenWidth * 0.04, vertical: screenWidth * 0.04),
+                            ),
+                            style: AppTextStyles.body,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please confirm your password';
+                              }
+                              if (value != _passwordController.text) {
+                                return 'Passwords do not match';
+                              }
+                              return null;
+                            },
+                          ),
+                        ),
+                        SizedBox(height: screenWidth * 0.04),
+                        // Phone Number Field
+                        Neumorphic(
+                          style: AppNeumorphic.inset,
+                          child: TextFormField(
+                            controller: _birthdayController,
+                            readOnly: true,
+                            onTap: () async {
+                              FocusScope.of(context).requestFocus(FocusNode());
+                              final picked = await showDatePicker(
+                                context: context,
+                                initialDate: _selectedBirthday ?? DateTime(2000, 1, 1),
+                                firstDate: DateTime(1900),
+                                lastDate: DateTime.now(),
+                              );
+                              if (picked != null) {
+                                setState(() {
+                                  _selectedBirthday = picked;
+                                  _birthdayController.text = "${picked.month}/${picked.day}/${picked.year}";
+                                });
+                              }
+                            },
+                            decoration: InputDecoration(
+                              hintText: 'Birth Date',
+                              hintStyle: AppTextStyles.body.copyWith(color: AppColors.textSecondary),
+                              prefixIcon: Icon(Icons.cake, color: AppColors.primaryGreen),
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.symmetric(horizontal: screenWidth * 0.04, vertical: screenWidth * 0.04),
+                            ),
+                            style: AppTextStyles.body,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please select your birthday';
+                              }
+                              return null;
+                            },
+                          ),
+                        ),
+                        SizedBox(height: screenWidth * 0.04),
+                        // Role Selection
+                        Text(
+                          'I want to:',
+                          style: AppTextStyles.body.copyWith(
+                            fontSize: screenWidth * 0.04,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        SizedBox(height: screenWidth * 0.02),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: NeumorphicButton(
+                                style: AppNeumorphic.button.copyWith(
+                                  color: _selectedRole == 'buyer' ? AppColors.primaryGreen : Colors.transparent,
+                                ),
+                                onPressed: () {
+                                  setState(() {
+                                    _selectedRole = 'buyer';
+                                  });
+                                },
+                                child: Padding(
+                                  padding: EdgeInsets.symmetric(vertical: screenWidth * 0.03),
+                                  child: Text(
+                                    'Buy Products',
+                                    style: AppTextStyles.body.copyWith(
+                                      color: _selectedRole == 'buyer' ? Colors.white : AppColors.primaryGreen,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            SizedBox(width: screenWidth * 0.03),
+                            Expanded(
+                              child: NeumorphicButton(
+                                style: AppNeumorphic.button.copyWith(
+                                  color: _selectedRole == 'supplier' ? AppColors.primaryGreen : Colors.transparent,
+                                ),
+                                onPressed: () {
+                                  setState(() {
+                                    _selectedRole = 'supplier';
+                                  });
+                                },
+                                child: Padding(
+                                  padding: EdgeInsets.symmetric(vertical: screenWidth * 0.03),
+                                  child: Text(
+                                    'Sell Products',
+                                    style: AppTextStyles.body.copyWith(
+                                      color: _selectedRole == 'supplier' ? Colors.white : AppColors.primaryGreen,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: screenWidth * 0.05),
+                        // Sign Up Button
+                        NeumorphicButton(
+                          style: AppNeumorphic.button.copyWith(
+                            color: AppColors.primaryGreen,
+                          ),
+                          onPressed: _isLoading ? null : _proceed,
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(vertical: screenWidth * 0.04),
+                            child: _isLoading
+                                ? SizedBox(
+                                    height: screenWidth * 0.05,
+                                    width: screenWidth * 0.05,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                    ),
+                                  )
+                                : Text(
+                                    'Sign up',
+                                    style: AppTextStyles.button.copyWith(
+                                      color: Colors.white,
+                                      fontSize: screenWidth * 0.045,
+                                    ),
+                                  ),
+                          ),
+                        ),
+                        SizedBox(height: screenWidth * 0.04),
+                        // Login Link
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              'Already have an account? ',
+                              style: AppTextStyles.body.copyWith(
+                                fontSize: screenWidth * 0.035,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                            GestureDetector(
+                              onTap: () {
+                                if (widget.onLoginTap != null) {
+                                  widget.onLoginTap!();
+                                } else {
+                                  Navigator.of(context).pop();
+                                }
+                              },
+                              child: Text(
+                                'Log in',
+                                style: AppTextStyles.body.copyWith(
+                                  color: AppColors.primaryGreen,
+                                  fontSize: screenWidth * 0.035,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -424,7 +478,7 @@ class HomePage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('VegieConnect Home'),
-        backgroundColor: const Color(0xFFA7C957),
+        backgroundColor: AppColors.primaryGreen,
       ),
       body: const Center(
         child: Text('Welcome to VegieConnect!'),
