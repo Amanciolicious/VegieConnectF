@@ -8,6 +8,7 @@ import 'admin_verify_listings_page.dart';
 import 'admin_reports_page.dart';
 import 'admin_manage_accounts_page.dart';
 import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
+import 'package:fl_chart/fl_chart.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -18,6 +19,9 @@ class AdminDashboard extends StatefulWidget {
 
 class _AdminDashboardState extends State<AdminDashboard> {
   int _selectedIndex = 0;
+  String _searchQuery = '';
+  String? _roleFilter; // e.g., 'Supplier', 'Customer', 'Admin'
+  String? _statusFilter; // e.g., 'Active', 'Pending', 'Suspended'
 
   @override
   Widget build(BuildContext context) {
@@ -441,7 +445,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }
 
   Widget _buildUsersTab() {
-    return SingleChildScrollView(
+    return Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -464,147 +468,260 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     filled: true,
                     fillColor: Colors.white,
                   ),
+                  onChanged: (val) {
+                    setState(() {
+                      _searchQuery = val.trim().toLowerCase();
+                    });
+                  },
                 ),
               ),
               const SizedBox(width: 12),
-              ElevatedButton.icon(
-                onPressed: () {},
+              PopupMenuButton<String>(
                 icon: const Icon(Icons.filter_list),
-                label: const Text('Filter'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFA7C957),
-                  foregroundColor: Colors.white,
-                ),
+                tooltip: 'Filter',
+                onSelected: (value) {
+                  if (['Supplier', 'Customer', 'Admin'].contains(value)) {
+                    setState(() => _roleFilter = value);
+                  } else if (['Active', 'Pending', 'Suspended'].contains(value)) {
+                    setState(() => _statusFilter = value);
+                  } else if (value == 'Clear') {
+                    setState(() {
+                      _roleFilter = null;
+                      _statusFilter = null;
+                    });
+                  }
+                },
+                itemBuilder: (context) => [
+                  const PopupMenuItem(value: 'Supplier', child: Text('Supplier')),
+                  const PopupMenuItem(value: 'Customer', child: Text('Customer')),
+                  const PopupMenuItem(value: 'Admin', child: Text('Admin')),
+                  const PopupMenuDivider(),
+                  const PopupMenuItem(value: 'Active', child: Text('Active')),
+                  const PopupMenuItem(value: 'Pending', child: Text('Pending')),
+                  const PopupMenuItem(value: 'Suspended', child: Text('Suspended')),
+                  const PopupMenuDivider(),
+                  const PopupMenuItem(value: 'Clear', child: Text('Clear Filters')),
+                ],
               ),
             ],
           ),
           const SizedBox(height: 20),
-          _buildUserList(),
+          if (_roleFilter != null || _statusFilter != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8.0),
+              child: Row(
+                children: [
+                  if (_roleFilter != null)
+                    Container(
+                      margin: const EdgeInsets.only(right: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          Text(_roleFilter!, style: const TextStyle(color: Colors.blue)),
+                          const SizedBox(width: 4),
+                          GestureDetector(
+                            onTap: () => setState(() => _roleFilter = null),
+                            child: const Icon(Icons.close, size: 14, color: Colors.blue),
+                          ),
+                        ],
+                      ),
+                    ),
+                  if (_statusFilter != null)
+                    Container(
+                      margin: const EdgeInsets.only(right: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          Text(_statusFilter!, style: const TextStyle(color: Colors.orange)),
+                          const SizedBox(width: 4),
+                          GestureDetector(
+                            onTap: () => setState(() => _statusFilter = null),
+                            child: const Icon(Icons.close, size: 14, color: Colors.orange),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          Expanded(
+            child: _buildUserList(
+              searchQuery: _searchQuery,
+              roleFilter: _roleFilter,
+              statusFilter: _statusFilter,
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildUserList() {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: ListView.separated(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        itemCount: 10,
-        separatorBuilder: (context, index) => const Divider(height: 1),
-        itemBuilder: (context, index) {
-          final users = [
-            {'name': 'John Doe', 'email': 'john.doe@email.com', 'role': 'Customer', 'status': 'Active'},
-            {'name': 'Jane Smith', 'email': 'jane.smith@email.com', 'role': 'Supplier', 'status': 'Active'},
-            {'name': 'Bob Johnson', 'email': 'bob.johnson@email.com', 'role': 'Customer', 'status': 'Pending'},
-            {'name': 'Alice Brown', 'email': 'alice.brown@email.com', 'role': 'Supplier', 'status': 'Active'},
-            {'name': 'Charlie Wilson', 'email': 'charlie.wilson@email.com', 'role': 'Customer', 'status': 'Active'},
-            {'name': 'Diana Davis', 'email': 'diana.davis@email.com', 'role': 'Supplier', 'status': 'Suspended'},
-            {'name': 'Edward Miller', 'email': 'edward.miller@email.com', 'role': 'Customer', 'status': 'Active'},
-            {'name': 'Fiona Garcia', 'email': 'fiona.garcia@email.com', 'role': 'Supplier', 'status': 'Active'},
-            {'name': 'George Martinez', 'email': 'george.martinez@email.com', 'role': 'Customer', 'status': 'Active'},
-            {'name': 'Helen Taylor', 'email': 'helen.taylor@email.com', 'role': 'Supplier', 'status': 'Active'},
-          ];
-          
-          final user = users[index];
-          final isActive = user['status'] == 'Active';
-          
-          return ListTile(
-            leading: CircleAvatar(
-  
-              backgroundColor: const Color(0xFFA7C957).withOpacity(0.1),
-              child: Text(
-                user['name']!.substring(0, 1),
-                style: const TextStyle(
-                  color: Color(0xFFA7C957),
-                  fontWeight: FontWeight.bold,
+  Widget _buildUserList({String searchQuery = '', String? roleFilter, String? statusFilter}) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('users').snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return const Center(child: Text('No users found.'));
+        }
+        final allUsers = snapshot.data!.docs;
+        // Apply search and filter
+        final users = allUsers.where((doc) {
+          final user = doc.data() as Map<String, dynamic>;
+          final name = (user['name'] ?? '').toString().toLowerCase();
+          final email = (user['email'] ?? '').toString().toLowerCase();
+          final role = (user['role'] ?? '').toString();
+          final status = (user['status'] ?? '').toString();
+          final matchesSearch = searchQuery.isEmpty || name.contains(searchQuery) || email.contains(searchQuery);
+          final matchesRole = roleFilter == null || roleFilter == '' || role == roleFilter;
+          final matchesStatus = statusFilter == null || statusFilter == '' || status == statusFilter;
+          return matchesSearch && matchesRole && matchesStatus;
+        }).toList();
+        if (users.isEmpty) {
+          return const Center(child: Text('No users found.'));
+        }
+        return ListView.separated(
+          itemCount: users.length,
+          separatorBuilder: (context, index) => const Divider(height: 1),
+          itemBuilder: (context, index) {
+            final user = users[index].data() as Map<String, dynamic>;
+            final docId = users[index].id;
+            final isActive = user['status'] == 'Active';
+            return ListTile(
+              leading: CircleAvatar(
+                backgroundColor: const Color(0xFFA7C957).withOpacity(0.1),
+                child: Text(
+                  (user['name'] ?? '?').substring(0, 1),
+                  style: const TextStyle(
+                    color: Color(0xFFA7C957),
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
-            ),
-            title: Text(user['name']!),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(user['email']!),
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-             
-                        color: user['role'] == 'Supplier' ? Colors.blue.withOpacity(0.1) : Colors.green.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        user['role']!,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: user['role'] == 'Supplier' ? Colors.blue : Colors.green,
+              title: Text(user['name'] ?? ''),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(user['email'] ?? ''),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: user['role'] == 'Supplier' ? Colors.blue.withOpacity(0.1) : Colors.green.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          user['role'] ?? '',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: user['role'] == 'Supplier' ? Colors.blue : Colors.green,
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                
-                        color: isActive ? Colors.green.withOpacity(0.1) : Colors.orange.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        user['status']!,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: isActive ? Colors.green : Colors.orange,
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: isActive ? Colors.green.withOpacity(0.1) : Colors.orange.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          user['status'] ?? '',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isActive ? Colors.green : Colors.orange,
+                          ),
                         ),
                       ),
+                    ],
+                  ),
+                ],
+              ),
+              trailing: PopupMenuButton(
+                itemBuilder: (context) => [
+                  const PopupMenuItem(
+                    value: 'edit',
+                    child: Row(
+                      children: [
+                        Icon(Icons.edit),
+                        SizedBox(width: 8),
+                        Text('Edit'),
+                      ],
                     ),
-                  ],
-                ),
-              ],
-            ),
-            trailing: PopupMenuButton(
-              itemBuilder: (context) => [
-                const PopupMenuItem(
-                  value: 'edit',
-                  child: Row(
-                    children: [
-                      Icon(Icons.edit),
-                      SizedBox(width: 8),
-                      Text('Edit'),
-                    ],
                   ),
-                ),
-                const PopupMenuItem(
-                  value: 'suspend',
-                  child: Row(
-                    children: [
-                      Icon(Icons.block),
-                      SizedBox(width: 8),
-                      Text('Suspend'),
-                    ],
+                  PopupMenuItem(
+                    value: isActive ? 'suspend' : 'activate',
+                    child: Row(
+                      children: [
+                        Icon(isActive ? Icons.block : Icons.check),
+                        const SizedBox(width: 8),
+                        Text(isActive ? 'Suspend' : 'Activate'),
+                      ],
+                    ),
                   ),
-                ),
-                const PopupMenuItem(
-                  value: 'delete',
-                  child: Row(
-                    children: [
-                      Icon(Icons.delete),
-                      SizedBox(width: 8),
-                      Text('Delete'),
-                    ],
+                  const PopupMenuItem(
+                    value: 'delete',
+                    child: Row(
+                      children: [
+                        Icon(Icons.delete),
+                        SizedBox(width: 8),
+                        Text('Delete'),
+                      ],
+                    ),
                   ),
-                ),
-              ],
-              onSelected: (value) {
-                // Handle menu selection
-              },
-            ),
-          );
-        },
-      ),
+                ],
+                onSelected: (value) async {
+                  if (value == 'suspend' || value == 'activate') {
+                    await FirebaseFirestore.instance.collection('users').doc(docId).update({
+                      'status': value == 'suspend' ? 'Suspended' : 'Active',
+                    });
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('User ${value == 'suspend' ? 'suspended' : 'activated'} successfully.')),
+                    );
+                  } else if (value == 'delete') {
+                    final confirm = await showDialog<bool>(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text('Delete User'),
+                        content: const Text('Are you sure you want to delete this user? This action cannot be undone.'),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            child: const Text('Cancel'),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (confirm == true) {
+                      await FirebaseFirestore.instance.collection('users').doc(docId).delete();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('User deleted.')),
+                      );
+                    }
+                  } else if (value == 'edit') {
+                    // TODO: Implement edit user logic (show dialog or navigate to edit page)
+                  }
+                },
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -619,79 +736,587 @@ class _AdminDashboardState extends State<AdminDashboard> {
             style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 20),
-          Card(
-            elevation: 4,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Revenue Overview',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          // Revenue Overview (real-time)
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance.collection('orders').where('status', isEqualTo: 'completed').snapshots(),
+            builder: (context, orderSnap) {
+              if (orderSnap.connectionState == ConnectionState.waiting) {
+                return const Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(32),
+                    child: Center(child: CircularProgressIndicator()),
                   ),
-                  const SizedBox(height: 20),
-                  Row(
+                );
+              }
+              final now = DateTime.now();
+              final firstDayThisMonth = DateTime(now.year, now.month, 1);
+              final firstDayLastMonth = DateTime(now.year, now.month - 1, 1);
+              final firstDayThisYear = DateTime(now.year, 1, 1);
+              final firstDayLastYear = DateTime(now.year - 1, 1, 1);
+              double thisMonth = 0, lastMonth = 0, thisYear = 0, lastYear = 0;
+              if (orderSnap.hasData) {
+                for (var doc in orderSnap.data!.docs) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  final createdAt = (data['createdAt'] as Timestamp?)?.toDate();
+                  final amount = (data['price'] ?? 0) * (data['quantity'] ?? 1);
+                  if (createdAt == null) continue;
+                  if (createdAt.isAfter(firstDayThisMonth)) thisMonth += amount;
+                  if (createdAt.isAfter(firstDayLastMonth) && createdAt.isBefore(firstDayThisMonth)) lastMonth += amount;
+                  if (createdAt.isAfter(firstDayThisYear)) thisYear += amount;
+                  if (createdAt.isAfter(firstDayLastYear) && createdAt.isBefore(firstDayThisYear)) lastYear += amount;
+                }
+              }
+              double percentMonth = lastMonth > 0 ? ((thisMonth - lastMonth) / lastMonth) * 100 : 0;
+              double percentYear = lastYear > 0 ? ((thisYear - lastYear) / lastYear) * 100 : 0;
+              return Card(
+                elevation: 4,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: _buildAnalyticsItem('This Month', '\$8,234', '+12%'),
+                      const Text('Revenue Overview', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 20),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildAnalyticsItem('This Month', '₱${thisMonth.toStringAsFixed(0)}', '${percentMonth >= 0 ? '+' : ''}${percentMonth.toStringAsFixed(0)}%'),
+                          ),
+                          Expanded(
+                            child: _buildAnalyticsItem('Last Month', '₱${lastMonth.toStringAsFixed(0)}', ''),
+                          ),
+                        ],
                       ),
-                      Expanded(
-                        child: _buildAnalyticsItem('Last Month', '\$7,345', '+8%'),
+                      const SizedBox(height: 20),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildAnalyticsItem('This Year', '₱${thisYear.toStringAsFixed(0)}', '${percentYear >= 0 ? '+' : ''}${percentYear.toStringAsFixed(0)}%'),
+                          ),
+                          Expanded(
+                            child: _buildAnalyticsItem('Last Year', '₱${lastYear.toStringAsFixed(0)}', ''),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                  const SizedBox(height: 20),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildAnalyticsItem('This Year', '\$89,123', '+23%'),
-                      ),
-                      Expanded(
-                        child: _buildAnalyticsItem('Last Year', '\$72,456', '+15%'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
+                ),
+              );
+            },
           ),
           const SizedBox(height: 20),
-          Card(
-            elevation: 4,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'User Growth',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          // User Growth (real-time)
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance.collection('users').snapshots(),
+            builder: (context, userSnap) {
+              if (userSnap.connectionState == ConnectionState.waiting) {
+                return const Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(32),
+                    child: Center(child: CircularProgressIndicator()),
                   ),
-                  const SizedBox(height: 20),
-                  Row(
+                );
+              }
+              final now = DateTime.now();
+              final firstDayThisMonth = DateTime(now.year, now.month, 1);
+              int newUsers = 0, activeUsers = 0;
+              if (userSnap.hasData) {
+                for (var doc in userSnap.data!.docs) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  final createdAt = (data['createdAt'] as Timestamp?)?.toDate();
+                  final lastActive = (data['lastLogin'] as Timestamp?)?.toDate();
+                  if (createdAt != null && createdAt.isAfter(firstDayThisMonth)) newUsers++;
+                  if (lastActive != null && lastActive.isAfter(firstDayThisMonth)) activeUsers++;
+                }
+              }
+              // For demo, percent changes are not calculated (can be added if needed)
+              return Card(
+                elevation: 4,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: _buildAnalyticsItem('New Users', '234', '+18%'),
-                      ),
-                      Expanded(
-                        child: _buildAnalyticsItem('Active Users', '1,123', '+5%'),
+                      const Text('User Growth', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 20),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildAnalyticsItem('New Users', newUsers.toString(), ''),
+                          ),
+                          Expanded(
+                            child: _buildAnalyticsItem('Active Users', activeUsers.toString(), ''),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ],
-              ),
-            ),
+                ),
+              );
+            },
           ),
+          // Order Counts (real-time)
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance.collection('orders').snapshots(),
+            builder: (context, orderSnap) {
+              if (orderSnap.connectionState == ConnectionState.waiting) {
+                return const Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(32),
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                );
+              }
+              final now = DateTime.now();
+              final firstDayThisMonth = DateTime(now.year, now.month, 1);
+              final firstDayLastMonth = DateTime(now.year, now.month - 1, 1);
+              int totalOrders = 0, thisMonthOrders = 0, lastMonthOrders = 0;
+              double totalOrderValue = 0;
+              int totalOrderProducts = 0;
+              if (orderSnap.hasData) {
+                for (var doc in orderSnap.data!.docs) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  final createdAt = (data['createdAt'] as Timestamp?)?.toDate();
+                  final value = (data['price'] ?? 0) * (data['quantity'] ?? 1);
+                  final quantity = (data['quantity'] ?? 1) as int;
+                  totalOrders++;
+                  totalOrderValue += value;
+                  totalOrderProducts += quantity;
+                  if (createdAt != null) {
+                    if (createdAt.isAfter(firstDayThisMonth)) thisMonthOrders++;
+                    if (createdAt.isAfter(firstDayLastMonth) && createdAt.isBefore(firstDayThisMonth)) lastMonthOrders++;
+                  }
+                }
+              }
+              double avgOrderValue = totalOrders > 0 ? totalOrderValue / totalOrders : 0;
+              double avgProductsPerOrder = totalOrders > 0 ? totalOrderProducts / totalOrders : 0;
+              return Card(
+                elevation: 4,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Order Metrics', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 20),
+                      Row(
+                        children: [
+                          Expanded(child: _buildAnalyticsItem('Total Orders', totalOrders.toString(), '')),
+                          Expanded(child: _buildAnalyticsItem('This Month', thisMonthOrders.toString(), '')),
+                          Expanded(child: _buildAnalyticsItem('Last Month', lastMonthOrders.toString(), '')),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      Row(
+                        children: [
+                          Expanded(child: _buildAnalyticsItem('Avg Order Value', '₱${avgOrderValue.toStringAsFixed(0)}', '')),
+                          Expanded(child: _buildAnalyticsItem('Avg Products/Order', avgProductsPerOrder.toStringAsFixed(2), '')),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 20),
+          // Top Products (real-time)
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance.collection('products').snapshots(),
+            builder: (context, productSnap) {
+              if (productSnap.connectionState == ConnectionState.waiting) {
+                return const Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(32),
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                );
+              }
+              // Aggregate top products by total quantity sold (from orders)
+              return StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance.collection('orders').where('status', isEqualTo: 'completed').snapshots(),
+                builder: (context, orderSnap) {
+                  if (orderSnap.connectionState == ConnectionState.waiting) {
+                    return const SizedBox();
+                  }
+                  // Map productId to total quantity sold
+                  final Map<String, int> productSales = {};
+                  if (orderSnap.hasData) {
+                    for (var doc in orderSnap.data!.docs) {
+                      final data = doc.data() as Map<String, dynamic>;
+                      final productId = data['productId'] ?? '';
+                      final quantity = (data['quantity'] ?? 1) as int;
+                      if (productId is String && productId.isNotEmpty) {
+                        productSales[productId] = (productSales[productId] ?? 0) + quantity;
+                      }
+                    }
+                  }
+                  // Get product details
+                  final products = productSnap.data?.docs ?? [];
+                  final topProducts = products
+                      .map((doc) {
+                        final data = doc.data() as Map<String, dynamic>;
+                        final id = doc.id;
+                        return {
+                          'id': id,
+                          'name': data['name'] ?? '',
+                          'imageUrl': data['imageUrl'] ?? '',
+                          'quantitySold': productSales[id] ?? 0,
+                        };
+                      })
+                      .where((p) => p['quantitySold'] > 0)
+                      .toList();
+                  topProducts.sort((a, b) => (b['quantitySold'] as int).compareTo(a['quantitySold'] as int));
+                  final top5 = topProducts.take(5).toList();
+                  return Card(
+                    elevation: 4,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Top 5 Products (by sales)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 20),
+                          if (top5.isEmpty)
+                            const Text('No product sales yet.'),
+                          for (var p in top5)
+                            ListTile(
+                              leading: p['imageUrl'] != null && (p['imageUrl'] as String).isNotEmpty
+                                  ? Image.network(p['imageUrl'], width: 40, height: 40, fit: BoxFit.cover)
+                                  : const Icon(Icons.shopping_basket, size: 40),
+                              title: Text(p['name'] ?? ''),
+                              trailing: Text('Sold: ${p['quantitySold']}'),
+                            ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+          const SizedBox(height: 20),
+          // Sales by Category (real-time)
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance.collection('orders').where('status', isEqualTo: 'completed').snapshots(),
+            builder: (context, orderSnap) {
+              if (orderSnap.connectionState == ConnectionState.waiting) {
+                return const Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(32),
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                );
+              }
+              // Aggregate sales by category
+              final Map<String, double> categorySales = {};
+              if (orderSnap.hasData) {
+                for (var doc in orderSnap.data!.docs) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  final category = data['category'] ?? 'Uncategorized';
+                  final amount = (data['price'] ?? 0) * (data['quantity'] ?? 1);
+                  categorySales[category] = (categorySales[category] ?? 0) + amount;
+                }
+              }
+              final sortedCategories = categorySales.entries.toList()
+                ..sort((a, b) => b.value.compareTo(a.value));
+              return Card(
+                elevation: 4,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Sales by Category', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 20),
+                      if (sortedCategories.isEmpty)
+                        const Text('No sales data.'),
+                      if (sortedCategories.isNotEmpty)
+                        SizedBox(
+                          height: 200,
+                          child: BarChart(
+                            BarChartData(
+                              barGroups: [
+                                for (int i = 0; i < sortedCategories.length; i++)
+                                  BarChartGroupData(
+                                    x: i,
+                                    barRods: [
+                                      BarChartRodData(
+                                        toY: sortedCategories[i].value,
+                                        color: Colors.blue,
+                                      ),
+                                    ],
+                                  ),
+                              ],
+                              titlesData: FlTitlesData(
+                                bottomTitles: AxisTitles(
+                                  sideTitles: SideTitles(
+                                    showTitles: true,
+                                    getTitlesWidget: (value, meta) {
+                                      final idx = value.toInt();
+                                      if (idx < 0 || idx >= sortedCategories.length) return const SizedBox();
+                                      return Text(sortedCategories[idx].key, style: const TextStyle(fontSize: 10));
+                                    },
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 20),
+          // Top Suppliers by Sales (real-time)
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance.collection('orders').where('status', isEqualTo: 'completed').snapshots(),
+            builder: (context, orderSnap) {
+              if (orderSnap.connectionState == ConnectionState.waiting) {
+                return const Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(32),
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                );
+              }
+              final Map<String, double> supplierSales = {};
+              final Map<String, String> supplierNames = {};
+              if (orderSnap.hasData) {
+                for (var doc in orderSnap.data!.docs) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  final supplierId = data['sellerId'] ?? '';
+                  final supplierName = data['supplierName'] ?? 'Unknown';
+                  final amount = (data['price'] ?? 0) * (data['quantity'] ?? 1);
+                  supplierSales[supplierId] = (supplierSales[supplierId] ?? 0) + amount;
+                  supplierNames[supplierId] = supplierName;
+                }
+              }
+              final topSuppliers = supplierSales.entries.toList()
+                ..sort((a, b) => b.value.compareTo(a.value));
+              final top5 = topSuppliers.take(5).toList();
+              return Card(
+                elevation: 4,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Top 5 Suppliers (by sales)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 20),
+                      if (top5.isEmpty)
+                        const Text('No supplier sales yet.'),
+                      for (var entry in top5)
+                        ListTile(
+                          title: Text(supplierNames[entry.key] ?? 'Unknown'),
+                          trailing: Text('₱${entry.value.toStringAsFixed(0)}'),
+                        ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 20),
+          // Customer Lifetime Value (CLV) for Top 5 Buyers (real-time)
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance.collection('orders').where('status', isEqualTo: 'completed').snapshots(),
+            builder: (context, orderSnap) {
+              if (orderSnap.connectionState == ConnectionState.waiting) {
+                return const Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(32),
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                );
+              }
+              final Map<String, double> buyerCLV = {};
+              final Map<String, String> buyerNames = {};
+              if (orderSnap.hasData) {
+                for (var doc in orderSnap.data!.docs) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  final buyerId = data['buyerId'] ?? '';
+                  final buyerName = data['buyerName'] ?? 'Unknown';
+                  final amount = (data['price'] ?? 0) * (data['quantity'] ?? 1);
+                  buyerCLV[buyerId] = (buyerCLV[buyerId] ?? 0) + amount;
+                  buyerNames[buyerId] = buyerName;
+                }
+              }
+              final topBuyers = buyerCLV.entries.toList()
+                ..sort((a, b) => b.value.compareTo(a.value));
+              final top5 = topBuyers.take(5).toList();
+              return Card(
+                elevation: 4,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Top 5 Buyers (Customer Lifetime Value)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 20),
+                      if (top5.isEmpty)
+                        const Text('No buyer data yet.'),
+                      for (var entry in top5)
+                        ListTile(
+                          title: Text(buyerNames[entry.key] ?? 'Unknown'),
+                          trailing: Text('₱${entry.value.toStringAsFixed(0)}'),
+                        ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 20),
+          // Conversion Rate (orders/total users, real-time)
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance.collection('orders').snapshots(),
+            builder: (context, orderSnap) {
+              return StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance.collection('users').snapshots(),
+                builder: (context, userSnap) {
+                  if (orderSnap.connectionState == ConnectionState.waiting || userSnap.connectionState == ConnectionState.waiting) {
+                    return const Card(
+                      child: Padding(
+                        padding: EdgeInsets.all(32),
+                        child: Center(child: CircularProgressIndicator()),
+                      ),
+                    );
+                  }
+                  final totalOrders = orderSnap.data?.docs.length ?? 0;
+                  final totalUsers = userSnap.data?.docs.length ?? 0;
+                  final conversionRate = totalUsers > 0 ? (totalOrders / totalUsers) * 100 : 0;
+                  return Card(
+                    elevation: 4,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Conversion Rate', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 20),
+                          Text('Orders: $totalOrders'),
+                          Text('Users: $totalUsers'),
+                          const SizedBox(height: 8),
+                          Text('Conversion Rate: ${conversionRate.toStringAsFixed(2)}%'),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+          const SizedBox(height: 20),
+          // Daily/Weekly Sales Trend (last 7/30 days, real-time)
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance.collection('orders').where('status', isEqualTo: 'completed').snapshots(),
+            builder: (context, orderSnap) {
+              if (orderSnap.connectionState == ConnectionState.waiting) {
+                return const Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(32),
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                );
+              }
+              final now = DateTime.now();
+              final last7Days = List.generate(7, (i) => now.subtract(Duration(days: i)));
+              final last30Days = List.generate(30, (i) => now.subtract(Duration(days: i)));
+              final Map<String, double> dailySales = {};
+              final Map<String, double> weeklySales = {};
+              if (orderSnap.hasData) {
+                for (var doc in orderSnap.data!.docs) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  final createdAt = (data['createdAt'] as Timestamp?)?.toDate();
+                  final amount = (data['price'] ?? 0) * (data['quantity'] ?? 1);
+                  if (createdAt == null) continue;
+                  final dayKey = '${createdAt.year}-${createdAt.month.toString().padLeft(2, '0')}-${createdAt.day.toString().padLeft(2, '0')}';
+                  if (now.difference(createdAt).inDays < 7) {
+                    dailySales[dayKey] = (dailySales[dayKey] ?? 0) + amount;
+                  }
+                  if (now.difference(createdAt).inDays < 30) {
+                    final weekKey = 'Week ${((now.difference(createdAt).inDays) ~/ 7) + 1}';
+                    weeklySales[weekKey] = (weeklySales[weekKey] ?? 0) + amount;
+                  }
+                }
+              }
+              final sortedDaily = dailySales.entries.toList()
+                ..sort((a, b) => a.key.compareTo(b.key));
+              final sortedWeekly = weeklySales.entries.toList()
+                ..sort((a, b) => a.key.compareTo(b.key));
+              return Card(
+                elevation: 4,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Sales Trend', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 20),
+                      const Text('Last 7 Days:'),
+                      for (var entry in sortedDaily)
+                        Text('${entry.key}: ₱${entry.value.toStringAsFixed(0)}'),
+                      const SizedBox(height: 12),
+                      const Text('Last 30 Days (by week):'),
+                      for (var entry in sortedWeekly)
+                        Text('${entry.key}: ₱${entry.value.toStringAsFixed(0)}'),
+                      if (sortedDaily.isNotEmpty)
+                        SizedBox(
+                          height: 200,
+                          child: LineChart(
+                            LineChartData(
+                              titlesData: FlTitlesData(
+                                leftTitles: AxisTitles(
+                                  sideTitles: SideTitles(showTitles: true),
+                                ),
+                                bottomTitles: AxisTitles(
+                                  sideTitles: SideTitles(
+                                    showTitles: true,
+                                    getTitlesWidget: (value, meta) {
+                                      final idx = value.toInt();
+                                      if (idx < 0 || idx >= sortedDaily.length) return const SizedBox();
+                                      return Text(sortedDaily[idx].key.substring(5)); // MM-DD
+                                    },
+                                  ),
+                                ),
+                              ),
+                              lineBarsData: [
+                                LineChartBarData(
+                                  spots: [
+                                    for (int i = 0; i < sortedDaily.length; i++)
+                                      FlSpot(i.toDouble(), sortedDaily[i].value),
+                                  ],
+                                  isCurved: true,
+                                  color: Colors.green,
+                                  barWidth: 3,
+                                  dotData: FlDotData(show: false),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 20),
         ],
       ),
     );
-  }
-
-  Widget _buildFarmLocationsTab() {
-    return const AdminFarmMapPage();
   }
 
   Widget _buildAnalyticsItem(String label, String value, String change) {
@@ -727,6 +1352,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
         ),
       ],
     );
+  }
+
+  Widget _buildFarmLocationsTab() {
+    return const AdminFarmMapPage();
   }
 
   Widget _buildSettingsTab() {

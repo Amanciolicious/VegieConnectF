@@ -3,6 +3,7 @@ import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
 import 'package:path/path.dart';
 import 'package:vegieconnect/theme.dart';
 
+
 class AdminVerifyListingsPage extends StatelessWidget {
   const AdminVerifyListingsPage({super.key});
 
@@ -217,7 +218,7 @@ class AdminVerifyListingsPage extends StatelessWidget {
                     style: AppNeumorphic.button.copyWith(
                       color: AppColors.primaryGreen,
                     ),
-                    onPressed: () => _verifyProduct(productId, true),
+                    onPressed: () => _verifyProduct(context as BuildContext, productId, true),
                     child: Padding(
                       padding: EdgeInsets.symmetric(vertical: screenWidth * 0.03),
                       child: Text(
@@ -236,7 +237,7 @@ class AdminVerifyListingsPage extends StatelessWidget {
                     style: AppNeumorphic.button.copyWith(
                       color: Colors.red,
                     ),
-                    onPressed: () => _verifyProduct(productId, false),
+                    onPressed: () => _verifyProduct(context as BuildContext, productId, false),
                     child: Padding(
                       padding: EdgeInsets.symmetric(vertical: screenWidth * 0.03),
                       child: Text(
@@ -257,21 +258,65 @@ class AdminVerifyListingsPage extends StatelessWidget {
     );
   }
 
-  Future<void> _verifyProduct(String productId, bool isApproved) async {
+  Future<void> _verifyProduct(BuildContext context, String productId, bool isApproved) async {
     try {
-      await FirebaseFirestore.instance.collection('products').doc(productId).update({
-        'isVerified': true,
-        'isActive': true,
-        'verifiedBy': 'admin',
-        'verificationDate': FieldValue.serverTimestamp(),
-      });
-      ScaffoldMessenger.of(context as BuildContext).showSnackBar(
-        SnackBar(content: Text('Product verified successfully!')),
-      );
+      if (isApproved) {
+        await FirebaseFirestore.instance.collection('products').doc(productId).update({
+          'isVerified': true,
+          'isActive': true,
+          'status': 'approved',
+          'rejectionReason': '',
+          'verifiedBy': 'admin',
+          'verificationDate': FieldValue.serverTimestamp(),
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Product approved!')),
+        );
+      } else {
+        final reason = await _showRejectionDialog(context);
+        if (reason == null || reason.trim().isEmpty) return;
+        await FirebaseFirestore.instance.collection('products').doc(productId).update({
+          'isVerified': false,
+          'isActive': false,
+          'status': 'rejected',
+          'rejectionReason': reason.trim(),
+          'verifiedBy': 'admin',
+          'verificationDate': FieldValue.serverTimestamp(),
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Product rejected.')),
+        );
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context as BuildContext).showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error verifying product: $e')),
       );
     }
+  }
+
+  Future<String?> _showRejectionDialog(BuildContext context) async {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Reject Product'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(labelText: 'Reason for rejection'),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Reject'),
+          ),
+        ],
+      ),
+    );
   }
 } 

@@ -33,6 +33,7 @@ class _AddProductPageState extends State<AddProductPage> {
   Uint8List? _webImageBytes;
   String? _imageUrl;
   bool _isUploading = false;
+  String? _rejectionReason;
 
   @override
   void initState() {
@@ -46,6 +47,7 @@ class _AddProductPageState extends State<AddProductPage> {
       _category = widget.product!['category'] ?? 'Vegetable';
       _isActive = widget.product!['isActive'] ?? true;
       _imageUrl = widget.product!['imageUrl'];
+      _rejectionReason = widget.product!['rejectionReason'];
     }
   }
 
@@ -337,6 +339,30 @@ class _AddProductPageState extends State<AddProductPage> {
                           ),
                         ),
                         SizedBox(height: screenWidth * 0.05),
+                        // Show rejection reason if product is rejected
+                        if ((widget.product?['status'] ?? '') == 'rejected' && _rejectionReason != null && _rejectionReason!.isNotEmpty)
+                          Padding(
+                            padding: EdgeInsets.only(bottom: screenWidth * 0.03),
+                            child: Container(
+                              padding: EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.red.withOpacity(0.08),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.error, color: Colors.red, size: 20),
+                                  SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Rejected: $_rejectionReason',
+                                      style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                         // Image Upload Section
                         Neumorphic(
                           style: AppNeumorphic.card,
@@ -439,44 +465,77 @@ class _AddProductPageState extends State<AddProductPage> {
                                 return;
                               }
                               try {
-                                // Fetch supplier name from Firestore
+                                // Fetch supplier name and trust status from Firestore
                                 final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
                                 final supplierName = userDoc.data()?['name'] ?? 'Unknown Supplier';
-                                if (widget.product == null) {
-                                  // Add new product
-                                  final docRef = await FirebaseFirestore.instance.collection('products').add({
-                                    'sellerId': user.uid,
-                                    'supplierName': supplierName,
-                                    'name': _nameController.text.trim(),
-                                    'description': _descController.text.trim(),
-                                    'price': double.tryParse(_priceController.text.trim()) ?? 0,
-                                    'quantity': _quantity,
-                                    'unit': _unit,
-                                    'category': _category,
-                                    'isActive': _isActive,
-                                    'createdAt': FieldValue.serverTimestamp(),
-                                    'updatedAt': FieldValue.serverTimestamp(),
-                                    'imageUrl': '',
-                                  });
-                                  final imagePath = await _saveImageLocally(docRef.id);
+                                final isTrusted = userDoc.data()?['isTrusted'] == true;
+
+                                // --- Automatic Assessment Logic ---
+                                final prohibitedKeywords = ['illegal', 'banned', 'prohibited'];
+                                final name = _nameController.text.trim();
+                                final desc = _descController.text.trim();
+                                final price = double.tryParse(_priceController.text.trim()) ?? 0;
+                                final hasAllFields = name.isNotEmpty && desc.isNotEmpty && price > 0 && _quantity > 0 && _unit.isNotEmpty && _category.isNotEmpty;
+                                final priceValid = price > 0 && price < 10000;
+                                final noProhibited = !prohibitedKeywords.any((word) => name.toLowerCase().contains(word) || desc.toLowerCase().contains(word));
+                                // For image, check if _imageFile or _webImageBytes or _imageUrl is present
+                                final hasImage = (_imageFile != null) || (_webImageBytes != null) || ((_imageUrl ?? '').isNotEmpty);
+
+                                String status = 'pending';
+                                bool isVerified = false;
+                                if (hasAllFields && priceValid && noProhibited && hasImage && isTrusted) {
+                                  status = 'approved';
+                                  isVerified = true;
+                                }
+
+                                if (widget.product == null || (widget.product?['status'] ?? '') == 'rejected') {
+                                  // Add new product or resubmit rejected product
+                                  final docRef = widget.product == null
+                                      ? await FirebaseFirestore.instance.collection('products').add({
+                                          'sellerId': user.uid,
+                                          'supplierName': supplierName,
+                                          'name': name,
+                                          'description': desc,
+                                          'price': price,
+                                          'quantity': _quantity,
+                                          'unit': _unit,
+                                          'category': _category,
+                                          'isActive': _isActive,
+                                          'createdAt': FieldValue.serverTimestamp(),
+                                          'updatedAt': FieldValue.serverTimestamp(),
+                                          'imageUrl': '',
+                                          'status': status,
+                                          'isVerified': isVerified,
+                                          'rejectionReason': '',
+                                        })
+                                      : FirebaseFirestore.instance.collection('products').doc(widget.docId!);
+                                  final imagePath = await _saveImageLocally(widget.product == null ? docRef.id : widget.docId!);
                                   if (imagePath != null) {
-                                    await docRef.update({'imageUrl': imagePath});
+                                    if (widget.product == null) {
+                                      await docRef.update({'imageUrl': imagePath});
+                                    } else {
+                                      await docRef.update({'imageUrl': imagePath, 'status': status, 'isVerified': isVerified, 'rejectionReason': ''});
+                                    }
+                                  } else if (widget.product != null) {
+                                    await docRef.update({'status': status, 'isVerified': isVerified, 'rejectionReason': ''});
                                   }
                                 } else {
-                                  // Edit existing product
+                                  // Edit existing product (not rejected)
                                   final imagePath = await _saveImageLocally(widget.docId!);
                                   await FirebaseFirestore.instance.collection('products').doc(widget.docId!).update({
                                     'sellerId': user.uid,
                                     'supplierName': supplierName,
-                                    'name': _nameController.text.trim(),
-                                    'description': _descController.text.trim(),
-                                    'price': double.tryParse(_priceController.text.trim()) ?? 0,
+                                    'name': name,
+                                    'description': desc,
+                                    'price': price,
                                     'quantity': _quantity,
                                     'unit': _unit,
                                     'category': _category,
                                     'isActive': _isActive,
                                     'updatedAt': FieldValue.serverTimestamp(),
                                     'imageUrl': imagePath ?? _imageUrl ?? '',
+                                    'status': status,
+                                    'isVerified': isVerified,
                                   });
                                 }
                                 if (!mounted) return;
@@ -510,10 +569,11 @@ class _AddProductPageState extends State<AddProductPage> {
                     ),
                   ),
                 ),
-          ),],
-            ),
+              ),
+            ],
           ),
         ),
-      );
+      ),
+    );
   }
 } 

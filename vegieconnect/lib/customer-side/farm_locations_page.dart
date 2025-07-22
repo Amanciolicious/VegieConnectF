@@ -167,7 +167,7 @@ class _FarmLocationsPageState extends State<FarmLocationsPage> {
     try {
       final locations = await _supplierLocationService.getAllSupplierLocations();
       // Filter out admin-added farms (assuming they have a distinguishing property, e.g., isAdminFarm or a different collection)
-      final supplierOnlyLocations = locations.where((loc) => !(loc is FarmLocation)).toList();
+      final supplierOnlyLocations = locations.where((loc) => loc is! FarmLocation).toList();
       setState(() {
         _allSupplierLocations = supplierOnlyLocations;
         _filterNearbySuppliers();
