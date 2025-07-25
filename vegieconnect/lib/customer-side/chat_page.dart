@@ -7,7 +7,7 @@ import '../theme.dart';
 import 'chat_conversation_page.dart';
 
 class ChatPage extends StatefulWidget {
-  const ChatPage({super.key});
+  const ChatPage({super.key, required supplierId});
 
   @override
   State<ChatPage> createState() => _ChatPageState();

@@ -8,7 +8,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class DigitalReceiptPage extends StatelessWidget {
   final List<QueryDocumentSnapshot<Map<String, dynamic>>> cartItems;
   final double total;
-  const DigitalReceiptPage({Key? key, required this.cartItems, required this.total}) : super(key: key);
+  const DigitalReceiptPage({super.key, required this.cartItems, required this.total});
 
   String _generateOrderNumber() {
     final rand = Random();

@@ -5,10 +5,13 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:vegieconnect/widgets/chat_widgets.dart';
 import '../models/supplier_location.dart';
 import '../services/supplier_location_service.dart';
 import '../services/map_service.dart';
 import 'package:vegieconnect/theme.dart'; // For AppColors
+import '../models/farm_location.dart';
+import '../services/farm_location_service.dart';
 
 class SupplierLocationPage extends StatefulWidget {
   const SupplierLocationPage({super.key});
@@ -20,37 +23,34 @@ class SupplierLocationPage extends StatefulWidget {
 class _SupplierLocationPageState extends State<SupplierLocationPage> {
   final MapController _mapController = MapController();
   final SupplierLocationService _supplierLocationService = SupplierLocationService();
+  final FarmLocationService _farmLocationService = FarmLocationService();
   final MapService _mapService = MapService();
   
   SupplierLocation? _supplierLocation;
+  List<FarmLocation> _canvassedFarms = [];
   LatLng? _selectedLocation;
   bool _isLoading = true;
   bool _isAddingPin = false; // Track if user is in pin addition mode
   bool _isEditingPin = false; // Track if user is in pin editing mode
+  bool _isDragging = false;
 
   @override
   void initState() {
     super.initState();
-    _loadSupplierLocation();
+    _loadData();
   }
 
-  Future<void> _loadSupplierLocation() async {
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user != null) {
-        final location = await _supplierLocationService.getSupplierLocationBySupplierId(user.uid);
-        setState(() {
-          _supplierLocation = location;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
+  Future<void> _loadData() async {
+    setState(() { _isLoading = true; });
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final location = await _supplierLocationService.getSupplierLocationBySupplierId(user.uid);
+      final farms = await _farmLocationService.getAllFarmLocations();
       setState(() {
+        _supplierLocation = location;
+        _canvassedFarms = farms;
         _isLoading = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error loading supplier location: $e')),
-      );
     }
   }
 
@@ -336,7 +336,7 @@ class _SupplierLocationPageState extends State<SupplierLocationPage> {
       );
       
       // Reload supplier location
-      await _loadSupplierLocation();
+      await _loadData();
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Supplier location added successfully!')),
@@ -359,7 +359,7 @@ class _SupplierLocationPageState extends State<SupplierLocationPage> {
       );
       
       // Reload supplier location
-      await _loadSupplierLocation();
+      await _loadData();
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Supplier location moved successfully!')),
@@ -371,12 +371,110 @@ class _SupplierLocationPageState extends State<SupplierLocationPage> {
     }
   }
 
+  void _showRateSupplierDialog(BuildContext context, SupplierLocation supplier) {
+    int rating = 5;
+    TextEditingController commentController = TextEditingController();
+    final user = FirebaseAuth.instance.currentUser;
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Rate ${supplier.supplierName}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            StarRating(
+              rating: rating,
+              onRatingChanged: (val) {
+                rating = val;
+              },
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: commentController,
+              decoration: const InputDecoration(
+                labelText: 'Comment (optional)',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 2,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (user == null) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('You must be logged in to rate.')),
+                );
+                return;
+              }
+              // Fetch user role and block if not buyer or is supplier
+              final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+              final userRole = userDoc.data()?['role'] ?? '';
+              if (userRole != 'buyer' || user.uid == supplier.supplierId) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Only buyers can rate suppliers.')),
+                );
+                return;
+              }
+              // Save rating to Firestore
+              final ratingsRef = FirebaseFirestore.instance.collection('supplier_ratings');
+              await ratingsRef.add({
+                'supplierId': supplier.supplierId,
+                'buyerId': user.uid,
+                'rating': rating,
+                'comment': commentController.text.trim(),
+                'timestamp': FieldValue.serverTimestamp(),
+              });
+              // Recalculate average and update supplier_locations
+              final query = await ratingsRef.where('supplierId', isEqualTo: supplier.supplierId).get();
+              double avg = 0;
+              if (query.docs.isNotEmpty) {
+                double sum = 0;
+                for (var doc in query.docs) {
+                  sum += (doc['rating'] ?? 0) is int ? (doc['rating'] ?? 0).toDouble() : (doc['rating'] ?? 0);
+                }
+                avg = sum / query.docs.length;
+              }
+              // Update supplier_locations
+              final locQuery = await FirebaseFirestore.instance
+                  .collection('supplier_locations')
+                  .where('supplierId', isEqualTo: supplier.supplierId)
+                  .limit(1)
+                  .get();
+              if (locQuery.docs.isNotEmpty) {
+                await locQuery.docs.first.reference.update({'rating': avg});
+              }
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Thank you for your review!')),
+              );
+            },
+            child: const Text('Submit'),
+          ),
+        ],
+      ),
+    );
+  }
 
-
-
-
-  void _showSupplierModal(SupplierLocation? supplier) {
+  void _showSupplierModal(SupplierLocation? supplier) async {
     if (supplier == null) return;
+    final user = FirebaseAuth.instance.currentUser;
+    String? userRole;
+    bool isBuyer = false;
+    bool isNotSupplier = false;
+    if (user != null) {
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      userRole = userDoc.data()?['role'] ?? '';
+      isBuyer = userRole == 'buyer';
+      isNotSupplier = user.uid != supplier.supplierId;
+    }
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -461,6 +559,21 @@ class _SupplierLocationPageState extends State<SupplierLocationPage> {
                   child: const Text('View Details', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                 ),
               ),
+              const SizedBox(height: 12),
+              if (isBuyer && isNotSupplier)
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                    onPressed: () {
+                      _showRateSupplierDialog(context, supplier);
+                    },
+                    child: const Text('Rate Supplier', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  ),
+                ),
             ],
           ),
         );
@@ -476,7 +589,7 @@ class _SupplierLocationPageState extends State<SupplierLocationPage> {
     
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Supplier Location - Bogo City'),
+        title: const Text('Supplier Map'),
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
       ),
@@ -510,12 +623,15 @@ class _SupplierLocationPageState extends State<SupplierLocationPage> {
                     ),
                   ],
                 ),
-                // Show existing supplier location
+                // Supplier's own location
                 if (_supplierLocation != null)
                   MarkerLayer(
                     markers: [
                       Marker(
-                        point: LatLng(_supplierLocation!.latitude, _supplierLocation!.longitude),
+                        point: LatLng(
+                          _selectedLocation?.latitude ?? _supplierLocation!.latitude,
+                          _selectedLocation?.longitude ?? _supplierLocation!.longitude,
+                        ),
                         width: 40,
                         height: 40,
                         child: GestureDetector(
@@ -536,7 +652,28 @@ class _SupplierLocationPageState extends State<SupplierLocationPage> {
                       ),
                     ],
                   ),
-                // Show selected location
+                // Canvassed farms (admin-added)
+                if (_canvassedFarms.isNotEmpty)
+                  MarkerLayer(
+                    markers: _canvassedFarms.map((farm) => Marker(
+                      point: LatLng(farm.latitude, farm.longitude),
+                      width: 40,
+                      height: 40,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.orange,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 2),
+                        ),
+                        child: const Icon(
+                          Icons.agriculture,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                      ),
+                    )).toList(),
+                  ),
+                // Selected location (for editing supplier location)
                 if (_selectedLocation != null)
                   MarkerLayer(
                     markers: [
@@ -687,6 +824,24 @@ class _SupplierLocationPageState extends State<SupplierLocationPage> {
                     child: const Icon(Icons.center_focus_strong),
                   ),
                 ),
+                // Show a floating button to save the new location if dragging
+                if (_isDragging && _selectedLocation != null)
+                  Positioned(
+                    bottom: 80,
+                    right: 16,
+                    child: FloatingActionButton.extended(
+                      onPressed: () async {
+                        await _updateSupplierLocation(_selectedLocation!);
+                        setState(() {
+                          _isDragging = false;
+                          _selectedLocation = null;
+                        });
+                      },
+                      backgroundColor: Colors.green,
+                      icon: const Icon(Icons.save),
+                      label: const Text('Save New Location'),
+                    ),
+                  ),
               ],
             ),
       floatingActionButton: _supplierLocation == null
@@ -707,4 +862,4 @@ class _SupplierLocationPageState extends State<SupplierLocationPage> {
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
   }
-} 
+}

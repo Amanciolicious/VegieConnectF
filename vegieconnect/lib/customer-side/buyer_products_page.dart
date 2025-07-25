@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../widgets/product_image_widget.dart';
 import 'package:vegieconnect/theme.dart'; // For AppColors
 import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
+import 'chat_page.dart'; // Import the ChatPage
 
 class BuyerProductsPage extends StatefulWidget {
   final String? supplierId;
@@ -173,180 +174,299 @@ class _BuyerProductsPageState extends State<BuyerProductsPage> {
                     itemBuilder: (context, index) {
                       final product = products[index].data() as Map<String, dynamic>;
                       final productId = products[index].id;
-                      return Stack(
-                        children: [
-                          Neumorphic(
-                            style: AppNeumorphic.card,
-                            margin: EdgeInsets.symmetric(vertical: screenWidth * 0.01, horizontal: screenWidth * 0.01),
-                            padding: EdgeInsets.all(screenWidth * 0.035),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Center(
-                                  child: ProductImageWidget(
-                                    imagePath: product['imageUrl'] ?? '',
-                                    width: screenWidth * 0.22,
-                                    height: screenWidth * 0.22,
-                                    placeholder: Icon(Icons.shopping_basket, size: screenWidth * 0.13, color: AppColors.primaryGreen),
-                                  ),
-                                ),
-                                SizedBox(height: screenWidth * 0.025),
-                                Text(product['name'] ?? '', style: AppTextStyles.body.copyWith(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.045)),
-                                SizedBox(height: screenWidth * 0.01),
-                                Text('\u20b1${product['price']?.toStringAsFixed(2) ?? '0.00'}', style: AppTextStyles.price.copyWith(fontSize: screenWidth * 0.042)),
-                                SizedBox(height: screenWidth * 0.01),
-                                Text('Stock: ${product['quantity'] ?? 0} ${product['unit'] ?? ''}', style: AppTextStyles.body.copyWith(fontSize: screenWidth * 0.032, color: AppColors.textSecondary)),
-                                const Spacer(),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      return GestureDetector(
+                        onTap: () {
+                          showDialog(
+                            context: context,
+                            builder: (context) {
+                              return AlertDialog(
+                                contentPadding: EdgeInsets.all(screenWidth * 0.04),
+                                content: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    StreamBuilder<QuerySnapshot>(
-                                      stream: user != null 
-                                          ? FirebaseFirestore.instance
-                                              .collection('users')
-                                              .doc(user!.uid)
-                                              .collection('cart')
-                                              .where('productId', isEqualTo: productId)
-                                              .snapshots()
-                                          : null,
-                                      builder: (context, cartSnapshot) {
-                                        final isInCart = cartSnapshot.hasData && cartSnapshot.data!.docs.isNotEmpty;
-                                        return isInCart
-                                            ? Container(
-                                                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                                decoration: BoxDecoration(
-                                                  color: AppColors.primaryGreen.withOpacity(0.15),
-                                                  borderRadius: BorderRadius.circular(8),
-                                                ),
-                                                child: Text('In Basket', style: AppTextStyles.body.copyWith(color: AppColors.primaryGreen, fontWeight: FontWeight.bold, fontSize: screenWidth * 0.032)),
-                                              )
-                                            : const SizedBox.shrink();
-                                      },
-                                    ),
-                                    if ((product['popularity'] ?? 0) > 5)
-                                      Container(
-                                        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: Colors.orange.withOpacity(0.15),
-                                          borderRadius: BorderRadius.circular(8),
-                                        ),
-                                        child: Text('Popular', style: AppTextStyles.body.copyWith(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: screenWidth * 0.032)),
+                                    Center(
+                                      child: ProductImageWidget(
+                                        imagePath: product['imageUrl'] ?? '',
+                                        width: screenWidth * 0.3,
+                                        height: screenWidth * 0.3,
+                                        placeholder: Icon(Icons.shopping_basket, size: screenWidth * 0.13, color: AppColors.primaryGreen),
                                       ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                          // Favorite button
-                          Positioned(
-                            top: 8,
-                            right: 8,
-                            child: StreamBuilder<DocumentSnapshot>(
-                              stream: user != null 
-                                  ? FirebaseFirestore.instance
-                                      .collection('users')
-                                      .doc(user!.uid)
-                                      .snapshots()
-                                  : null,
-                              builder: (context, snapshot) {
-                                final isFavorite = snapshot.hasData && 
-                                    snapshot.data!.exists &&
-                                    (snapshot.data!.data() as Map<String, dynamic>)['favorites'] != null &&
-                                    (snapshot.data!.data() as Map<String, dynamic>)['favorites'].contains(productId);
-                                
-                                return NeumorphicButton(
-                                  style: AppNeumorphic.button.copyWith(
-                                    color: isFavorite ? Colors.red : Colors.white,
-                                    boxShape: NeumorphicBoxShape.circle(),
-                                  ),
-                                  onPressed: () => _toggleFavorite(productId),
-                                  child: Padding(
-                                    padding: EdgeInsets.all(screenWidth * 0.015),
-                                    child: Icon(
-                                      isFavorite ? Icons.favorite : Icons.favorite_border,
-                                      color: isFavorite ? Colors.white : Colors.red,
-                                      size: screenWidth * 0.04,
                                     ),
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                          // Add to cart button
-                          Positioned(
-                            bottom: 12,
-                            right: 12,
-                            child: NeumorphicButton(
-                              style: AppNeumorphic.button.copyWith(
-                                color: AppColors.primaryGreen,
-                                boxShape: NeumorphicBoxShape.circle(),
-                              ),
-                              onPressed: () async {
-                                if (user == null) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('You must be logged in to add to cart.')),
-                                  );
-                                  return;
-                                }
-                                int quantity = 1;
-                                final maxQty = (product['quantity'] ?? 1) as int;
-                                final result = await showDialog<int>(
-                                  context: context,
-                                  builder: (context) {
-                                    return AlertDialog(
-                                      title: const Text('Add to Cart'),
-                                      content: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Text('How many would you like to add to cart?'),
-                                          const SizedBox(height: 12),
-                                          Row(
+                                    SizedBox(height: screenWidth * 0.03),
+                                    Text(product['name'] ?? '', style: AppTextStyles.body.copyWith(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.055)),
+                                    SizedBox(height: screenWidth * 0.01),
+                                    Row(
+                                      children: [
+                                        Text('Supplier: ${product['supplierName'] ?? ''}', style: AppTextStyles.body.copyWith(fontSize: screenWidth * 0.04)),
+                                        SizedBox(width: 8),
+                                        NeumorphicButton(
+                                          style: AppNeumorphic.button.copyWith(
+                                            color: Colors.blue,
+                                            boxShape: NeumorphicBoxShape.roundRect(BorderRadius.circular(12)),
+                                          ),
+                                          onPressed: () {
+                                            Navigator.pop(context); // Close dialog
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (_) => ChatPage(supplierId: product['sellerId']),
+                                              ),
+                                            );
+                                          },
+                                          child: Row(
                                             children: [
-                                              IconButton(
-                                                icon: const Icon(Icons.remove),
-                                                onPressed: quantity > 1
-                                                    ? () {
-                                                        quantity--;
-                                                        setState(() {});
-                                                      }
-                                                    : null,
-                                              ),
-                                              Text('$quantity'),
-                                              IconButton(
-                                                icon: const Icon(Icons.add),
-                                                onPressed: quantity < maxQty
-                                                    ? () {
-                                                        quantity++;
-                                                        setState(() {});
-                                                      }
-                                                    : null,
-                                              ),
+                                              Icon(Icons.chat, color: Colors.white, size: 18),
+                                              SizedBox(width: 4),
+                                              Text('Chat with supplier?', style: TextStyle(color: Colors.white, fontSize: screenWidth * 0.032)),
                                             ],
                                           ),
-                                        ],
-                                      ),
-                                      actions: [
-                                        TextButton(
-                                          onPressed: () => Navigator.pop(context),
-                                          child: const Text('Cancel'),
-                                        ),
-                                        ElevatedButton(
-                                          onPressed: () => Navigator.pop(context, quantity),
-                                          child: const Text('Add'),
                                         ),
                                       ],
-                                    );
-                                  },
-                                );
-                                if (result != null) {
-                                  await _addToCart(productId, product, result);
-                                }
-                              },
-                              child: Icon(Icons.add, color: Colors.white, size: 20),
+                                    ),
+                                    SizedBox(height: screenWidth * 0.01),
+                                    Text('\u20b1${product['price']?.toStringAsFixed(2) ?? '0.00'}', style: AppTextStyles.price.copyWith(fontSize: screenWidth * 0.045)),
+                                    SizedBox(height: screenWidth * 0.01),
+                                    Text('Stock: ${product['quantity'] ?? 0} ${product['unit'] ?? ''}', style: AppTextStyles.body.copyWith(fontSize: screenWidth * 0.035, color: AppColors.textSecondary)),
+                                    SizedBox(height: screenWidth * 0.02),
+                                    ElevatedButton(
+                                      onPressed: () async {
+                                        int quantity = 1;
+                                        final maxQty = (product['quantity'] ?? 1) as int;
+                                        final result = await showDialog<int>(
+                                          context: context,
+                                          builder: (context) {
+                                            return AlertDialog(
+                                              title: const Text('Add to Cart'),
+                                              content: Column(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Text('How many would you like to add to cart?'),
+                                                  const SizedBox(height: 12),
+                                                  Row(
+                                                    children: [
+                                                      IconButton(
+                                                        icon: const Icon(Icons.remove),
+                                                        onPressed: quantity > 1
+                                                            ? () {
+                                                                quantity--;
+                                                                setState(() {});
+                                                              }
+                                                            : null,
+                                                      ),
+                                                      Text('$quantity'),
+                                                      IconButton(
+                                                        icon: const Icon(Icons.add),
+                                                        onPressed: quantity < maxQty
+                                                            ? () {
+                                                                quantity++;
+                                                                setState(() {});
+                                                              }
+                                                            : null,
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ],
+                                              ),
+                                              actions: [
+                                                TextButton(
+                                                  onPressed: () => Navigator.pop(context),
+                                                  child: const Text('Cancel'),
+                                                ),
+                                                ElevatedButton(
+                                                  onPressed: () => Navigator.pop(context, quantity),
+                                                  child: const Text('Add'),
+                                                ),
+                                              ],
+                                            );
+                                          },
+                                        );
+                                        if (result != null) {
+                                          await _addToCart(productId, product, result);
+                                        }
+                                      },
+                                      child: Text('Add to Cart'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          );
+                        },
+                        child: Stack(
+                          children: [
+                            Neumorphic(
+                              style: AppNeumorphic.card,
+                              margin: EdgeInsets.symmetric(vertical: screenWidth * 0.01, horizontal: screenWidth * 0.01),
+                              padding: EdgeInsets.all(screenWidth * 0.035),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Center(
+                                    child: ProductImageWidget(
+                                      imagePath: product['imageUrl'] ?? '',
+                                      width: screenWidth * 0.22,
+                                      height: screenWidth * 0.22,
+                                      placeholder: Icon(Icons.shopping_basket, size: screenWidth * 0.13, color: AppColors.primaryGreen),
+                                    ),
+                                  ),
+                                  SizedBox(height: screenWidth * 0.025),
+                                  Text(product['name'] ?? '', style: AppTextStyles.body.copyWith(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.045)),
+                                  SizedBox(height: screenWidth * 0.01),
+                                  Text('\u20b1${product['price']?.toStringAsFixed(2) ?? '0.00'}', style: AppTextStyles.price.copyWith(fontSize: screenWidth * 0.042)),
+                                  SizedBox(height: screenWidth * 0.01),
+                                  Text('Stock: ${product['quantity'] ?? 0} ${product['unit'] ?? ''}', style: AppTextStyles.body.copyWith(fontSize: screenWidth * 0.032, color: AppColors.textSecondary)),
+                                  const Spacer(),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      StreamBuilder<QuerySnapshot>(
+                                        stream: user != null 
+                                            ? FirebaseFirestore.instance
+                                                .collection('users')
+                                                .doc(user!.uid)
+                                                .collection('cart')
+                                                .where('productId', isEqualTo: productId)
+                                                .snapshots()
+                                            : null,
+                                        builder: (context, cartSnapshot) {
+                                          final isInCart = cartSnapshot.hasData && cartSnapshot.data!.docs.isNotEmpty;
+                                          return isInCart
+                                              ? Container(
+                                                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                                  decoration: BoxDecoration(
+                                                    color: AppColors.primaryGreen.withOpacity(0.15),
+                                                    borderRadius: BorderRadius.circular(8),
+                                                  ),
+                                                  child: Text('In Basket', style: AppTextStyles.body.copyWith(color: AppColors.primaryGreen, fontWeight: FontWeight.bold, fontSize: screenWidth * 0.032)),
+                                                )
+                                              : const SizedBox.shrink();
+                                        },
+                                      ),
+                                      if ((product['popularity'] ?? 0) > 5)
+                                        Container(
+                                          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: Colors.orange.withOpacity(0.15),
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          child: Text('Popular', style: AppTextStyles.body.copyWith(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: screenWidth * 0.032)),
+                                        ),
+                                    ],
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                        ],
-                      );
+                            // Favorite button
+                            Positioned(
+                              top: 8,
+                              right: 8,
+                              child: StreamBuilder<DocumentSnapshot>(
+                                stream: user != null 
+                                    ? FirebaseFirestore.instance
+                                        .collection('users')
+                                        .doc(user!.uid)
+                                        .snapshots()
+                                    : null,
+                                builder: (context, snapshot) {
+                                  final isFavorite = snapshot.hasData && 
+                                      snapshot.data!.exists &&
+                                      (snapshot.data!.data() as Map<String, dynamic>)['favorites'] != null &&
+                                      (snapshot.data!.data() as Map<String, dynamic>)['favorites'].contains(productId);
+                                
+                                  return NeumorphicButton(
+                                    style: AppNeumorphic.button.copyWith(
+                                      color: isFavorite ? Colors.red : Colors.white,
+                                      boxShape: NeumorphicBoxShape.circle(),
+                                    ),
+                                    onPressed: () => _toggleFavorite(productId),
+                                    child: Padding(
+                                      padding: EdgeInsets.all(screenWidth * 0.015),
+                                      child: Icon(
+                                        isFavorite ? Icons.favorite : Icons.favorite_border,
+                                        color: isFavorite ? Colors.white : Colors.red,
+                                        size: screenWidth * 0.04,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                            // Add to cart button
+                            Positioned(
+                              bottom: 12,
+                              right: 12,
+                              child: NeumorphicButton(
+                                style: AppNeumorphic.button.copyWith(
+                                  color: AppColors.primaryGreen,
+                                  boxShape: NeumorphicBoxShape.circle(),
+                                ),
+                                onPressed: () async {
+                                  if (user == null) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('You must be logged in to add to cart.')),
+                                    );
+                                    return;
+                                  }
+                                  int quantity = 1;
+                                  final maxQty = (product['quantity'] ?? 1) as int;
+                                  final result = await showDialog<int>(
+                                    context: context,
+                                    builder: (context) {
+                                      return AlertDialog(
+                                        title: const Text('Add to Cart'),
+                                        content: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text('How many would you like to add to cart?'),
+                                            const SizedBox(height: 12),
+                                            Row(
+                                              children: [
+                                                IconButton(
+                                                  icon: const Icon(Icons.remove),
+                                                  onPressed: quantity > 1
+                                                      ? () {
+                                                          quantity--;
+                                                          setState(() {});
+                                                        }
+                                                      : null,
+                                                ),
+                                                Text('$quantity'),
+                                                IconButton(
+                                                  icon: const Icon(Icons.add),
+                                                  onPressed: quantity < maxQty
+                                                      ? () {
+                                                          quantity++;
+                                                          setState(() {});
+                                                        }
+                                                      : null,
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () => Navigator.pop(context),
+                                            child: const Text('Cancel'),
+                                          ),
+                                          ElevatedButton(
+                                            onPressed: () => Navigator.pop(context, quantity),
+                                            child: const Text('Add'),
+                                          ),
+                                        ],
+                                      );
+                                    },
+                                  );
+                                  if (result != null) {
+                                    await _addToCart(productId, product, result);
+                                  }
+                                },
+                                child: Icon(Icons.add, color: Colors.white, size: 20),
+                              ),
+                            ),
+                          ],
+                        ));
                     },
                   );
                 },
@@ -478,4 +598,3 @@ class _BuyerProductsPageState extends State<BuyerProductsPage> {
   }
 }
 
- 

@@ -528,3 +528,41 @@ class _TypingIndicatorState extends State<TypingIndicator>
     );
   }
 } 
+
+// Star rating widget
+class StarRating extends StatelessWidget {
+  final int rating;
+  final int maxRating;
+  final void Function(int)? onRatingChanged;
+  final double size;
+  final Color color;
+  final Color unfilledColor;
+
+  const StarRating({
+    super.key,
+    required this.rating,
+    this.maxRating = 5,
+    this.onRatingChanged,
+    this.size = 28,
+    this.color = Colors.orange,
+    this.unfilledColor = Colors.grey,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(maxRating, (index) {
+        final isFilled = index < rating;
+        return GestureDetector(
+          onTap: onRatingChanged != null ? () => onRatingChanged!(index + 1) : null,
+          child: Icon(
+            Icons.star,
+            color: isFilled ? color : unfilledColor,
+            size: size,
+          ),
+        );
+      }),
+    );
+  }
+} 

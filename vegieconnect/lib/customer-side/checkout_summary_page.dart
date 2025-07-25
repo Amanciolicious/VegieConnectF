@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -7,7 +6,7 @@ import 'package:vegieconnect/theme.dart';
 
 class CheckoutSummaryPage extends StatefulWidget {
   final List<QueryDocumentSnapshot<Map<String, dynamic>>> cartItems;
-  const CheckoutSummaryPage({Key? key, required this.cartItems}) : super(key: key);
+  const CheckoutSummaryPage({super.key, required this.cartItems});
 
   @override
   State<CheckoutSummaryPage> createState() => _CheckoutSummaryPageState();

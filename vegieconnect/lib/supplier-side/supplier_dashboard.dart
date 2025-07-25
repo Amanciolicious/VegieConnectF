@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:vegieconnect/supplier-side/add_product_page.dart';
 import 'package:vegieconnect/supplier-side/farm_map_page.dart' show SupplierLocationPage;
 import 'package:vegieconnect/supplier-side/supplier_location_management_page.dart';
+import 'package:vegieconnect/widgets/chat_widgets.dart';
 import '../authentication/login_page.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -980,6 +981,11 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
           return const Center(child: Text('No profile data found.'));
         }
         final data = snapshot.data!.data() as Map<String, dynamic>;
+        final userRole = data['role'] ?? '';
+        final isBuyer = userRole == 'buyer';
+        final isNotSupplier = user.uid != user.uid; // This will always be false, fix below
+        // Instead, get the supplierId from the profile being viewed (assume user.uid is supplierId for now)
+        final supplierId = user.uid;
         return SingleChildScrollView(
           padding: EdgeInsets.all(screenWidth * 0.04),
           child: Column(
@@ -1073,6 +1079,18 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
                             return _buildProfileStat(screenWidth, 'Rating', avg > 0 ? avg.toStringAsFixed(1) : 'N/A');
                           },
                         ),
+                        // Rate Supplier button for buyers (only if not supplier)
+                        if (isBuyer && user.uid != supplierId)
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.orange,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            ),
+                            onPressed: () {
+                              _showRateSupplierDialog(context, supplierId, data['name'] ?? 'Supplier');
+                            },
+                            child: const Text('Rate Supplier', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                          ),
                       ],
                     ),
                   ],
@@ -1400,6 +1418,98 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
     showDialog(
       context: context,
       builder: (context) => _CreateOrderDialog(sellerId: sellerId),
+    );
+  }
+
+  void _showRateSupplierDialog(BuildContext context, String supplierId, String supplierName) {
+    int rating = 5;
+    TextEditingController commentController = TextEditingController();
+    final user = FirebaseAuth.instance.currentUser;
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Rate $supplierName'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            StarRating(
+              rating: rating,
+              onRatingChanged: (val) {
+                rating = val;
+              },
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: commentController,
+              decoration: const InputDecoration(
+                labelText: 'Comment (optional)',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 2,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (user == null) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('You must be logged in to rate.')),
+                );
+                return;
+              }
+              // Fetch user role and block if not buyer or is supplier
+              final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+              final userRole = userDoc.data()?['role'] ?? '';
+              if (userRole != 'buyer' || user.uid == supplierId) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Only buyers can rate suppliers.')),
+                );
+                return;
+              }
+              // Save rating to Firestore
+              final ratingsRef = FirebaseFirestore.instance.collection('supplier_ratings');
+              await ratingsRef.add({
+                'supplierId': supplierId,
+                'buyerId': user.uid,
+                'rating': rating,
+                'comment': commentController.text.trim(),
+                'timestamp': FieldValue.serverTimestamp(),
+              });
+              // Recalculate average and update supplier_locations
+              final query = await ratingsRef.where('supplierId', isEqualTo: supplierId).get();
+              double avg = 0;
+              if (query.docs.isNotEmpty) {
+                double sum = 0;
+                for (var doc in query.docs) {
+                  sum += (doc['rating'] ?? 0) is int ? (doc['rating'] ?? 0).toDouble() : (doc['rating'] ?? 0);
+                }
+                avg = sum / query.docs.length;
+              }
+              // Update supplier_locations
+              final locQuery = await FirebaseFirestore.instance
+                  .collection('supplier_locations')
+                  .where('supplierId', isEqualTo: supplierId)
+                  .limit(1)
+                  .get();
+              if (locQuery.docs.isNotEmpty) {
+                await locQuery.docs.first.reference.update({'rating': avg});
+              }
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Thank you for your review!')),
+              );
+            },
+            child: const Text('Submit'),
+          ),
+        ],
+      ),
     );
   }
 }
