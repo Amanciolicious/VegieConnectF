@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:vegieconnect/theme.dart'; // For AppColors
 import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
+import 'package:vegieconnect/customer-side/checkout_summary_page.dart'; // Added import for CheckoutSummaryPage
 
 class CartPage extends StatefulWidget {
   const CartPage({super.key});
@@ -215,8 +216,15 @@ class _CartPageState extends State<CartPage> {
                         ),
                         onPressed: _isProcessing || cartItems.isEmpty
                             ? null
-                            : () => _checkout(cartItems),
-                        child: Text('Checkout', style: AppTextStyles.button.copyWith(fontSize: screenWidth * 0.05)),
+                            : () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => CheckoutSummaryPage(cartItems: cartItems),
+                                  ),
+                                );
+                              },
+                        child: Text('Proceed to Checkout', style: AppTextStyles.button.copyWith(fontSize: screenWidth * 0.05)),
                       ),
                     ),
                   ],
