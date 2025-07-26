@@ -68,15 +68,25 @@ class _LoginPageState extends State<LoginPage> {
         // Buyers follow normal flow
         final prefs = await SharedPreferences.getInstance();
         final onboardingDone = prefs.getBool('onboarding_complete') ?? false;
-        if (onboardingDone) {
-          // ignore: use_build_context_synchronously
+        
+        // Check if user is newly registered and needs onboarding
+        final isNewlyRegistered = data['isNewlyRegistered'] ?? false;
+        final onboardingCompleted = data['onboardingCompleted'] ?? false;
+        
+        if (isNewlyRegistered && !onboardingCompleted) {
+          // Show onboarding for newly registered users
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => OnboardingPage(userId: credential.user!.uid)),
+          );
+        } else if (onboardingDone) {
+          // Existing users who have completed onboarding
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (_) => const LandingPage()),
           );
         } else {
-          // ignore: use_build_context_synchronously
+          // Fallback for users without onboarding status
           Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (_) => const OnboardingPage()),
+            MaterialPageRoute(builder: (_) => const LandingPage()),
           );
         }
       }

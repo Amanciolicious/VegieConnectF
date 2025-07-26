@@ -14,6 +14,10 @@ class MessagingService {
   // Stream controllers for real-time messaging
   final Map<String, StreamController<List<ChatMessage>>> _chatControllers = {};
   final Map<String, StreamSubscription<QuerySnapshot>> _chatSubscriptions = {};
+  
+  // Typing indicators
+  final Map<String, StreamController<Map<String, bool>>> _typingControllers = {};
+  final Map<String, StreamSubscription<DocumentSnapshot>> _typingSubscriptions = {};
 
   // Chat cache for performance
   final Map<String, List<ChatMessage>> _chatCache = {};
@@ -41,6 +45,14 @@ class MessagingService {
       _initializeChatStream(chatId);
     }
     return _chatControllers[chatId]!.stream;
+  }
+
+  // Get typing indicators stream
+  Stream<Map<String, bool>> getTypingStream(String chatId) {
+    if (!_typingControllers.containsKey(chatId)) {
+      _initializeTypingStream(chatId);
+    }
+    return _typingControllers[chatId]!.stream;
   }
 
   // Initialize chat stream
@@ -80,6 +92,31 @@ class MessagingService {
     );
 
     _chatSubscriptions[chatId] = subscription;
+  }
+
+  // Initialize typing indicators stream
+  void _initializeTypingStream(String chatId) {
+    final controller = StreamController<Map<String, bool>>.broadcast();
+    _typingControllers[chatId] = controller;
+
+    final subscription = _firestore
+        .collection('chats')
+        .doc(chatId)
+        .snapshots()
+        .listen(
+      (snapshot) {
+        if (snapshot.exists) {
+          final data = snapshot.data() as Map<String, dynamic>;
+          final typingUsers = Map<String, bool>.from(data['typingUsers'] ?? {});
+          controller.add(typingUsers);
+        }
+      },
+      onError: (error) {
+        debugPrint('Error in typing stream for $chatId: $error');
+      },
+    );
+
+    _typingSubscriptions[chatId] = subscription;
   }
 
   // Send message
@@ -126,6 +163,9 @@ class MessagingService {
       // Update chat metadata
       await _updateChatMetadata(chatId, sentMessage);
 
+      // Stop typing indicator
+      await stopTyping(chatId);
+
       debugPrint('Message sent successfully: ${docRef.id}');
     } catch (e) {
       debugPrint('Error sending message: $e');
@@ -142,6 +182,37 @@ class MessagingService {
       );
       _addMessageToCache(chatId, failedMessage);
       rethrow;
+    }
+  }
+
+  // Start typing indicator
+  Future<void> startTyping(String chatId) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return;
+
+      await _firestore.collection('chats').doc(chatId).set({
+        'typingUsers': {
+          user.uid: true,
+        },
+        'lastTypingUpdate': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('Error starting typing: $e');
+    }
+  }
+
+  // Stop typing indicator
+  Future<void> stopTyping(String chatId) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return;
+
+      await _firestore.collection('chats').doc(chatId).update({
+        'typingUsers.$user.uid': FieldValue.delete(),
+      });
+    } catch (e) {
+      debugPrint('Error stopping typing: $e');
     }
   }
 
@@ -202,12 +273,51 @@ class MessagingService {
           'participants': [user.uid, otherUserId],
           'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
+          'typingUsers': {},
         });
       }
 
       return chatId;
     } catch (e) {
       debugPrint('Error creating/getting chat: $e');
+      rethrow;
+    }
+  }
+
+  // Create chat with supplier
+  Future<String> createChatWithSupplier(String supplierId) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) throw Exception('User not authenticated');
+
+      final chatId = _generateChatId(user.uid, supplierId);
+
+      // Check if chat exists
+      final chatDoc = await _firestore.collection('chats').doc(chatId).get();
+      
+      if (!chatDoc.exists) {
+        // Get supplier details
+        final supplierDoc = await _firestore.collection('users').doc(supplierId).get();
+        final supplierData = supplierDoc.data();
+        final supplierName = supplierData?['displayName'] ?? supplierData?['email'] ?? 'Supplier';
+
+        // Create new chat
+        await _firestore.collection('chats').doc(chatId).set({
+          'participants': [user.uid, supplierId],
+          'participantNames': {
+            user.uid: user.displayName ?? user.email ?? 'User',
+            supplierId: supplierName,
+          },
+          'chatType': 'supplier_buyer',
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+          'typingUsers': {},
+        });
+      }
+
+      return chatId;
+    } catch (e) {
+      debugPrint('Error creating chat with supplier: $e');
       rethrow;
     }
   }
@@ -226,6 +336,38 @@ class MessagingService {
     return _firestore
         .collection('chats')
         .where('participants', arrayContains: user.uid)
+        .orderBy('updatedAt', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => ChatSummary.fromFirestore(doc))
+            .toList());
+  }
+
+  // Get supplier chats (for supplier dashboard)
+  Stream<List<ChatSummary>> getSupplierChats() {
+    final user = _auth.currentUser;
+    if (user == null) return Stream.value([]);
+
+    return _firestore
+        .collection('chats')
+        .where('participants', arrayContains: user.uid)
+        .where('chatType', isEqualTo: 'supplier_buyer')
+        .orderBy('updatedAt', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => ChatSummary.fromFirestore(doc))
+            .toList());
+  }
+
+  // Get buyer chats (for buyer dashboard)
+  Stream<List<ChatSummary>> getBuyerChats() {
+    final user = _auth.currentUser;
+    if (user == null) return Stream.value([]);
+
+    return _firestore
+        .collection('chats')
+        .where('participants', arrayContains: user.uid)
+        .where('chatType', isEqualTo: 'supplier_buyer')
         .orderBy('updatedAt', descending: true)
         .snapshots()
         .map((snapshot) => snapshot.docs
@@ -283,6 +425,31 @@ class MessagingService {
     }
   }
 
+  // Get unread message count
+  Stream<int> getUnreadMessageCount() {
+    final user = _auth.currentUser;
+    if (user == null) return Stream.value(0);
+
+    return _firestore
+        .collection('chats')
+        .where('participants', arrayContains: user.uid)
+        .snapshots()
+        .asyncMap((snapshot) async {
+          int totalUnread = 0;
+          for (final chatDoc in snapshot.docs) {
+            final unreadMessages = await _firestore
+                .collection('chats')
+                .doc(chatDoc.id)
+                .collection('messages')
+                .where('senderId', isNotEqualTo: user.uid)
+                .where('readBy', arrayContains: user.uid)
+                .get();
+            totalUnread += unreadMessages.docs.length;
+          }
+          return totalUnread;
+        });
+  }
+
   // Manage cache size
   void _manageCacheSize() {
     if (_chatCache.length > _maxCacheSize) {
@@ -302,6 +469,16 @@ class MessagingService {
       controller.close();
     }
     _chatControllers.clear();
+    
+    for (final subscription in _typingSubscriptions.values) {
+      subscription.cancel();
+    }
+    _typingSubscriptions.clear();
+    
+    for (final controller in _typingControllers.values) {
+      controller.close();
+    }
+    _typingControllers.clear();
     
     _chatCache.clear();
   }
@@ -417,6 +594,7 @@ class ChatSummary {
   final String? lastSenderName;
   final DateTime? createdAt;
   final DateTime? updatedAt;
+  final Map<String, dynamic>? metadata;
 
   ChatSummary({
     required this.id,
@@ -427,7 +605,21 @@ class ChatSummary {
     this.lastSenderName,
     this.createdAt,
     this.updatedAt,
+    this.metadata,
   });
+
+  Map<String, dynamic> toFirestore() {
+    return {
+      'participants': participants,
+      'lastMessage': lastMessage,
+      'lastMessageTime': lastMessageTime,
+      'lastSenderId': lastSenderId,
+      'lastSenderName': lastSenderName,
+      'createdAt': createdAt,
+      'updatedAt': updatedAt,
+      'metadata': metadata,
+    };
+  }
 
   factory ChatSummary.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
@@ -445,6 +637,9 @@ class ChatSummary {
           : null,
       updatedAt: data['updatedAt'] != null 
           ? (data['updatedAt'] as Timestamp).toDate() 
+          : null,
+      metadata: data['metadata'] != null 
+          ? Map<String, dynamic>.from(data['metadata']) 
           : null,
     );
   }

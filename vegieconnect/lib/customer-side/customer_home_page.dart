@@ -5,7 +5,6 @@ import 'cart_page.dart';
 import 'profile_page.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../authentication/login_page.dart';
-import 'settings_page.dart';
 import 'buyer_products_page.dart';
 import 'buyer_order_history_page.dart';
 import 'farm_locations_page.dart';
@@ -13,6 +12,8 @@ import 'package:vegieconnect/theme.dart'; // Correct import for AppColors
 import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
 import 'package:cloud_firestore/cloud_firestore.dart'; // Added for Firestore
 import 'product_details_page.dart'; // Added for ProductDetailsPage
+import '../widgets/notification_center.dart';
+import 'chat_page.dart'; // Added for ChatPage
 
 class CustomerHomePage extends StatefulWidget {
   const CustomerHomePage({super.key});
@@ -170,17 +171,6 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.settings, color: AppColors.accentGreen),
-              title: const Text('Settings'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const SettingsPage()),
-                );
-              },
-            ),
-            const Divider(),
-            ListTile(
               leading: const Icon(Icons.logout, color: Colors.red),
               title: const Text('Logout'),
               onTap: _logout,
@@ -197,6 +187,18 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
         ),
         title: const Text('VegieConnect', style: TextStyle(color: Colors.white)),
         centerTitle: true,
+        actions: [
+          const NotificationCenter(),
+          IconButton(
+            icon: const Icon(Icons.chat, color: Colors.white),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const ChatPage(supplierId: '')),
+              );
+            },
+          ),
+        ],
       ),
       body: SafeArea(child: _pages[_selectedIndex]),
       bottomNavigationBar: StreamBuilder<QuerySnapshot>(

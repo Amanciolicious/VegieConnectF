@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:vegieconnect/supplier-side/add_product_page.dart';
 import 'package:vegieconnect/supplier-side/farm_map_page.dart' show SupplierLocationPage;
 import 'package:vegieconnect/supplier-side/supplier_location_management_page.dart';
+import 'package:vegieconnect/supplier-side/supplier_chat_page.dart';
 import 'package:vegieconnect/widgets/chat_widgets.dart';
 import '../authentication/login_page.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -13,6 +14,7 @@ import '../services/image_storage_service.dart';
 import '../customer-side/product_details_page.dart';
 import 'package:vegieconnect/theme.dart'; // For AppColors
 import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
+import 'package:vegieconnect/supplier-side/supplier_orders_page.dart'; // Added import for SupplierOrdersPage
 
 class SupplierDashboard extends StatefulWidget {
   const SupplierDashboard({super.key});
@@ -97,6 +99,17 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
               },
             ),
             ListTile(
+              leading: const Icon(Icons.shopping_cart),
+              title: Text('Orders Management', style: AppTextStyles.body),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const SupplierOrdersPage()),
+                );
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.person),
               title: Text('Profile', style: AppTextStyles.body),
               selected: _selectedIndex == 3,
@@ -130,6 +143,17 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
               },
             ),
             const Divider(),
+            ListTile(
+              leading: const Icon(Icons.chat),
+              title: Text('Chat', style: AppTextStyles.body),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const SupplierChatPage()),
+                );
+              },
+            ),
             ListTile(
               leading: const Icon(Icons.logout),
               title: Text('Logout', style: AppTextStyles.body),
@@ -557,18 +581,37 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
                         }(),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Text(
-                        (product['status'] ?? 'pending').toString().toUpperCase(),
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: () {
-                            final status = (product['status'] ?? 'pending').toString();
-                            if (status == 'approved') return Colors.green;
-                            if (status == 'rejected') return Colors.red;
-                            return Colors.orange;
-                          }(),
-                        ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            (product['status'] ?? 'pending').toString().toUpperCase(),
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: () {
+                                final status = (product['status'] ?? 'pending').toString();
+                                if (status == 'approved') return Colors.green;
+                                if (status == 'rejected') return Colors.red;
+                                return Colors.orange;
+                              }(),
+                            ),
+                          ),
+                          // Show approval method if approved
+                          if ((product['status'] ?? '') == 'approved' && (product['approvalMethod'] ?? '').isNotEmpty)
+                            Text(
+                              product['approvalMethod'] == 'manual' ? 'Admin Approved' : 'Auto Approved',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: () {
+                                  final status = (product['status'] ?? 'pending').toString();
+                                  if (status == 'approved') return Colors.green;
+                                  if (status == 'rejected') return Colors.red;
+                                  return Colors.orange;
+                                }(),
+                              ),
+                            ),
+                        ],
                       ),
                     ),
                     // Show rejection reason if rejected
@@ -992,7 +1035,7 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'Profile & Settings',
+                'Profile',
                 style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 20),
@@ -1084,64 +1127,12 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
                           ElevatedButton(
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.orange,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              foregroundColor: Colors.white,
                             ),
-                            onPressed: () {
-                              _showRateSupplierDialog(context, supplierId, data['name'] ?? 'Supplier');
-                            },
-                            child: const Text('Rate Supplier', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                            onPressed: () => _showRateSupplierDialog(context, supplierId, data['name'] ?? ''),
+                            child: const Text('Rate Supplier'),
                           ),
                       ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(screenWidth * 0.05),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.04),
-                      blurRadius: 8,
-                      offset: Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  children: [
-                    ListTile(
-                      leading: const Icon(Icons.edit),
-                      title: const Text('Edit Profile'),
-                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                      onTap: () {},
-                    ),
-                    const Divider(height: 1),
-                    ListTile(
-                      leading: const Icon(Icons.notifications),
-                      title: const Text('Notifications'),
-                      subtitle: const Text('Manage notification settings'),
-                      trailing: Switch(
-                        value: true,
-                        onChanged: (value) {},
-                        activeColor: AppColors.primaryGreen,
-                      ),
-                    ),
-                    const Divider(height: 1),
-                    ListTile(
-                      leading: const Icon(Icons.security),
-                      title: const Text('Security'),
-                      subtitle: const Text('Password and authentication'),
-                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                      onTap: () {},
-                    ),
-                    const Divider(height: 1),
-                    ListTile(
-                      leading: const Icon(Icons.help),
-                      title: const Text('Help & Support'),
-                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                      onTap: () {},
                     ),
                   ],
                 ),

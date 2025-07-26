@@ -1,4 +1,6 @@
 // ignore_for_file: deprecated_member_use
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:vegieconnect/theme.dart';
 import '../authentication/login_page.dart';
@@ -9,6 +11,7 @@ import 'admin_reports_page.dart';
 import 'admin_manage_accounts_page.dart';
 import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -22,6 +25,110 @@ class _AdminDashboardState extends State<AdminDashboard> {
   String _searchQuery = '';
   String? _roleFilter; // e.g., 'Supplier', 'Customer', 'Admin'
   String? _statusFilter; // e.g., 'Active', 'Pending', 'Suspended'
+  bool _isOnline = true;
+  StreamSubscription<ConnectivityResult>? _connectivitySubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeConnectivity();
+  }
+
+  @override
+  void dispose() {
+    _connectivitySubscription?.cancel();
+    super.dispose();
+  }
+
+  void _initializeConnectivity() {
+    _connectivitySubscription = Connectivity().onConnectivityChanged.listen((result) {
+      setState(() {
+        _isOnline = result != ConnectivityResult.none;
+      });
+      
+      if (!_isOnline) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('⚠️ Network connection lost. Auto-approval may be delayed.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Network connection restored.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    });
+  }
+
+  Future<void> _createTestProduct() async {
+    try {
+      final testProduct = {
+        'name': 'Test Product - ${DateTime.now().millisecondsSinceEpoch}',
+        'description': 'This is a test product for auto-approval testing',
+        'price': 50.0,
+        'quantity': 10,
+        'unit': 'kg',
+        'category': 'Vegetables',
+        'sellerId': 'test-supplier-id',
+        'supplierName': 'Test Supplier',
+        'status': 'pending',
+        'isVerified': false,
+        'isActive': false,
+        'contentFlagged': false,
+        'autoApproved': false,
+        'autoApprovalScheduled': true,
+        'autoApprovalCompleted': false,
+        'autoApprovalFailed': false,
+        'scheduledApprovalTime': DateTime.now().add(Duration(minutes: 1)).toIso8601String(),
+        'createdAt': FieldValue.serverTimestamp(),
+      };
+
+      await FirebaseFirestore.instance.collection('products').add(testProduct);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Test product created successfully')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error creating test product: $e')),
+      );
+    }
+  }
+
+  Future<void> _testFirestoreConnection() async {
+    try {
+      debugPrint('🔍 Testing Firestore connection...');
+      
+      // Test read access
+      final testDoc = await FirebaseFirestore.instance.collection('products').limit(1).get();
+      debugPrint('✅ Firestore read test successful: ${testDoc.docs.length} documents found');
+      
+      // Test write access
+      final testWrite = await FirebaseFirestore.instance.collection('test').add({
+        'timestamp': FieldValue.serverTimestamp(),
+        'test': true,
+      });
+      debugPrint('✅ Firestore write test successful: ${testWrite.id}');
+      
+      // Clean up test document
+      await testWrite.delete();
+      debugPrint('✅ Firestore cleanup successful');
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Firestore connection test successful')),
+      );
+    } catch (e) {
+      debugPrint('💥 Firestore connection test failed: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Firestore connection test failed: $e')),
+      );
+    }
+  }
+
+ 
 
   @override
   Widget build(BuildContext context) {
@@ -30,14 +137,59 @@ class _AdminDashboardState extends State<AdminDashboard> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text(
-          'Admin Dashboard',
-          style: AppTextStyles.headline.copyWith(color: Colors.white, fontSize: screenWidth * 0.055),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Admin Dashboard',
+                style: AppTextStyles.headline.copyWith(color: Colors.white, fontSize: screenWidth * 0.055),
+              ),
+            ),
+            Container(
+              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: _isOnline ? Colors.green.withOpacity(0.2) : Colors.red.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _isOnline ? Colors.green : Colors.red),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    _isOnline ? Icons.wifi : Icons.wifi_off,
+                    color: _isOnline ? Colors.green : Colors.red,
+                    size: 16,
+                  ),
+                  SizedBox(width: 4),
+                  Text(
+                    _isOnline ? 'Online' : 'Offline',
+                    style: TextStyle(
+                      color: _isOnline ? Colors.green : Colors.red,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
         backgroundColor: AppColors.primaryGreen,
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
+         
+          IconButton(
+            icon: const Icon(Icons.cloud),
+            onPressed: _testFirestoreConnection,
+            tooltip: 'Test Firestore Connection',
+          ),
+          IconButton(
+            icon: const Icon(Icons.add),
+            onPressed: _createTestProduct,
+            tooltip: 'Create Test Product',
+          ),
+         
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
@@ -131,23 +283,12 @@ class _AdminDashboardState extends State<AdminDashboard> {
             ListTile(
               leading: const Icon(Icons.manage_accounts),
               title: Text('Manage Accounts', style: AppTextStyles.body),
-              selected: false,
               onTap: () {
                 Navigator.pop(context);
-                Navigator.of(context).push(
+                Navigator.push(
+                  context,
                   MaterialPageRoute(builder: (_) => const AdminManageAccountsPage()),
                 );
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.settings),
-              title: Text('Settings', style: AppTextStyles.body),
-              selected: _selectedIndex == 4,
-              onTap: () {
-                setState(() {
-                  _selectedIndex = 4;
-                });
-                Navigator.pop(context);
               },
             ),
             const Divider(),
@@ -174,7 +315,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
           _buildUsersTab(),
           _buildAnalyticsTab(),
           _buildFarmLocationsTab(),
-          _buildSettingsTab(),
           // New admin pages
           AdminVerifyListingsPage(),
           AdminReportsPage(),
@@ -207,10 +347,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
           BottomNavigationBarItem(
             icon: Icon(Icons.location_on),
             label: 'Farms',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.settings),
-            label: 'Settings',
           ),
         ],
       ),
@@ -1356,103 +1492,5 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
   Widget _buildFarmLocationsTab() {
     return const AdminFarmMapPage();
-  }
-
-  Widget _buildSettingsTab() {
-    final user = FirebaseAuth.instance.currentUser;
-    return FutureBuilder<DocumentSnapshot>(
-      future: FirebaseFirestore.instance.collection('users').doc(user!.uid).get(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (!snapshot.hasData || !snapshot.data!.exists) {
-          return const Center(child: Text('No profile data found.'));
-        }
-        final data = snapshot.data!.data() as Map<String, dynamic>;
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'System Settings',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 20),
-              Card(
-                elevation: 2,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Name: ${data['name'] ?? ''}',
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Email: ${data['email'] ?? ''}',
-                        style: const TextStyle(fontSize: 16),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Role: ${data['role'] ?? ''}',
-                        style: const TextStyle(fontSize: 16),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const Divider(height: 1),
-              ListTile(
-                leading: const Icon(Icons.notifications),
-                title: const Text('Push Notifications'),
-                subtitle: const Text('Manage notification settings'),
-                trailing: Switch(
-                  value: true,
-                  onChanged: (value) {},
-                  activeColor: const Color(0xFFA7C957),
-                ),
-              ),
-              const Divider(height: 1),
-              ListTile(
-                leading: const Icon(Icons.security),
-                title: const Text('Security Settings'),
-                subtitle: const Text('Password and authentication'),
-                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                onTap: () {},
-              ),
-              const Divider(height: 1),
-              ListTile(
-                leading: const Icon(Icons.backup),
-                title: const Text('Backup & Restore'),
-                subtitle: const Text('Data backup settings'),
-                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                onTap: () {},
-              ),
-              const Divider(height: 1),
-              ListTile(
-                leading: const Icon(Icons.language),
-                title: const Text('Language'),
-                subtitle: const Text('English'),
-                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                onTap: () {},
-              ),
-              const Divider(height: 1),
-              ListTile(
-                leading: const Icon(Icons.info),
-                title: const Text('About'),
-                subtitle: const Text('App version and information'),
-                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                onTap: () {},
-              ),
-            ],
-          ),
-        );
-      },
-    );
   }
 } 

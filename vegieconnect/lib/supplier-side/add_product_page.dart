@@ -1,15 +1,17 @@
 // ignore_for_file: use_build_context_synchronously
 
+import 'dart:convert';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'dart:io';
-import 'dart:typed_data';
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import '../services/image_storage_service.dart';
-import 'package:vegieconnect/theme.dart'; // For AppColors
+import 'package:flutter/foundation.dart';
 import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
+import 'package:http/http.dart' as http;
+import 'dart:io';
+import '../theme.dart';
+import '../services/image_storage_service.dart';
+import '../services/content_filter_service.dart';
+import '../services/auto_approval_service.dart';
 
 class AddProductPage extends StatefulWidget {
   final Map<String, dynamic>? product;
@@ -25,6 +27,7 @@ class _AddProductPageState extends State<AddProductPage> {
   final _nameController = TextEditingController();
   final _descController = TextEditingController();
   final _priceController = TextEditingController();
+  final _quantityController = TextEditingController(); // Add quantity controller
   int _quantity = 0;
   String _unit = 'kg';
   String _category = 'Vegetable';
@@ -35,6 +38,33 @@ class _AddProductPageState extends State<AddProductPage> {
   bool _isUploading = false;
   String? _rejectionReason;
 
+  // Predefined categories and units
+  static const List<String> _categories = [
+    'Vegetable',
+    'Fruit',
+    'Herbs & Spices',
+    'Root Crops',
+    'Leafy Greens',
+    'Legumes',
+    'Grains',
+    'Organic',
+    'Local Produce',
+    'Seasonal',
+  ];
+
+  static const List<String> _units = [
+    'kg',
+    'pieces',
+    'sack',
+    'bundle',
+    'dozen',
+    'pack',
+    'box',
+    'bag',
+    'gram',
+    'pound',
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -43,11 +73,14 @@ class _AddProductPageState extends State<AddProductPage> {
       _descController.text = widget.product!['description'] ?? '';
       _priceController.text = widget.product!['price']?.toString() ?? '';
       _quantity = widget.product!['quantity'] ?? 0;
+      _quantityController.text = _quantity.toString(); // Initialize quantity controller
       _unit = widget.product!['unit'] ?? 'kg';
       _category = widget.product!['category'] ?? 'Vegetable';
       _isActive = widget.product!['isActive'] ?? true;
       _imageUrl = widget.product!['imageUrl'];
       _rejectionReason = widget.product!['rejectionReason'];
+    } else {
+      _quantityController.text = '0'; // Set default value
     }
   }
 
@@ -56,7 +89,39 @@ class _AddProductPageState extends State<AddProductPage> {
     _nameController.dispose();
     _descController.dispose();
     _priceController.dispose();
+    _quantityController.dispose(); // Dispose quantity controller
     super.dispose();
+  }
+
+  void _incrementQuantity() {
+    setState(() {
+      if (_quantity < 999999) { // Add reasonable maximum limit
+        _quantity++;
+        _quantityController.text = _quantity.toString();
+      }
+    });
+  }
+
+  void _decrementQuantity() {
+    if (_quantity > 0) {
+      setState(() {
+        _quantity--;
+        _quantityController.text = _quantity.toString();
+      });
+    }
+  }
+
+  void _updateQuantity(String value) {
+    final newQuantity = int.tryParse(value) ?? 0;
+    // Clamp the quantity between 0 and 999999
+    final clampedQuantity = newQuantity.clamp(0, 999999);
+    setState(() {
+      _quantity = clampedQuantity;
+      // Only update controller if it's different to avoid cursor jumping
+      if (_quantityController.text != clampedQuantity.toString()) {
+        _quantityController.text = clampedQuantity.toString();
+      }
+    });
   }
 
   Future<void> _pickImage() async {
@@ -255,87 +320,261 @@ class _AddProductPageState extends State<AddProductPage> {
                         ),
                         SizedBox(height: screenWidth * 0.04),
                         // Quantity Field
-                        Neumorphic(
-                          style: AppNeumorphic.inset,
-                          child: TextFormField(
-                            initialValue: _quantity.toString(),
-                            keyboardType: TextInputType.number,
-                            decoration: InputDecoration(
-                              hintText: 'Available Quantity',
-                              hintStyle: AppTextStyles.body.copyWith(color: AppColors.textSecondary),
-                              prefixIcon: Icon(Icons.shopping_basket, color: AppColors.primaryGreen),
-                              border: InputBorder.none,
-                              contentPadding: EdgeInsets.symmetric(horizontal: screenWidth * 0.04, vertical: screenWidth * 0.04),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: EdgeInsets.only(bottom: screenWidth * 0.02),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'Available Quantity',
+                                    style: AppTextStyles.body.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: screenWidth * 0.04,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Range: 0 - 999,999',
+                                    style: AppTextStyles.body.copyWith(
+                                      fontSize: screenWidth * 0.03,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                            style: AppTextStyles.body,
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Please enter quantity';
-                              }
-                              if (int.tryParse(value) == null) {
-                                return 'Please enter a valid quantity';
-                              }
-                              return null;
-                            },
-                            onChanged: (value) {
-                              setState(() {
-                                _quantity = int.tryParse(value) ?? 0;
-                              });
-                            },
+                            Neumorphic(
+                              style: AppNeumorphic.inset,
+                              child: Row(
+                            children: [
+                              Expanded(
+                                child: NeumorphicButton(
+                                  style: AppNeumorphic.button.copyWith(
+                                    color: _quantity > 0 ? AppColors.primaryGreen : Colors.grey,
+                                  ),
+                                  onPressed: _quantity > 0 ? _decrementQuantity : null,
+                                  child: Padding(
+                                    padding: EdgeInsets.symmetric(vertical: screenWidth * 0.03),
+                                    child: Text(
+                                      '-',
+                                      style: AppTextStyles.button.copyWith(
+                                        color: Colors.white,
+                                        fontSize: screenWidth * 0.04,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              SizedBox(width: screenWidth * 0.02),
+                              Expanded(
+                                child: Neumorphic(
+                                  style: AppNeumorphic.inset,
+                                  child: TextFormField(
+                                    controller: _quantityController,
+                                    keyboardType: TextInputType.number,
+                                    decoration: InputDecoration(
+                                      hintText: 'Quantity',
+                                      hintStyle: AppTextStyles.body.copyWith(color: AppColors.textSecondary),
+                                      border: InputBorder.none,
+                                      contentPadding: EdgeInsets.symmetric(horizontal: screenWidth * 0.04, vertical: screenWidth * 0.04),
+                                    ),
+                                    style: AppTextStyles.body,
+                                    validator: (value) {
+                                      if (value == null || value.isEmpty) {
+                                        return 'Please enter quantity';
+                                      }
+                                      if (int.tryParse(value) == null) {
+                                        return 'Please enter a valid quantity';
+                                      }
+                                      final quantity = int.tryParse(value) ?? 0;
+                                      if (quantity < 0) {
+                                        return 'Quantity cannot be negative';
+                                      }
+                                      if (quantity > 999999) {
+                                        return 'Quantity too high (max: 999,999)';
+                                      }
+                                      return null;
+                                    },
+                                    onChanged: (value) {
+                                      _updateQuantity(value);
+                                    },
+                                  ),
+                                ),
+                              ),
+                              SizedBox(width: screenWidth * 0.02),
+                              Expanded(
+                                child: NeumorphicButton(
+                                  style: AppNeumorphic.button.copyWith(
+                                    color: _quantity < 999999 ? AppColors.primaryGreen : Colors.grey,
+                                  ),
+                                  onPressed: _quantity < 999999 ? _incrementQuantity : null,
+                                  child: Padding(
+                                    padding: EdgeInsets.symmetric(vertical: screenWidth * 0.03),
+                                    child: Text(
+                                      '+',
+                                      style: AppTextStyles.button.copyWith(
+                                        color: Colors.white,
+                                        fontSize: screenWidth * 0.04,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                         SizedBox(height: screenWidth * 0.04),
                         // Unit Field
-                        Neumorphic(
-                          style: AppNeumorphic.inset,
-                          child: TextFormField(
-                            initialValue: _unit,
-                            decoration: InputDecoration(
-                              hintText: 'Unit (e.g., KG, pieces)',
-                              hintStyle: AppTextStyles.body.copyWith(color: AppColors.textSecondary),
-                              prefixIcon: Icon(Icons.straighten, color: AppColors.primaryGreen),
-                              border: InputBorder.none,
-                              contentPadding: EdgeInsets.symmetric(horizontal: screenWidth * 0.04, vertical: screenWidth * 0.04),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: EdgeInsets.only(bottom: screenWidth * 0.02),
+                              child: Text(
+                                'Unit of Measurement',
+                                style: AppTextStyles.body.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: screenWidth * 0.04,
+                                ),
+                              ),
                             ),
-                            style: AppTextStyles.body,
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Please enter unit';
+                            Neumorphic(
+                          style: AppNeumorphic.inset,
+                          child: InkWell(
+                            onTap: () async {
+                              final selectedUnit = await showDialog<String>(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  title: const Text('Select Unit'),
+                                  content: SizedBox(
+                                    width: double.maxFinite,
+                                    child: ListView.builder(
+                                      shrinkWrap: true,
+                                      itemCount: _units.length,
+                                      itemBuilder: (context, index) {
+                                        final unit = _units[index];
+                                        return ListTile(
+                                          leading: Icon(
+                                            Icons.straighten,
+                                            color: AppColors.primaryGreen,
+                                          ),
+                                          title: Text(unit),
+                                          selected: unit == _unit,
+                                          onTap: () => Navigator.pop(context, unit),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(context),
+                                      child: const Text('Cancel'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (selectedUnit != null) {
+                                setState(() {
+                                  _unit = selectedUnit;
+                                });
                               }
-                              return null;
                             },
-                            onChanged: (value) {
-                              setState(() {
-                                _unit = value;
-                              });
-                            },
+                            child: Container(
+                              padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.04, vertical: screenWidth * 0.04),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.straighten, color: AppColors.primaryGreen),
+                                  SizedBox(width: screenWidth * 0.03),
+                                  Expanded(
+                                    child: Text(
+                                      _unit,
+                                      style: AppTextStyles.body.copyWith(
+                                        color: _unit.isNotEmpty ? AppColors.textPrimary : AppColors.textSecondary,
+                                      ),
+                                    ),
+                                  ),
+                                  Icon(Icons.arrow_drop_down, color: AppColors.primaryGreen),
+                                ],
+                              ),
+                            ),
                           ),
                         ),
                         SizedBox(height: screenWidth * 0.04),
                         // Category Field
-                        Neumorphic(
-                          style: AppNeumorphic.inset,
-                          child: TextFormField(
-                            initialValue: _category,
-                            decoration: InputDecoration(
-                              hintText: 'Category (e.g., Vegetables, Fruits)',
-                              hintStyle: AppTextStyles.body.copyWith(color: AppColors.textSecondary),
-                              prefixIcon: Icon(Icons.category, color: AppColors.primaryGreen),
-                              border: InputBorder.none,
-                              contentPadding: EdgeInsets.symmetric(horizontal: screenWidth * 0.04, vertical: screenWidth * 0.04),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: EdgeInsets.only(bottom: screenWidth * 0.02),
+                              child: Text(
+                                'Product Category',
+                                style: AppTextStyles.body.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: screenWidth * 0.04,
+                                ),
+                              ),
                             ),
-                            style: AppTextStyles.body,
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Please enter category';
+                            Neumorphic(
+                          style: AppNeumorphic.inset,
+                          child: InkWell(
+                            onTap: () async {
+                              final selectedCategory = await showDialog<String>(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  title: const Text('Select Category'),
+                                  content: SizedBox(
+                                    width: double.maxFinite,
+                                    child: ListView.builder(
+                                      shrinkWrap: true,
+                                      itemCount: _categories.length,
+                                      itemBuilder: (context, index) {
+                                        final category = _categories[index];
+                                        return ListTile(
+                                          leading: Icon(
+                                            Icons.category,
+                                            color: AppColors.primaryGreen,
+                                          ),
+                                          title: Text(category),
+                                          selected: category == _category,
+                                          onTap: () => Navigator.pop(context, category),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(context),
+                                      child: const Text('Cancel'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (selectedCategory != null) {
+                                setState(() {
+                                  _category = selectedCategory;
+                                });
                               }
-                              return null;
                             },
-                            onChanged: (value) {
-                              setState(() {
-                                _category = value;
-                              });
-                            },
+                            child: Container(
+                              padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.04, vertical: screenWidth * 0.04),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.category, color: AppColors.primaryGreen),
+                                  SizedBox(width: screenWidth * 0.03),
+                                  Expanded(
+                                    child: Text(
+                                      _category,
+                                      style: AppTextStyles.body.copyWith(
+                                        color: _category.isNotEmpty ? AppColors.textPrimary : AppColors.textSecondary,
+                                      ),
+                                    ),
+                                  ),
+                                  Icon(Icons.arrow_drop_down, color: AppColors.primaryGreen),
+                                ],
+                              ),
+                            ),
                           ),
                         ),
                         SizedBox(height: screenWidth * 0.05),
@@ -477,15 +716,39 @@ class _AddProductPageState extends State<AddProductPage> {
                                 final price = double.tryParse(_priceController.text.trim()) ?? 0;
                                 final hasAllFields = name.isNotEmpty && desc.isNotEmpty && price > 0 && _quantity > 0 && _unit.isNotEmpty && _category.isNotEmpty;
                                 final priceValid = price > 0 && price < 10000;
+                                // Content filtering
+                                final contentFilterService = ContentFilterService();
+                                final contentCheck = contentFilterService.checkProductContent(
+                                  productName: name,
+                                  description: desc,
+                                  supplierId: user.uid,
+                                  category: _category,
+                                  price: price,
+                                );
+
                                 final noProhibited = !prohibitedKeywords.any((word) => name.toLowerCase().contains(word) || desc.toLowerCase().contains(word));
                                 // For image, check if _imageFile or _webImageBytes or _imageUrl is present
                                 final hasImage = (_imageFile != null) || (_webImageBytes != null) || ((_imageUrl ?? '').isNotEmpty);
 
                                 String status = 'pending';
                                 bool isVerified = false;
-                                if (hasAllFields && priceValid && noProhibited && hasImage && isTrusted) {
+                                bool contentFlagged = false;
+                                bool autoApproved = false;
+
+                                // Auto-approve if content is clean and supplier is trusted
+                                if (hasAllFields && priceValid && noProhibited && hasImage && isTrusted && contentCheck.isApproved) {
                                   status = 'approved';
                                   isVerified = true;
+                                  autoApproved = true;
+                                } else if (contentCheck.issues.isNotEmpty) {
+                                  contentFlagged = true;
+                                  status = 'pending';
+                                  isVerified = false;
+                                } else {
+                                  // For non-trusted suppliers, products remain pending for manual review
+                                  status = 'pending';
+                                  isVerified = false;
+                                  autoApproved = false;
                                 }
 
                                 if (widget.product == null || (widget.product?['status'] ?? '') == 'rejected') {
@@ -507,6 +770,12 @@ class _AddProductPageState extends State<AddProductPage> {
                                           'status': status,
                                           'isVerified': isVerified,
                                           'rejectionReason': '',
+                                          'contentFlagged': contentFlagged,
+                                          'autoApproved': autoApproved,
+                                          'contentIssues': contentCheck.issues,
+                                          'contentSeverity': contentCheck.severity.toString(),
+                                          'isTrustedSupplier': contentCheck.isTrustedSupplier,
+                                          'requiresManualReview': contentCheck.requiresManualReview,
                                         })
                                       : FirebaseFirestore.instance.collection('products').doc(widget.docId!);
                                   final imagePath = await _saveImageLocally(widget.product == null ? docRef.id : widget.docId!);
@@ -514,11 +783,33 @@ class _AddProductPageState extends State<AddProductPage> {
                                     if (widget.product == null) {
                                       await docRef.update({'imageUrl': imagePath});
                                     } else {
-                                      await docRef.update({'imageUrl': imagePath, 'status': status, 'isVerified': isVerified, 'rejectionReason': ''});
+                                      await docRef.update({
+                                        'imageUrl': imagePath, 
+                                        'status': status, 
+                                        'isVerified': isVerified, 
+                                        'rejectionReason': '',
+                                        'contentFlagged': contentFlagged,
+                                        'autoApproved': autoApproved,
+                                        'contentIssues': contentCheck.issues,
+                                        'contentSeverity': contentCheck.severity.toString(),
+                                        'isTrustedSupplier': contentCheck.isTrustedSupplier,
+                                        'requiresManualReview': contentCheck.requiresManualReview,
+                                      });
                                     }
                                   } else if (widget.product != null) {
-                                    await docRef.update({'status': status, 'isVerified': isVerified, 'rejectionReason': ''});
+                                    await docRef.update({
+                                      'status': status, 
+                                      'isVerified': isVerified, 
+                                      'rejectionReason': '',
+                                      'contentFlagged': contentFlagged,
+                                      'autoApproved': autoApproved,
+                                      'contentIssues': contentCheck.issues,
+                                      'contentSeverity': contentCheck.severity.toString(),
+                                      'isTrustedSupplier': contentCheck.isTrustedSupplier,
+                                      'requiresManualReview': contentCheck.requiresManualReview,
+                                    });
                                   }
+
                                 } else {
                                   // Edit existing product (not rejected)
                                   final imagePath = await _saveImageLocally(widget.docId!);
@@ -536,6 +827,12 @@ class _AddProductPageState extends State<AddProductPage> {
                                     'imageUrl': imagePath ?? _imageUrl ?? '',
                                     'status': status,
                                     'isVerified': isVerified,
+                                    'contentFlagged': contentFlagged,
+                                    'autoApproved': autoApproved,
+                                    'contentIssues': contentCheck.issues,
+                                    'contentSeverity': contentCheck.severity.toString(),
+                                    'isTrustedSupplier': contentCheck.isTrustedSupplier,
+                                    'requiresManualReview': contentCheck.requiresManualReview,
                                   });
                                 }
                                 if (!mounted) return;
@@ -567,13 +864,18 @@ class _AddProductPageState extends State<AddProductPage> {
                         ),
                       ],
                     ),
-                  ),
-                ),
-              ),
-            ],
+                          ]),
+                ]),
+            ]),
+          ),
           ),
         ),
-      ),
+      ],
+    )
+          ),
+        ),
+      
     );
   }
-} 
+  
+}

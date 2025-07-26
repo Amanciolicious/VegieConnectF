@@ -12,10 +12,21 @@ class CartPage extends StatefulWidget {
 }
 
 class _CartPageState extends State<CartPage> {
-  User? get user => FirebaseAuth.instance.currentUser;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  User? get user => _auth.currentUser;
+  late CollectionReference<Map<String, dynamic>> _cartRef;
+  bool _isProcessing = false;
+  String _selectedPaymentMethod = 'cash_on_pickup';
+  String _selectedOnlineMethod = 'gcash'; // Default online payment method
 
-  CollectionReference<Map<String, dynamic>> get _cartRef =>
-      FirebaseFirestore.instance.collection('users').doc(user?.uid).collection('cart');
+  @override
+  void initState() {
+    super.initState();
+    _cartRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user!.uid)
+        .collection('cart');
+  }
 
   Future<void> _updateQuantity(String docId, int newQty) async {
     if (newQty > 0) {
@@ -29,20 +40,19 @@ class _CartPageState extends State<CartPage> {
     await _cartRef.doc(docId).delete();
   }
 
-  double _calculateTotal(List<QueryDocumentSnapshot<Map<String, dynamic>>> items) {
+  double _calculateTotal(List<QueryDocumentSnapshot<Map<String, dynamic>>> cartItems) {
     double total = 0;
-    for (final doc in items) {
+    for (final doc in cartItems) {
       final data = doc.data();
       total += (data['price'] ?? 0) * (data['quantity'] ?? 1);
     }
     return total;
   }
 
-  bool _isProcessing = false;
-  String _selectedPaymentMethod = 'cash_on_pickup';
-
   Future<String?> _showPaymentMethodDialog() async {
     String tempMethod = _selectedPaymentMethod;
+    String tempOnlineMethod = _selectedOnlineMethod;
+    
     return showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
@@ -51,13 +61,103 @@ class _CartPageState extends State<CartPage> {
           builder: (context, setState) => Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              // Cash on Pickup Option
               RadioListTile<String>(
                 value: 'cash_on_pickup',
                 groupValue: tempMethod,
                 onChanged: (val) => setState(() => tempMethod = val!),
-                title: const Text('Cash on Pick Up'),
+                title: Row(
+                  children: [
+                    Text('💵', style: const TextStyle(fontSize: 20)),
+                    const SizedBox(width: 8),
+                    const Text('Cash on Pickup'),
+                  ],
+                ),
+                subtitle: const Text(
+                  'Pay on Pickup',
+                  style: TextStyle(
+                    color: Colors.green,
+                    fontSize: 12,
+                  ),
+                ),
               ),
-              // Add more payment methods here in the future
+              
+              // Online Payment Option
+              RadioListTile<String>(
+                value: 'online_payment',
+                groupValue: tempMethod,
+                onChanged: (val) => setState(() => tempMethod = val!),
+                title: Row(
+                  children: [
+                    Text('💳', style: const TextStyle(fontSize: 20)),
+                    const SizedBox(width: 8),
+                    const Text('Online Payment'),
+                  ],
+                ),
+                subtitle: const Text(
+                  'Secure Online Payment',
+                  style: TextStyle(
+                    color: Colors.blue,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+              
+              // Online Payment Method Dropdown (only show if online payment is selected)
+              if (tempMethod == 'online_payment') ...[
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Select Online Payment Method:',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String>(
+                        value: tempOnlineMethod,
+                        decoration: const InputDecoration(
+                          border: OutlineInputBorder(),
+                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        ),
+                        items: [
+                          DropdownMenuItem(
+                            value: 'gcash',
+                            child: Row(
+                              children: [
+                                Text('📱', style: const TextStyle(fontSize: 16)),
+                                const SizedBox(width: 8),
+                                const Text('GCash'),
+                              ],
+                            ),
+                          ),
+                          DropdownMenuItem(
+                            value: 'paymaya',
+                            child: Row(
+                              children: [
+                                Text('💳', style: const TextStyle(fontSize: 16)),
+                                const SizedBox(width: 8),
+                                const Text('PayMaya'),
+                              ],
+                            ),
+                          ),
+                        ],
+                        onChanged: (value) => setState(() => tempOnlineMethod = value!),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -67,7 +167,14 @@ class _CartPageState extends State<CartPage> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(context, tempMethod),
+            onPressed: () {
+              // Return the appropriate payment method
+              String finalMethod = tempMethod;
+              if (tempMethod == 'online_payment') {
+                finalMethod = tempOnlineMethod;
+              }
+              Navigator.pop(context, finalMethod);
+            },
             child: const Text('Continue'),
           ),
         ],
@@ -82,6 +189,10 @@ class _CartPageState extends State<CartPage> {
     setState(() {
       _isProcessing = true;
       _selectedPaymentMethod = paymentMethod;
+      // Update the online method if it's an online payment
+      if (paymentMethod == 'gcash' || paymentMethod == 'paymaya') {
+        _selectedOnlineMethod = paymentMethod;
+      }
     });
     try {
       final batch = FirebaseFirestore.instance.batch();
@@ -106,7 +217,7 @@ class _CartPageState extends State<CartPage> {
       await batch.commit();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Order placed for all cart items! Payment: ${_selectedPaymentMethod == 'cash_on_pickup' ? 'Cash on Pick Up' : _selectedPaymentMethod}')),
+          SnackBar(content: Text('Order placed for all cart items! Payment: ${_getPaymentMethodDisplayName(paymentMethod)}')),
         );
       }
     } catch (e) {
@@ -117,6 +228,19 @@ class _CartPageState extends State<CartPage> {
       }
     } finally {
       if (mounted) setState(() => _isProcessing = false);
+    }
+  }
+
+  String _getPaymentMethodDisplayName(String method) {
+    switch (method) {
+      case 'cash_on_pickup':
+        return 'Cash on Pickup';
+      case 'gcash':
+        return 'Online Payment - GCash';
+      case 'paymaya':
+        return 'Online Payment - PayMaya';
+      default:
+        return 'Unknown Method';
     }
   }
 

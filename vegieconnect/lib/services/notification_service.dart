@@ -390,6 +390,11 @@ class NotificationService {
     );
   }
 
+  // Get notification history stream
+  Stream<List<NotificationData>> getNotificationHistory() {
+    return Stream.value(_notificationHistory);
+  }
+
   // Dispose resources
   void dispose() {
     _notificationController.close();

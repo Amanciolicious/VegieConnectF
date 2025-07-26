@@ -4,7 +4,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../widgets/product_image_widget.dart';
 import 'package:vegieconnect/theme.dart'; // For AppColors
 import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
-import 'chat_page.dart'; // Import the ChatPage
+// Import the ChatPage
+import 'chat_conversation_page.dart'; // Import the ChatConversationPage
+import 'package:vegieconnect/services/messaging_service.dart'; // Import the MessagingService
 
 class BuyerProductsPage extends StatefulWidget {
   final String? supplierId;
@@ -150,9 +152,18 @@ class _BuyerProductsPageState extends State<BuyerProductsPage> {
                         final name = (product['name'] ?? '').toString().trim();
                         final price = (product['price'] ?? 0);
                         final quantity = (product['quantity'] ?? 0);
+                        final status = product['status'] ?? 'pending';
+                        final isApproved = status == 'approved';
+                        final isPending = status == 'pending';
+                        final contentFlagged = product['contentFlagged'] ?? false;
+                        final requiresManualReview = product['requiresManualReview'] ?? false;
+                        
+                        // Show approved products or pending products that are not flagged
+                        final isEligible = isApproved || (isPending && !contentFlagged && !requiresManualReview);
+                        
                         // Filter by search query
                         final matchesSearch = _searchQuery.isEmpty || name.toLowerCase().contains(_searchQuery);
-                        return name.isNotEmpty && price > 0 && quantity > 0 && matchesSearch;
+                        return name.isNotEmpty && price > 0 && quantity > 0 && matchesSearch && isEligible;
                       })
                       .toList()
                       ..sort((a, b) {
@@ -205,14 +216,30 @@ class _BuyerProductsPageState extends State<BuyerProductsPage> {
                                             color: Colors.blue,
                                             boxShape: NeumorphicBoxShape.roundRect(BorderRadius.circular(12)),
                                           ),
-                                          onPressed: () {
+                                          onPressed: () async {
                                             Navigator.pop(context); // Close dialog
-                                            Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (_) => ChatPage(supplierId: product['sellerId']),
-                                              ),
-                                            );
+                                            try {
+                                              final messagingService = MessagingService();
+                                              final chatId = await messagingService.createChatWithSupplier(product['sellerId']);
+                                              if (!mounted) return;
+                                              
+                                              Navigator.push(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder: (_) => ChatConversationPage(
+                                                    chatId: chatId,
+                                                    chatTitle: product['supplierName'] ?? 'Supplier',
+                                                  ),
+                                                ),
+                                              );
+                                            } catch (e) {
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                SnackBar(
+                                                  content: Text('Error starting chat: $e'),
+                                                  backgroundColor: AppColors.accentRed,
+                                                ),
+                                              );
+                                            }
                                           },
                                           child: Row(
                                             children: [
@@ -228,6 +255,66 @@ class _BuyerProductsPageState extends State<BuyerProductsPage> {
                                     Text('\u20b1${product['price']?.toStringAsFixed(2) ?? '0.00'}', style: AppTextStyles.price.copyWith(fontSize: screenWidth * 0.045)),
                                     SizedBox(height: screenWidth * 0.01),
                                     Text('Stock: ${product['quantity'] ?? 0} ${product['unit'] ?? ''}', style: AppTextStyles.body.copyWith(fontSize: screenWidth * 0.035, color: AppColors.textSecondary)),
+                                    
+                                    // Status indicator for pending auto-approval
+                                    if (product['status'] == 'pending' && !(product['contentFlagged'] ?? false))
+                                      Padding(
+                                        padding: EdgeInsets.only(top: screenWidth * 0.02),
+                                        child: Container(
+                                          padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.02, vertical: screenWidth * 0.01),
+                                          decoration: BoxDecoration(
+                                            color: Colors.orange.withOpacity(0.1),
+                                            borderRadius: BorderRadius.circular(screenWidth * 0.01),
+                                            border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(Icons.schedule, color: Colors.orange, size: screenWidth * 0.03),
+                                              SizedBox(width: screenWidth * 0.01),
+                                              Text(
+                                                'Auto-approval in progress',
+                                                style: AppTextStyles.body.copyWith(
+                                                  fontSize: screenWidth * 0.03,
+                                                  color: Colors.orange,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    
+                                    // Status indicator for newly approved products (within last 24 hours)
+                                    if (product['status'] == 'approved' && product['approvalMethod'] == 'manual' && 
+                                        product['approvedAt'] != null)
+                                      Padding(
+                                        padding: EdgeInsets.only(top: screenWidth * 0.02),
+                                        child: Container(
+                                          padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.02, vertical: screenWidth * 0.01),
+                                          decoration: BoxDecoration(
+                                            color: Colors.green.withOpacity(0.1),
+                                            borderRadius: BorderRadius.circular(screenWidth * 0.01),
+                                            border: Border.all(color: Colors.green.withOpacity(0.3)),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(Icons.verified, color: Colors.green, size: screenWidth * 0.03),
+                                              SizedBox(width: screenWidth * 0.01),
+                                              Text(
+                                                'Recently approved',
+                                                style: AppTextStyles.body.copyWith(
+                                                  fontSize: screenWidth * 0.03,
+                                                  color: Colors.green,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    
                                     SizedBox(height: screenWidth * 0.02),
                                     ElevatedButton(
                                       onPressed: () async {
@@ -482,7 +569,7 @@ class _BuyerProductsPageState extends State<BuyerProductsPage> {
     final base = FirebaseFirestore.instance
         .collection('products')
         .where('isActive', isEqualTo: true)
-        .where('isVerified', isEqualTo: true);
+        .where('status', whereIn: ['approved', 'pending']); // Show approved and pending products
     
     if (widget.supplierId != null) {
       if (_selectedCategory == 'All') {

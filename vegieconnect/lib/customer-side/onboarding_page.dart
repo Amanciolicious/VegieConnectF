@@ -2,9 +2,11 @@ import 'landing_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vegieconnect/theme.dart'; // For AppColors
 import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class OnboardingPage extends StatefulWidget {
-  const OnboardingPage({super.key});
+  final String? userId; // Add userId parameter
+  const OnboardingPage({super.key, this.userId});
 
   @override
   State<OnboardingPage> createState() => _OnboardingPageState();
@@ -33,12 +35,32 @@ class _OnboardingPageState extends State<OnboardingPage> {
   ];
 
   Future<void> _finishOnboarding() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('onboarding_complete', true);
-    if (!mounted) return;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const LandingPage()),
-    );
+    try {
+      // Mark onboarding as complete in both SharedPreferences and Firestore
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('onboarding_complete', true);
+      
+      // Update Firestore if userId is provided
+      if (widget.userId != null) {
+        await FirebaseFirestore.instance.collection('users').doc(widget.userId).update({
+          'onboardingCompleted': true,
+          'isNewlyRegistered': false, // Mark as no longer newly registered
+        });
+      }
+      
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const LandingPage()),
+      );
+    } catch (e) {
+      // If Firestore update fails, still proceed with SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('onboarding_complete', true);
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const LandingPage()),
+      );
+    }
   }
 
   @override

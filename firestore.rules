@@ -27,13 +27,44 @@ service cloud.firestore {
 
     // Orders: Admins, seller, or buyer can read/write; create if involved
     match /orders/{orderId} {
-      allow read, update, delete: if isAdmin() || (
+      allow read: if isAdmin() || (
         request.auth != null &&
         (request.auth.uid == resource.data.sellerId || request.auth.uid == resource.data.buyerId)
       );
       allow create: if isAdmin() || (
         request.auth != null &&
         (request.resource.data.sellerId == request.auth.uid || request.resource.data.buyerId == request.auth.uid)
+      );
+      allow update: if isAdmin() || (
+        request.auth != null &&
+        (request.auth.uid == resource.data.sellerId || request.auth.uid == resource.data.buyerId)
+      );
+      allow delete: if isAdmin();
+    }
+
+    // Notifications: Users can read their own notifications, admins can read all
+    match /notifications/{notificationId} {
+      allow read: if isAdmin() || (request.auth != null && request.auth.uid == resource.data.userId);
+      allow create: if isAdmin() || (request.auth != null && request.auth.uid == request.resource.data.userId);
+      allow update: if isAdmin() || (request.auth != null && request.auth.uid == resource.data.userId);
+      allow delete: if isAdmin() || (request.auth != null && request.auth.uid == resource.data.userId);
+    }
+
+    // Chat Messages: Users can read/write messages in conversations they're part of
+    match /chat_messages/{messageId} {
+      allow read, write: if request.auth != null && (
+        request.auth.uid == resource.data.senderId || 
+        request.auth.uid == resource.data.receiverId ||
+        isAdmin()
+      );
+    }
+
+    // Chat Conversations: Users can read/write conversations they're part of
+    match /chat_conversations/{conversationId} {
+      allow read, write: if request.auth != null && (
+        request.auth.uid == resource.data.participant1 || 
+        request.auth.uid == resource.data.participant2 ||
+        isAdmin()
       );
     }
 
@@ -50,16 +81,32 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin() || request.auth != null;
     }
 
-    // Supplier Locations: Anyone can read, only admin or the supplier can write
-    match /supplier_locations/{supplierId} {
+    // Supplier Locations: Anyone can read, only admin or the supplier (by supplierId field) can write
+    match /supplier_locations/{docId} {
       allow read: if true;
-      allow create, update, delete: if isAdmin() || (request.auth != null && request.auth.uid == supplierId);
+      allow create, update, delete: if isAdmin() ||
+        (request.auth != null && request.auth.uid == request.resource.data.supplierId);
     }
 
     // Supplier Ratings: Anyone can read, only admin or authenticated users can write
     match /supplier_ratings/{ratingId} {
       allow read: if true;
       allow create, update, delete: if isAdmin() || request.auth != null;
+    }
+
+    // Reports: Only admins can read/write reports
+    match /reports/{reportId} {
+      allow read, write: if isAdmin();
+    }
+
+    // System Settings: Only admins can read/write
+    match /system_settings/{settingId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Test collection: Allow for testing purposes (remove in production)
+    match /test/{docId} {
+      allow read, write: if request.auth != null;
     }
   }
 } 

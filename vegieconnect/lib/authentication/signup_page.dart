@@ -89,6 +89,8 @@ class _SignUpPageState extends State<SignUpPage> {
         'pin': pin,
         'pinExpiresAt': expiresAt,
         'verified': false,
+        'isNewlyRegistered': true, // Track newly registered users
+        'onboardingCompleted': false, // Track onboarding completion
       });
       // Send PIN email notification
       await sendPinEmail(_emailController.text.trim(), pin);

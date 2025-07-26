@@ -189,12 +189,14 @@ class ChatBubble extends StatelessWidget {
 class MessageInput extends StatefulWidget {
   final Function(String) onSendMessage;
   final Function(String)? onSendImage;
+  final Function(String)? onTextChanged;
   final bool isLoading;
 
   const MessageInput({
     super.key,
     required this.onSendMessage,
     this.onSendImage,
+    this.onTextChanged,
     this.isLoading = false,
   });
 
@@ -224,6 +226,9 @@ class _MessageInputState extends State<MessageInput> {
     setState(() {
       _isComposing = _controller.text.isNotEmpty;
     });
+    
+    // Notify parent about text changes for typing indicators
+    widget.onTextChanged?.call(_controller.text);
   }
 
   void _handleSubmitted(String text) {
@@ -290,9 +295,13 @@ class _MessageInputState extends State<MessageInput> {
             ),
             const SizedBox(width: 12),
             NeumorphicButton(
-              onPressed: _isComposing && !widget.isLoading ? () => _handleSubmitted(_controller.text) : null,
+              onPressed: _isComposing && !widget.isLoading ? () {
+                _handleSubmitted(_controller.text);
+              } : null,
               style: AppNeumorphic.button.copyWith(
-                color: _isComposing ? AppColors.primaryGreen : AppColors.shadowLight,
+                color: _isComposing && !widget.isLoading 
+                    ? AppColors.primaryGreen 
+                    : AppColors.shadowLight,
               ),
               child: widget.isLoading
                   ? const SizedBox(

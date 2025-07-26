@@ -1,14 +1,18 @@
 // ignore_for_file: avoid_print, use_build_context_synchronously
 
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/scheduler.dart';
-import 'package:vegieconnect/admin-side/admin_dashboard.dart';
-import 'login_page.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:math';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/scheduler.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vegieconnect/theme.dart'; // For AppColors
 import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
+import 'package:vegieconnect/authentication/login_page.dart';
+import 'package:vegieconnect/admin-side/admin_dashboard.dart';
+import 'package:vegieconnect/supplier-side/supplier_dashboard.dart';
+import 'package:vegieconnect/customer-side/onboarding_page.dart';
 
 class PinVerifyPage extends StatefulWidget {
   final String userId;
@@ -82,16 +86,34 @@ class _PinVerifyPageState extends State<PinVerifyPage> {
       final updatedDoc = await FirebaseFirestore.instance.collection('users').doc(widget.userId).get();
       final updatedData = updatedDoc.data();
       final userRole = updatedData != null ? updatedData['role'] ?? 'buyer' : 'buyer';
+      final isNewlyRegistered = updatedData != null ? updatedData['isNewlyRegistered'] ?? false : false;
+      final onboardingCompleted = updatedData != null ? updatedData['onboardingCompleted'] ?? false : false;
+      
       if (userRole == 'admin') {
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (_) => AdminDashboard()),
           (route) => false,
         );
-      } else {
+      } else if (userRole == 'supplier') {
         Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => LoginPage()),
+          MaterialPageRoute(builder: (_) => SupplierDashboard()),
           (route) => false,
         );
+      } else {
+        // For buyers, check if they need onboarding
+        if (isNewlyRegistered && !onboardingCompleted) {
+          // Show onboarding for newly registered users
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => OnboardingPage(userId: widget.userId)),
+            (route) => false,
+          );
+        } else {
+          // Go to login page for existing users
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => LoginPage()),
+            (route) => false,
+          );
+        }
       }
     } catch (e) {
       setState(() {

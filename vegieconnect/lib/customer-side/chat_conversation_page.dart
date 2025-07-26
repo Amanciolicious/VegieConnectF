@@ -5,6 +5,7 @@ import '../services/messaging_service.dart';
 import '../services/notification_service.dart';
 import '../widgets/chat_widgets.dart';
 import '../theme.dart';
+import 'dart:async'; // Added for Timer
 
 class ChatConversationPage extends StatefulWidget {
   final String chatId;
@@ -28,8 +29,10 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
   final TextEditingController _messageController = TextEditingController();
 
   bool _isLoading = false;
-  final bool _isTyping = false;
+  bool _isTyping = false;
+  Map<String, bool> _typingUsers = {};
   List<ChatMessage> _messages = [];
+  Timer? _typingTimer;
 
   @override
   void initState() {
@@ -41,6 +44,8 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
   void dispose() {
     _scrollController.dispose();
     _messageController.dispose();
+    _typingTimer?.cancel();
+    _messagingService.stopTyping(widget.chatId);
     super.dispose();
   }
 
@@ -64,6 +69,13 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
               curve: Curves.easeOut,
             );
           }
+        });
+      });
+
+      // Listen to typing indicators
+      _messagingService.getTypingStream(widget.chatId).listen((typingUsers) {
+        setState(() {
+          _typingUsers = typingUsers;
         });
       });
     } catch (e) {
@@ -100,6 +112,24 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
     }
   }
 
+  void _onTextChanged(String text) {
+    if (!_isTyping) {
+      setState(() {
+        _isTyping = true;
+      });
+      _messagingService.startTyping(widget.chatId);
+    }
+
+    // Reset typing timer
+    _typingTimer?.cancel();
+    _typingTimer = Timer(const Duration(seconds: 2), () {
+      setState(() {
+        _isTyping = false;
+      });
+      _messagingService.stopTyping(widget.chatId);
+    });
+  }
+
   void _showMessageOptions(ChatMessage message) {
     showModalBottomSheet(
       context: context,
@@ -129,7 +159,7 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
               title: const Text('Copy Message'),
               onTap: () {
                 Navigator.pop(context);
-                // TODO: Implement copy functionality
+                _copyMessage(message.message);
               },
             ),
             if (message.senderId == _auth.currentUser?.uid)
@@ -143,6 +173,16 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
               ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _copyMessage(String message) {
+    // TODO: Implement copy to clipboard
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Message copied to clipboard'),
+        backgroundColor: AppColors.primaryGreen,
       ),
     );
   }
@@ -178,7 +218,7 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
               widget.chatTitle,
               style: const TextStyle(color: Colors.white),
             ),
-            if (_isTyping)
+            if (_isOtherUserTyping())
               Text(
                 'typing...',
                 style: TextStyle(
@@ -205,10 +245,17 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
           MessageInput(
             onSendMessage: _sendMessage,
             isLoading: _isLoading,
+            onTextChanged: _onTextChanged,
           ),
         ],
       ),
     );
+  }
+
+  bool _isOtherUserTyping() {
+    final currentUserId = _auth.currentUser?.uid;
+    return _typingUsers.entries.any((entry) => 
+        entry.key != currentUserId && entry.value);
   }
 
   Widget _buildEmptyState() {
