@@ -47,14 +47,10 @@ class _ChatPageState extends State<ChatPage> {
         ],
       ),
       body: StreamBuilder<List<ChatSummary>>(
-        stream: _messagingService.getUserChats(),
+        stream: _messagingService.getRealCustomerSupplierChats(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryGreen),
-              ),
-            );
+            return const Center(child: CircularProgressIndicator());
           }
 
           if (snapshot.hasError) {
@@ -70,9 +66,7 @@ class _ChatPageState extends State<ChatPage> {
                   const SizedBox(height: 16),
                   Text(
                     'Error loading chats',
-                    style: AppTextStyles.headline.copyWith(
-                      color: AppColors.accentRed,
-                    ),
+                    style: AppTextStyles.headline,
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -80,12 +74,6 @@ class _ChatPageState extends State<ChatPage> {
                     style: AppTextStyles.body.copyWith(
                       color: AppColors.textSecondary,
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  NeumorphicButton(
-                    onPressed: () => setState(() {}),
-                    style: AppNeumorphic.button,
-                    child: const Text('Retry'),
                   ),
                 ],
               ),
@@ -103,12 +91,10 @@ class _ChatPageState extends State<ChatPage> {
             itemCount: chats.length,
             itemBuilder: (context, index) {
               final chat = chats[index];
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: ChatListItem(
-                  chat: chat,
-                  onTap: () => _openChat(chat),
-                ),
+              return ChatListItem(
+                chat: chat,
+                onTap: () => _openChat(chat),
+                unreadCount: _getUnreadCount(chat),
               );
             },
           );
@@ -201,7 +187,7 @@ class _ChatPageState extends State<ChatPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('New Chat'),
-        content: const Text('Select a user to start chatting with:'),
+        content: const Text('Select a supplier to start chatting with:'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -210,58 +196,81 @@ class _ChatPageState extends State<ChatPage> {
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              _showUserSelectionDialog();
+              _showSupplierSelectionDialog();
             },
-            child: const Text('Select User'),
+            child: const Text('Select Supplier'),
           ),
         ],
       ),
     );
   }
 
-  void _showUserSelectionDialog() {
+  void _showSupplierSelectionDialog() {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Select User'),
+        title: const Text('Select Supplier'),
         content: SizedBox(
           width: double.maxFinite,
           height: 300,
-          child: StreamBuilder<QuerySnapshot>(
-            stream: _firestore.collection('users').snapshots(),
+          child: StreamBuilder<List<Map<String, dynamic>>>(
+            stream: _messagingService.getAvailableSuppliers(),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
               }
 
               if (snapshot.hasError) {
-                return const Center(child: Text('Error loading users'));
+                return const Center(child: Text('Error loading suppliers'));
               }
 
-              final users = snapshot.data?.docs ?? [];
-              final currentUserId = _auth.currentUser?.uid;
+              final suppliers = snapshot.data ?? [];
+
+              if (suppliers.isEmpty) {
+                return const Center(
+                  child: Text('No suppliers available'),
+                );
+              }
 
               return ListView.builder(
-                itemCount: users.length,
+                itemCount: suppliers.length,
                 itemBuilder: (context, index) {
-                  final userData = users[index].data() as Map<String, dynamic>;
-                  final userId = users[index].id;
-
-                  if (userId == currentUserId) return const SizedBox.shrink();
-
+                  final supplier = suppliers[index];
                   return ListTile(
                     leading: CircleAvatar(
                       backgroundColor: AppColors.accentGreen,
                       child: Text(
-                        (userData['displayName'] ?? userData['email'] ?? '?')[0].toUpperCase(),
+                        (supplier['displayName'] ?? '?')[0].toUpperCase(),
                         style: const TextStyle(color: Colors.white),
                       ),
                     ),
-                    title: Text(userData['displayName'] ?? 'Unknown User'),
-                    subtitle: Text(userData['email'] ?? ''),
+                    title: Text(supplier['displayName'] ?? 'Unknown Supplier'),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(supplier['email'] ?? ''),
+                        if (supplier['businessName'] != null && supplier['businessName'].isNotEmpty)
+                          Text(
+                            '🏪 ${supplier['businessName']}',
+                            style: AppTextStyles.body.copyWith(
+                              fontSize: 12,
+                              color: AppColors.primaryGreen,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        if (supplier['location'] != null && supplier['location'].isNotEmpty)
+                          Text(
+                            '📍 ${supplier['location']}',
+                            style: AppTextStyles.body.copyWith(
+                              fontSize: 12,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                      ],
+                    ),
                     onTap: () {
                       Navigator.pop(context);
-                      _startChatWithUser(userId);
+                      _startChatWithSupplier(supplier['id']);
                     },
                   );
                 },
@@ -279,9 +288,12 @@ class _ChatPageState extends State<ChatPage> {
     );
   }
 
-  void _startChatWithUser(String userId) async {
+  void _startChatWithSupplier(String supplierId) async {
     try {
-      final chatId = await _messagingService.createOrGetChat(userId);
+      final chatId = await _messagingService.createChatWithUser(
+        supplierId,
+        initialMessage: 'Hello! I\'m interested in your fresh vegetables. Do you have any available today?',
+      );
       if (!mounted) return;
 
       Navigator.of(context).push(
@@ -318,5 +330,14 @@ class _ChatPageState extends State<ChatPage> {
         ],
       ),
     );
+  }
+
+  int _getUnreadCount(ChatSummary chat) {
+    // TODO: Implement actual unread count logic
+    // For now, return a random number for demonstration
+    return chat.lastMessageTime != null && 
+           DateTime.now().difference(chat.lastMessageTime!).inHours < 24 
+           ? (chat.id.hashCode % 5) + 1 
+           : 0;
   }
 } 

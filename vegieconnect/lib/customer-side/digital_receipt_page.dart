@@ -3,6 +3,7 @@ import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
 import 'package:vegieconnect/theme.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/payment_service.dart';
+import 'buyer_order_history_page.dart';
 
 class DigitalReceiptPage extends StatelessWidget {
   final List<QueryDocumentSnapshot<Map<String, dynamic>>> cartItems;
@@ -309,13 +310,18 @@ class DigitalReceiptPage extends StatelessWidget {
                         color: AppColors.primaryGreen,
                       ),
                       onPressed: () {
-                        // Navigate to order tracking
-                        Navigator.popUntil(context, (route) => route.isFirst);
+                        // Navigate to order history
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const BuyerOrderHistoryPage(),
+                          ),
+                        );
                       },
                       child: Padding(
                         padding: EdgeInsets.symmetric(vertical: screenWidth * 0.03),
                         child: Text(
-                          'Track Order',
+                          'View Order History',
                           style: AppTextStyles.button.copyWith(
                             fontSize: screenWidth * 0.04,
                             color: Colors.white,

@@ -4,6 +4,7 @@ import 'authentication/login_page.dart';
 import 'services/notification_service.dart';
 import 'services/messaging_service.dart';
 import 'services/performance_service.dart';
+import 'services/local_messaging_service.dart';
 import 'theme.dart';
 
 void main() async {
@@ -26,6 +27,7 @@ void main() async {
   await NotificationService().initialize();
   await MessagingService().initialize();
   await PerformanceService().initialize();
+  await LocalMessagingService().initialize();
 
   runApp(const MyApp());
 }

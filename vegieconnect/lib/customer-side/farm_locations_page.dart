@@ -326,20 +326,126 @@ class _FarmLocationsPageState extends State<FarmLocationsPage> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text(supplier.locationName),
+          title: Row(
+            children: [
+              Icon(Icons.store, color: AppColors.primaryGreen),
+              SizedBox(width: 8),
+              Expanded(child: Text(supplier.locationName)),
+            ],
+          ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Supplier: ${supplier.supplierName}'),
-              const SizedBox(height: 8),
-              Text('Description: ${supplier.description}'),
-              const SizedBox(height: 8),
-              Text('Address: ${supplier.address}'),
+              // Supplier Name
+              Text(
+                'Supplier: ${supplier.supplierName}',
+                style: AppTextStyles.body.copyWith(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+              SizedBox(height: 8),
+              
+              // Rating Section
+              if (supplier.rating != null && supplier.rating! > 0) ...[
+                Row(
+                  children: [
+                    // Star Rating
+                    Row(
+                      children: List.generate(5, (index) {
+                        return Icon(
+                          index < supplier.rating!.round() ? Icons.star : Icons.star_border,
+                          color: index < supplier.rating!.round() ? Colors.amber : Colors.grey,
+                          size: 20,
+                        );
+                      }),
+                    ),
+                    SizedBox(width: 8),
+                    // Rating Text
+                    Text(
+                      supplier.rating!.toStringAsFixed(1),
+                      style: AppTextStyles.body.copyWith(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    SizedBox(width: 4),
+                    Text(
+                      '(${supplier.ratingCount ?? 0} reviews)',
+                      style: AppTextStyles.body.copyWith(
+                        color: AppColors.textSecondary,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 12),
+              ] else ...[
+                Row(
+                  children: [
+                    Icon(Icons.star_border, color: Colors.grey, size: 20),
+                    SizedBox(width: 8),
+                    Text(
+                      'No ratings yet',
+                      style: AppTextStyles.body.copyWith(
+                        color: AppColors.textSecondary,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 12),
+              ],
+              
+              // Description
+              Text(
+                'Description:',
+                style: AppTextStyles.body.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              SizedBox(height: 4),
+              Text(
+                supplier.description,
+                style: AppTextStyles.body.copyWith(
+                  fontSize: 14,
+                ),
+              ),
+              SizedBox(height: 12),
+              
+              // Address
+              Text(
+                'Address:',
+                style: AppTextStyles.body.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              SizedBox(height: 4),
+              Text(
+                supplier.address,
+                style: AppTextStyles.body.copyWith(
+                  fontSize: 14,
+                ),
+              ),
+              
+              // Distance (if user location available)
               if (_userLocation != null) ...[
-                const SizedBox(height: 8),
+                SizedBox(height: 12),
                 Text(
-                  'Distance: ${_mapService.calculateDistance(_userLocation!, LatLng(supplier.latitude, supplier.longitude)).toStringAsFixed(1)} km',
+                  'Distance:',
+                  style: AppTextStyles.body.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  '${_mapService.calculateDistance(_userLocation!, LatLng(supplier.latitude, supplier.longitude)).toStringAsFixed(1)} km',
+                  style: AppTextStyles.body.copyWith(
+                    fontSize: 14,
+                    color: AppColors.primaryGreen,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ],
             ],
@@ -1012,6 +1118,39 @@ class _FarmLocationsPageState extends State<FarmLocationsPage> {
                         isVeryNearby ? Icons.person_pin : Icons.person_pin_circle,
                         color: Colors.white,
                         size: isVeryNearby ? 30 : 24,
+                      ),
+                    ),
+                    // Rating indicator
+                    if (supplier.rating != null && supplier.rating! > 0)
+                      Positioned(
+                        top: -8,
+                        right: -8,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.amber,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.white, width: 1),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.star,
+                                color: Colors.white,
+                                size: 10,
+                              ),
+                              SizedBox(width: 2),
+                              Text(
+                                supplier.rating!.toStringAsFixed(1),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
                       ),
                     ),
                     if (isVeryNearby)

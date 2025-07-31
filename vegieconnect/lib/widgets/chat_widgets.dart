@@ -325,17 +325,19 @@ class _MessageInputState extends State<MessageInput> {
   }
 }
 
-// Chat list item widget
+// Enhanced chat list item widget with stacked card design
 class ChatListItem extends StatelessWidget {
   final ChatSummary chat;
   final VoidCallback onTap;
   final bool isSelected;
+  final int unreadCount;
 
   const ChatListItem({
     super.key,
     required this.chat,
     required this.onTap,
     this.isSelected = false,
+    this.unreadCount = 0,
   });
 
   @override
@@ -346,72 +348,204 @@ class ChatListItem extends StatelessWidget {
       child: SlideAnimation(
         horizontalOffset: 50.0,
         child: FadeInAnimation(
-          child: Neumorphic(
-            style: AppNeumorphic.card.copyWith(
-              color: isSelected ? AppColors.primaryGreen.withOpacity(0.1) : AppColors.card,
-            ),
-            child: ListTile(
-              onTap: onTap,
-              leading: CircleAvatar(
-                radius: 24,
-                backgroundColor: AppColors.accentGreen,
-                child: Text(
-                  _getChatTitle()[0].toUpperCase(),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            child: Neumorphic(
+              style: AppNeumorphic.card.copyWith(
+                color: isSelected ? AppColors.primaryGreen.withOpacity(0.1) : AppColors.card,
+                depth: isSelected ? 4 : 2,
               ),
-              title: Text(
-                _getChatTitle(),
-                style: AppTextStyles.subtitle.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (chat.lastMessage != null) ...[
-                    Text(
-                      chat.lastMessage!,
-                      style: AppTextStyles.body.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                  ],
-                  Row(
+              child: InkWell(
+                onTap: onTap,
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (chat.lastSenderName != null) ...[
-                        Text(
-                          '${chat.lastSenderName}: ',
-                          style: AppTextStyles.body.copyWith(
-                            fontSize: 12,
-                            color: AppColors.primaryGreen,
-                            fontWeight: FontWeight.bold,
+                      Row(
+                        children: [
+                          // Avatar with stacked effect
+                          Stack(
+                            children: [
+                              Container(
+                                width: 48,
+                                height: 48,
+                                decoration: BoxDecoration(
+                                  color: AppColors.accentGreen,
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: AppColors.shadowDark.withOpacity(0.2),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    _getChatTitle()[0].toUpperCase(),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              if (unreadCount > 0)
+                                Positioned(
+                                  right: 0,
+                                  top: 0,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.accentRed,
+                                      shape: BoxShape.circle,
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: AppColors.shadowDark.withOpacity(0.3),
+                                          blurRadius: 4,
+                                          offset: const Offset(0, 1),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Text(
+                                      unreadCount > 99 ? '99+' : unreadCount.toString(),
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        _getChatTitle(),
+                                        style: AppTextStyles.subtitle.copyWith(
+                                          fontWeight: FontWeight.bold,
+                                          color: unreadCount > 0 
+                                              ? AppColors.primaryGreen 
+                                              : AppColors.textPrimary,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    if (chat.lastMessageTime != null) ...[
+                                      Text(
+                                        _formatTime(chat.lastMessageTime!),
+                                        style: AppTextStyles.body.copyWith(
+                                          fontSize: 12,
+                                          color: AppColors.textSecondary,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                if (chat.lastSenderName != null) ...[
+                                  Text(
+                                    chat.lastSenderName!,
+                                    style: AppTextStyles.body.copyWith(
+                                      fontSize: 13,
+                                      color: AppColors.primaryGreen,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 2),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (chat.lastMessage != null) ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: AppColors.background,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: AppColors.shadowLight,
+                              width: 1,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.chat_bubble_outline,
+                                size: 16,
+                                color: AppColors.textSecondary,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  chat.lastMessage!,
+                                  style: AppTextStyles.body.copyWith(
+                                    color: AppColors.textSecondary,
+                                    fontSize: 13,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
-                      if (chat.lastMessageTime != null) ...[
-                        Text(
-                          _formatTime(chat.lastMessageTime!),
-                          style: AppTextStyles.body.copyWith(
-                            fontSize: 12,
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.access_time,
+                            size: 12,
                             color: AppColors.textSecondary,
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 4),
+                          Text(
+                            _getLastActivityText(),
+                            style: AppTextStyles.body.copyWith(
+                              fontSize: 11,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                          const Spacer(),
+                          if (unreadCount > 0)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AppColors.primaryGreen,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                'New',
+                                style: AppTextStyles.body.copyWith(
+                                  fontSize: 10,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
                     ],
                   ),
-                ],
+                ),
               ),
-              trailing: _buildUnreadBadge(),
             ),
           ),
         ),
@@ -424,9 +558,23 @@ class ChatListItem extends StatelessWidget {
     return chat.lastSenderName ?? 'Chat';
   }
 
-  Widget _buildUnreadBadge() {
-    // TODO: Implement unread message count
-    return Container();
+  String _getLastActivityText() {
+    if (chat.lastMessageTime == null) return 'No recent activity';
+    
+    final now = DateTime.now();
+    final difference = now.difference(chat.lastMessageTime!);
+    
+    if (difference.inMinutes < 1) {
+      return 'Just now';
+    } else if (difference.inMinutes < 60) {
+      return '${difference.inMinutes}m ago';
+    } else if (difference.inHours < 24) {
+      return '${difference.inHours}h ago';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays}d ago';
+    } else {
+      return _formatTime(chat.lastMessageTime!);
+    }
   }
 
   String _formatTime(DateTime time) {

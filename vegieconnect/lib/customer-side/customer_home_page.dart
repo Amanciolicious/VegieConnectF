@@ -8,12 +8,16 @@ import '../authentication/login_page.dart';
 import 'buyer_products_page.dart';
 import 'buyer_order_history_page.dart';
 import 'farm_locations_page.dart';
+import 'payment_test_page.dart'; // Added for payment testing
+
 import 'package:vegieconnect/theme.dart'; // Correct import for AppColors
 import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
 import 'package:cloud_firestore/cloud_firestore.dart'; // Added for Firestore
 import 'product_details_page.dart'; // Added for ProductDetailsPage
 import '../widgets/notification_center.dart';
-import 'chat_page.dart'; // Added for ChatPage
+// Added for ChatPage
+// Added for TextEditingController
+import 'chat_list_page.dart';
 
 class CustomerHomePage extends StatefulWidget {
   const CustomerHomePage({super.key});
@@ -85,9 +89,15 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
                       child: Icon(Icons.eco, size: 40, color: AppColors.accentGreen),
                     ),
                     const SizedBox(height: 12),
-                    Text('Vegie Lover', style: AppTextStyles.headline.copyWith(color: Colors.white)),
+                    Text(
+                      user?.displayName ?? 'Vegie Lover',
+                      style: AppTextStyles.headline.copyWith(color: Colors.white),
+                    ),
                     const SizedBox(height: 4),
-                    const Text('vegieuser@email.com', style: TextStyle(color: Colors.white70)),
+                    Text(
+                      user?.email ?? 'vegieuser@email.com',
+                      style: const TextStyle(color: Colors.white70),
+                    ),
                   ],
                 ),
               ),
@@ -154,6 +164,27 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
                 );
               },
             ),
+            ListTile(
+              leading: const Icon(Icons.payment, color: AppColors.accentGreen),
+              title: const Text('Payment Test'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const PaymentTestPage()),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.chat_bubble_outline, color: AppColors.accentGreen),
+              title: const Text('My Chats'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const ChatListPage()),
+                );
+              },
+            ),
+
             const Divider(),
             ListTile(
               leading: const Icon(Icons.receipt_long, color: AppColors.accentGreen),
@@ -194,7 +225,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const ChatPage(supplierId: '')),
+                MaterialPageRoute(builder: (context) => const ChatListPage()),
               );
             },
           ),
@@ -269,8 +300,225 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
   }
 }
 
-class _HomeTab extends StatelessWidget {
+class _HomeTab extends StatefulWidget {
   const _HomeTab();
+
+  @override
+  State<_HomeTab> createState() => _HomeTabState();
+}
+
+class _HomeTabState extends State<_HomeTab> {
+  final TextEditingController _searchController = TextEditingController();
+  String _userName = 'Vegie Lover';
+  String _userEmail = 'vegieuser@email.com';
+  String _userLocation = 'Your Location';
+  int _notificationCount = 0;
+  List<Map<String, dynamic>> _categories = [];
+  bool _isLoadingCategories = true;
+  Map<String, dynamic>? _currentPromo;
+  bool _isLoadingPromo = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+    _loadCategories();
+    _loadNotificationCount();
+    _loadCurrentPromo();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadUserData() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      try {
+        final userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
+        
+        if (userDoc.exists) {
+          final userData = userDoc.data()!;
+          setState(() {
+            _userName = userData['name'] ?? 'Vegie Lover';
+            _userEmail = userData['email'] ?? user.email ?? 'vegieuser@email.com';
+            _userLocation = userData['location'] ?? 'Your Location';
+          });
+        }
+      } catch (e) {
+        debugPrint('Error loading user data: $e');
+      }
+    }
+  }
+
+  Future<void> _loadCategories() async {
+    try {
+      final categoriesSnapshot = await FirebaseFirestore.instance
+          .collection('categories')
+          .where('isActive', isEqualTo: true)
+          .orderBy('order')
+          .get();
+
+      setState(() {
+        _categories = categoriesSnapshot.docs
+            .map((doc) => {
+                  'id': doc.id,
+                  ...doc.data(),
+                })
+            .toList();
+        _isLoadingCategories = false;
+      });
+    } catch (e) {
+      debugPrint('Error loading categories: $e');
+      setState(() {
+        _isLoadingCategories = false;
+      });
+    }
+  }
+
+  Future<void> _loadNotificationCount() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      try {
+        final notificationsSnapshot = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .collection('notifications')
+            .where('isRead', isEqualTo: false)
+            .get();
+
+        setState(() {
+          _notificationCount = notificationsSnapshot.docs.length;
+        });
+      } catch (e) {
+        debugPrint('Error loading notifications: $e');
+      }
+    }
+  }
+
+  Future<void> _loadCurrentPromo() async {
+    try {
+      final promoDoc = await FirebaseFirestore.instance
+          .collection('promotions')
+          .where('isActive', isEqualTo: true)
+          .limit(1)
+          .get();
+
+      if (promoDoc.docs.isNotEmpty) {
+        setState(() {
+          _currentPromo = promoDoc.docs.first.data();
+          _isLoadingPromo = false;
+        });
+      } else {
+        setState(() {
+          _isLoadingPromo = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading current promo: $e');
+      setState(() {
+        _isLoadingPromo = false;
+      });
+    }
+  }
+
+  void _onSearchSubmitted(String query) {
+    if (query.trim().isNotEmpty) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => BuyerProductsPage(searchQuery: query.trim()),
+        ),
+      );
+    }
+  }
+
+  void _onCategoryTap(Map<String, dynamic> category) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => BuyerProductsPage(categoryFilter: category['name']),
+      ),
+    );
+  }
+
+  void _onNotificationTap() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const NotificationCenter(),
+      ),
+    );
+  }
+
+  void _onPromoBannerTap() {
+    // Navigate to products with promo filter
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => BuyerProductsPage(promoFilter: true),
+      ),
+    );
+  }
+
+  IconData _getCategoryIcon(String iconName) {
+    switch (iconName) {
+      case 'eco':
+        return Icons.eco;
+      case 'local_offer':
+        return Icons.local_offer;
+      case 'shopping_cart':
+        return Icons.shopping_cart;
+      case 'person':
+        return Icons.person;
+      case 'store':
+        return Icons.store;
+      case 'history':
+        return Icons.history;
+      case 'notifications':
+        return Icons.notifications;
+      case 'receipt_long':
+        return Icons.receipt_long;
+      case 'chat':
+        return Icons.chat;
+      case 'location_on':
+        return Icons.location_on;
+      default:
+        return Icons.category;
+    }
+  }
+
+  IconData _getPromoIcon(String iconName) {
+    switch (iconName) {
+      case 'local_offer':
+        return Icons.local_offer;
+      case 'eco':
+        return Icons.eco;
+      case 'shopping_cart':
+        return Icons.shopping_cart;
+      case 'person':
+        return Icons.person;
+      case 'store':
+        return Icons.store;
+      case 'history':
+        return Icons.history;
+      case 'notifications':
+        return Icons.notifications;
+      case 'receipt_long':
+        return Icons.receipt_long;
+      case 'chat':
+        return Icons.chat;
+      case 'location_on':
+        return Icons.location_on;
+      default:
+        return Icons.category;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -291,17 +539,49 @@ class _HomeTab extends StatelessWidget {
                   children: [
                     const Icon(Icons.location_on, color: Colors.white),
                     const SizedBox(width: 8),
-                    const Text(
-                      'Your Location',
-                      style: TextStyle(color: Colors.white70, fontSize: 14),
+                    Text(
+                      _userLocation,
+                      style: const TextStyle(color: Colors.white70, fontSize: 14),
                     ),
                     const Spacer(),
-                    Icon(Icons.notifications_none, color: Colors.white),
+                    Stack(
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.notifications_none, color: Colors.white),
+                          onPressed: _onNotificationTap,
+                        ),
+                        if (_notificationCount > 0)
+                          Positioned(
+                            right: 8,
+                            top: 8,
+                            child: Container(
+                              padding: const EdgeInsets.all(2),
+                              decoration: BoxDecoration(
+                                color: Colors.red,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              constraints: const BoxConstraints(
+                                minWidth: 16,
+                                minHeight: 16,
+                              ),
+                              child: Text(
+                                '$_notificationCount',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
                   ],
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Welcome, Vegie Lover!',
+                  'Welcome, $_userName!',
                   style: AppTextStyles.headline.copyWith(color: Colors.white),
                 ),
                 const SizedBox(height: 16),
@@ -314,6 +594,8 @@ class _HomeTab extends StatelessWidget {
                       const SizedBox(width: 8),
                       Expanded(
                         child: TextField(
+                          controller: _searchController,
+                          onSubmitted: _onSearchSubmitted,
                           decoration: InputDecoration(
                             hintText: 'Search Vegetables',
                             border: InputBorder.none,
@@ -334,23 +616,60 @@ class _HomeTab extends StatelessWidget {
           ),
           margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
           padding: const EdgeInsets.all(18),
-          child: Row(
-            children: [
-              Icon(Icons.local_offer, color: AppColors.primaryGreen, size: 40),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Get 40% discount on your first order from app.',
-                        style: AppTextStyles.subtitle.copyWith(fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 6),
-                    Text('Shop Now', style: AppTextStyles.body.copyWith(color: AppColors.primaryGreen, fontWeight: FontWeight.w500)),
-                  ],
-                ),
-              ),
-              Icon(Icons.eco, color: AppColors.primaryGreen, size: 48),
-            ],
+          child: GestureDetector(
+            onTap: _onPromoBannerTap,
+            child: _isLoadingPromo
+                ? const Center(child: CircularProgressIndicator())
+                : _currentPromo == null
+                    ? Row(
+                        children: [
+                          Icon(Icons.local_offer, color: AppColors.primaryGreen, size: 40),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Get 40% discount on your first order from app.',
+                                    style: AppTextStyles.subtitle.copyWith(fontWeight: FontWeight.bold)),
+                                const SizedBox(height: 6),
+                                Text('Shop Now', style: AppTextStyles.body.copyWith(color: AppColors.primaryGreen, fontWeight: FontWeight.w500)),
+                              ],
+                            ),
+                          ),
+                          Icon(Icons.eco, color: AppColors.primaryGreen, size: 48),
+                        ],
+                      )
+                    : Row(
+                        children: [
+                          Icon(
+                            _getPromoIcon(_currentPromo!['icon'] ?? 'local_offer'),
+                            color: AppColors.primaryGreen,
+                            size: 40,
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _currentPromo!['title'] ?? 'Special Offer',
+                                  style: AppTextStyles.subtitle.copyWith(fontWeight: FontWeight.bold),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  _currentPromo!['subtitle'] ?? 'Shop Now',
+                                  style: AppTextStyles.body.copyWith(color: AppColors.primaryGreen, fontWeight: FontWeight.w500),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(
+                            _getPromoIcon(_currentPromo!['icon'] ?? 'eco'),
+                            color: AppColors.primaryGreen,
+                            size: 48,
+                          ),
+                        ],
+                      ),
           ),
         ),
         Padding(
@@ -360,27 +679,46 @@ class _HomeTab extends StatelessWidget {
         const SizedBox(height: 12),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  children: [
-                    Neumorphic(
-                      style: AppNeumorphic.card.copyWith(color: AppColors.accentGreen.withOpacity(0.15)),
-                      child: CircleAvatar(
-                        backgroundColor: Colors.transparent,
-                        radius: 32,
-                        child: Icon(Icons.eco, color: AppColors.primaryGreen, size: 32),
+          child: _isLoadingCategories
+              ? const Center(child: CircularProgressIndicator())
+              : _categories.isEmpty
+                  ? const Center(child: Text('No categories available.'))
+                  : SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: _categories.map((category) {
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 16),
+                            child: GestureDetector(
+                              onTap: () => _onCategoryTap(category),
+                              child: Column(
+                                children: [
+                                  Neumorphic(
+                                    style: AppNeumorphic.card.copyWith(
+                                      color: AppColors.accentGreen.withOpacity(0.15),
+                                    ),
+                                    child: CircleAvatar(
+                                      backgroundColor: Colors.transparent,
+                                      radius: 32,
+                                      child: Icon(
+                                        _getCategoryIcon(category['icon'] ?? 'eco'),
+                                        color: AppColors.primaryGreen,
+                                        size: 32,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    category['name'] ?? 'Category',
+                                    style: AppTextStyles.body.copyWith(fontWeight: FontWeight.w500),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }).toList(),
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Text('Veggies', style: AppTextStyles.body.copyWith(fontWeight: FontWeight.w500)),
-                  ],
-                ),
-              ),
-              const Spacer(flex: 3),
-            ],
-          ),
         ),
         const SizedBox(height: 24),
         Padding(

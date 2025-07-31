@@ -3,9 +3,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import '../services/messaging_service.dart';
 import '../services/notification_service.dart';
-import '../widgets/chat_widgets.dart';
+import '../widgets/chat_widgets.dart' show ChatBubble, MessageInput, TypingIndicator;
 import '../theme.dart';
 import 'dart:async'; // Added for Timer
+import 'package:flutter/services.dart'; // Added for clipboard
 
 class ChatConversationPage extends StatefulWidget {
   final String chatId;
@@ -45,7 +46,7 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
     _scrollController.dispose();
     _messageController.dispose();
     _typingTimer?.cancel();
-    _messagingService.stopTyping(widget.chatId);
+    _messagingService.setTypingIndicator(widget.chatId, false);
     super.dispose();
   }
 
@@ -55,7 +56,7 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
       await _messagingService.markMessagesAsRead(widget.chatId);
 
       // Listen to messages
-      _messagingService.getChatStream(widget.chatId).listen((messages) {
+      _messagingService.getChatMessages(widget.chatId).listen((messages) {
         setState(() {
           _messages = messages;
         });
@@ -73,7 +74,7 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
       });
 
       // Listen to typing indicators
-      _messagingService.getTypingStream(widget.chatId).listen((typingUsers) {
+      _messagingService.getTypingIndicator(widget.chatId).listen((typingUsers) {
         setState(() {
           _typingUsers = typingUsers;
         });
@@ -98,7 +99,21 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
 
       // Clear input
       _messageController.clear();
+      
+      // Stop typing indicator
+      _setTypingIndicator(false);
+      
+      // Show notification to other user
+      final currentUser = _auth.currentUser;
+      if (currentUser != null) {
+        _notificationService.sendChatNotification(
+          senderName: currentUser.displayName ?? currentUser.email ?? 'Unknown',
+          message: message.trim(),
+          chatId: widget.chatId,
+        );
+      }
     } catch (e) {
+      debugPrint('Error sending message: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error sending message: $e'),
@@ -112,21 +127,25 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
     }
   }
 
-  void _onTextChanged(String text) {
-    if (!_isTyping) {
-      setState(() {
-        _isTyping = true;
-      });
-      _messagingService.startTyping(widget.chatId);
+  void _setTypingIndicator(bool isTyping) {
+    _messagingService.setTypingIndicator(widget.chatId, isTyping);
+  }
+
+  void _onMessageChanged(String text) {
+    if (_typingTimer != null) {
+      _typingTimer!.cancel();
     }
 
-    // Reset typing timer
-    _typingTimer?.cancel();
-    _typingTimer = Timer(const Duration(seconds: 2), () {
-      setState(() {
+    if (text.isNotEmpty && !_isTyping) {
+      _setTypingIndicator(true);
+      _isTyping = true;
+    }
+
+    _typingTimer = Timer(const Duration(milliseconds: 1000), () {
+      if (_isTyping) {
+        _setTypingIndicator(false);
         _isTyping = false;
-      });
-      _messagingService.stopTyping(widget.chatId);
+      }
     });
   }
 
@@ -178,7 +197,7 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
   }
 
   void _copyMessage(String message) {
-    // TODO: Implement copy to clipboard
+    Clipboard.setData(ClipboardData(text: message));
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Message copied to clipboard'),
@@ -190,7 +209,15 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
   Future<void> _deleteMessage(ChatMessage message) async {
     try {
       await _messagingService.deleteMessage(widget.chatId, message.id);
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Message deleted'),
+          backgroundColor: AppColors.primaryGreen,
+        ),
+      );
     } catch (e) {
+      debugPrint('Error deleting message: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error deleting message: $e'),
@@ -245,7 +272,7 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
           MessageInput(
             onSendMessage: _sendMessage,
             isLoading: _isLoading,
-            onTextChanged: _onTextChanged,
+            onTextChanged: _onMessageChanged,
           ),
         ],
       ),
@@ -297,32 +324,57 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
   }
 
   Widget _buildMessagesList() {
-    return AnimationLimiter(
-      child: ListView.builder(
-        controller: _scrollController,
-        reverse: true,
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        itemCount: _messages.length,
-        itemBuilder: (context, index) {
-          final message = _messages[index];
-          final isOwnMessage = message.senderId == _auth.currentUser?.uid;
-
-          return AnimationConfiguration.staggeredList(
-            position: index,
-            duration: const Duration(milliseconds: 300),
-            child: SlideAnimation(
-              verticalOffset: 50.0,
-              child: FadeInAnimation(
-                child: ChatBubble(
-                  message: message,
-                  isOwnMessage: isOwnMessage,
-                  onLongPress: () => _showMessageOptions(message),
-                ),
+    if (_messages.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.chat_bubble_outline,
+              size: 64,
+              color: AppColors.accentGreen,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'No messages yet',
+              style: AppTextStyles.headline,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Start the conversation!',
+              style: AppTextStyles.body.copyWith(
+                color: AppColors.textSecondary,
               ),
             ),
-          );
-        },
-      ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      reverse: true,
+      controller: _scrollController,
+      padding: const EdgeInsets.all(16),
+      itemCount: _messages.length,
+      itemBuilder: (context, index) {
+        final message = _messages[index];
+        final isOwnMessage = message.senderId == _auth.currentUser?.uid;
+
+        return AnimationConfiguration.staggeredList(
+          position: index,
+          duration: const Duration(milliseconds: 300),
+          child: SlideAnimation(
+            verticalOffset: 50.0,
+            child: FadeInAnimation(
+              child: ChatBubble(
+                message: message,
+                isOwnMessage: isOwnMessage,
+                onLongPress: () => _showMessageOptions(message),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -432,7 +484,7 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
 
   Future<void> _clearChat() async {
     try {
-      // TODO: Implement clear chat functionality
+      await _messagingService.clearChat(widget.chatId);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Chat cleared'),

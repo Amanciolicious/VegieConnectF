@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'paymongo_config.dart';
 
 class PaymentService {
@@ -27,7 +28,466 @@ class PaymentService {
   // Get current environment
   String get environment => PaymongoConfig.environment;
 
-  // Create payment intent with Paymongo
+  // Create payment intent with Paymongo for external browser processing
+  Future<Map<String, dynamic>> createExternalPaymentIntent({
+    required double amount,
+    required String currency,
+    required String paymentMethod,
+    required String orderId,
+    required String customerEmail,
+    required String customerName,
+    Map<String, dynamic>? metadata,
+  }) async {
+    try {
+      // Check if Paymongo is configured
+      if (!PaymongoConfig.isConfigured) {
+        debugPrint('Paymongo Configuration Error: ${PaymongoConfig.configurationError}');
+        return {
+          'success': false,
+          'error': 'Payment service not configured. Please use Cash on Pickup.',
+          'details': PaymongoConfig.configurationError,
+        };
+      }
+
+      // Map payment methods to Paymongo payment method types
+      String paymongoPaymentMethod;
+      switch (paymentMethod) {
+        case 'gcash':
+          paymongoPaymentMethod = 'gcash';
+          break;
+        case 'paymaya':
+          paymongoPaymentMethod = 'paymaya';
+          break;
+        default:
+          return {
+            'success': false,
+            'error': 'Unsupported payment method: $paymentMethod',
+          };
+      }
+
+      debugPrint('Creating external payment intent for $paymentMethod');
+      debugPrint('Amount: $amount, Currency: $currency, Order ID: $orderId');
+
+      // Create payment source for external browser redirect
+      final sourceResult = await createPaymentSource(
+        amount: amount,
+        currency: currency,
+        paymentMethod: paymongoPaymentMethod,
+        orderId: orderId,
+        customerEmail: customerEmail,
+        customerName: customerName,
+        metadata: metadata,
+      );
+
+      if (!sourceResult['success']) {
+        debugPrint('Payment Source Creation Failed: ${sourceResult['error']}');
+        return {
+          'success': false,
+          'error': 'Failed to create payment source: ${sourceResult['error']}',
+          'details': sourceResult['details'] ?? 'Unknown error',
+        };
+      }
+
+      debugPrint('Payment source created successfully: ${sourceResult['source_id']}');
+
+      return {
+        'success': true,
+        'payment_method': paymentMethod,
+        'payment_status': 'pending',
+        'order_id': orderId,
+        'redirect_url': sourceResult['redirect_url'],
+        'source_id': sourceResult['source_id'],
+        'environment': PaymongoConfig.environment,
+        'message': 'Redirect to external payment gateway',
+      };
+    } catch (e) {
+      debugPrint('External Payment Error: $e');
+      return {
+        'success': false,
+        'error': 'Failed to create external payment: $e',
+        'details': 'Network or API error occurred',
+      };
+    }
+  }
+
+  // Launch external browser for payment
+  Future<Map<String, dynamic>> launchExternalPayment({
+    required String redirectUrl,
+    required String orderId,
+    required String paymentMethod,
+  }) async {
+    try {
+      final Uri url = Uri.parse(redirectUrl);
+      
+      if (await canLaunchUrl(url)) {
+        final bool launched = await launchUrl(
+          url,
+          mode: LaunchMode.externalApplication,
+        );
+        
+        if (launched) {
+          return {
+            'success': true,
+            'message': 'Payment gateway opened in external browser',
+            'order_id': orderId,
+            'payment_method': paymentMethod,
+            'status': 'redirected',
+          };
+        } else {
+          return {
+            'success': false,
+            'error': 'Failed to launch payment gateway',
+          };
+        }
+      } else {
+        return {
+          'success': false,
+          'error': 'Cannot launch payment gateway URL',
+        };
+      }
+    } catch (e) {
+      debugPrint('Launch Payment Error: $e');
+      return {
+        'success': false,
+        'error': 'Failed to launch payment: $e',
+      };
+    }
+  }
+
+  // Create payment source for external browser redirect
+  Future<Map<String, dynamic>> createPaymentSource({
+    required double amount,
+    required String currency,
+    required String paymentMethod,
+    required String orderId,
+    required String customerEmail,
+    required String customerName,
+    Map<String, dynamic>? metadata,
+  }) async {
+    try {
+      debugPrint('Creating payment intent for $paymentMethod');
+      debugPrint('API URL: ${PaymongoConfig.baseUrl}/payment_intents');
+      debugPrint('Secret Key: ${PaymongoConfig.secretKey.substring(0, 10)}...');
+
+      // Step 1: Create payment intent
+      final intentUrl = Uri.parse('${PaymongoConfig.baseUrl}/payment_intents');
+      
+      final intentRequestBody = {
+        'data': {
+          'attributes': {
+            'amount': (amount * 100).round(),
+            'currency': currency,
+            'payment_method_allowed': [paymentMethod],
+            'payment_method_options': {
+              paymentMethod: {
+                'type': paymentMethod,
+              }
+            },
+            'description': 'Order #$orderId',
+            'metadata': {
+              'order_id': orderId,
+              'payment_method': paymentMethod,
+              'environment': PaymongoConfig.environment,
+              'customer_email': customerEmail,
+              'customer_name': customerName,
+              ...?metadata,
+            },
+          },
+        },
+      };
+
+      debugPrint('Payment Intent Request Body: ${jsonEncode(intentRequestBody)}');
+
+      final intentResponse = await http.post(
+        intentUrl,
+        headers: {
+          'Authorization': 'Basic ${base64Encode(utf8.encode('${PaymongoConfig.secretKey}:'))}',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(intentRequestBody),
+      );
+
+      debugPrint('Payment Intent Response Status: ${intentResponse.statusCode}');
+      debugPrint('Payment Intent Response Body: ${intentResponse.body}');
+
+      if (intentResponse.statusCode != 201) {
+        debugPrint('Payment Intent Error: ${intentResponse.body}');
+        return {
+          'success': false,
+          'error': 'Failed to create payment intent',
+          'details': intentResponse.body,
+        };
+      }
+
+      final intentData = jsonDecode(intentResponse.body);
+      final paymentIntentId = intentData['data']['id'];
+      final clientKey = intentData['data']['attributes']['client_key'];
+
+      debugPrint('Payment Intent Created: $paymentIntentId');
+      debugPrint('Client Key: $clientKey');
+
+      // Step 2: Create payment method
+      final methodUrl = Uri.parse('${PaymongoConfig.baseUrl}/payment_methods');
+      
+      final methodRequestBody = {
+        'data': {
+          'attributes': {
+            'type': paymentMethod,
+            'billing': {
+              'name': customerName,
+              'email': customerEmail,
+            },
+            'metadata': {
+              'order_id': orderId,
+              'payment_method': paymentMethod,
+              'environment': PaymongoConfig.environment,
+              'customer_email': customerEmail,
+              'customer_name': customerName,
+              ...?metadata,
+            },
+          },
+        },
+      };
+
+      debugPrint('Payment Method Request Body: ${jsonEncode(methodRequestBody)}');
+
+      final methodResponse = await http.post(
+        methodUrl,
+        headers: {
+          'Authorization': 'Basic ${base64Encode(utf8.encode('${PaymongoConfig.secretKey}:'))}',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(methodRequestBody),
+      );
+
+      debugPrint('Payment Method Response Status: ${methodResponse.statusCode}');
+      debugPrint('Payment Method Response Body: ${methodResponse.body}');
+
+      if (methodResponse.statusCode != 201) {
+        debugPrint('Payment Method Error: ${methodResponse.body}');
+        return {
+          'success': false,
+          'error': 'Failed to create payment method',
+          'details': methodResponse.body,
+        };
+      }
+
+      final methodData = jsonDecode(methodResponse.body);
+      final paymentMethodId = methodData['data']['id'];
+
+      debugPrint('Payment Method Created: $paymentMethodId');
+
+      // Step 3: Attach payment method to payment intent
+      final attachUrl = Uri.parse('${PaymongoConfig.baseUrl}/payment_intents/$paymentIntentId/attach');
+      
+      final attachRequestBody = {
+        'data': {
+          'attributes': {
+            'payment_method': paymentMethodId,
+            'return_url': {
+              'success': 'https://vegieconnect.app/payment/success?order_id=$orderId',
+              'failed': 'https://vegieconnect.app/payment/failed?order_id=$orderId',
+            },
+          },
+        },
+      };
+
+      debugPrint('Attach Request Body: ${jsonEncode(attachRequestBody)}');
+
+      final attachResponse = await http.post(
+        attachUrl,
+        headers: {
+          'Authorization': 'Basic ${base64Encode(utf8.encode('${PaymongoConfig.secretKey}:'))}',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(attachRequestBody),
+      );
+
+      debugPrint('Attach Response Status: ${attachResponse.statusCode}');
+      debugPrint('Attach Response Body: ${attachResponse.body}');
+
+      if (attachResponse.statusCode != 200) {
+        debugPrint('Attach Error: ${attachResponse.body}');
+        return {
+          'success': false,
+          'error': 'Failed to attach payment method',
+          'details': attachResponse.body,
+        };
+      }
+
+      final attachData = jsonDecode(attachResponse.body);
+      final status = attachData['data']['attributes']['status'];
+      final nextAction = attachData['data']['attributes']['next_action'];
+
+      debugPrint('Payment Status: $status');
+      debugPrint('Next Action: $nextAction');
+
+      // For GCash and PayMaya, we need to redirect to the payment gateway
+      if (nextAction != null && nextAction['redirect'] != null) {
+        return {
+          'success': true,
+          'payment_intent_id': paymentIntentId,
+          'payment_method_id': paymentMethodId,
+          'redirect_url': nextAction['redirect']['url'],
+          'status': status,
+          'environment': PaymongoConfig.environment,
+        };
+      } else {
+        return {
+          'success': true,
+          'payment_intent_id': paymentIntentId,
+          'payment_method_id': paymentMethodId,
+          'status': status,
+          'environment': PaymongoConfig.environment,
+          'message': 'Payment processed successfully',
+        };
+      }
+    } catch (e) {
+      debugPrint('Payment Source Error: $e');
+      return {
+        'success': false,
+        'error': 'Network error: $e',
+        'details': 'Connection or timeout error',
+      };
+    }
+  }
+
+  // Verify payment status from webhook or manual check
+  Future<Map<String, dynamic>> verifyPaymentStatus({
+    required String sourceId,
+    required String orderId,
+  }) async {
+    try {
+      // Use payment_intents endpoint instead of sources
+      final url = Uri.parse('${PaymongoConfig.baseUrl}/payment_intents/$sourceId');
+      
+      final response = await http.get(
+        url,
+        headers: {
+          'Authorization': 'Basic ${base64Encode(utf8.encode('${PaymongoConfig.secretKey}:'))}',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final status = data['data']['attributes']['status'];
+        
+        // Update order payment status in Firestore
+        await updateOrderPaymentStatus(orderId, status);
+        
+        return {
+          'success': true,
+          'status': status,
+          'payment_intent_id': sourceId,
+          'order_id': orderId,
+        };
+      } else {
+        return {
+          'success': false,
+          'error': 'Failed to verify payment status',
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'error': 'Network error: $e',
+      };
+    }
+  }
+
+  // Update order payment status in Firestore
+  Future<void> updateOrderPaymentStatus(String orderId, String status) async {
+    try {
+      final ordersRef = FirebaseFirestore.instance.collection('orders');
+      final querySnapshot = await ordersRef
+          .where('orderId', isEqualTo: orderId)
+          .get();
+
+      final batch = FirebaseFirestore.instance.batch();
+      
+      for (final doc in querySnapshot.docs) {
+        batch.update(doc.reference, {
+          'paymentStatus': status == 'chargeable' ? 'paid' : 'pending',
+          'paymentVerifiedAt': FieldValue.serverTimestamp(),
+          'lastUpdated': FieldValue.serverTimestamp(),
+        });
+      }
+      
+      await batch.commit();
+    } catch (e) {
+      debugPrint('Update Order Status Error: $e');
+    }
+  }
+
+  // Handle webhook from Paymongo
+  Future<Map<String, dynamic>> handlePaymentWebhook(Map<String, dynamic> webhookData) async {
+    try {
+      final eventType = webhookData['type'];
+      final data = webhookData['data'];
+      
+      switch (eventType) {
+        case 'source.chargeable':
+          await _handlePaymentSuccess(data);
+          break;
+        case 'source.failed':
+          await _handlePaymentFailure(data);
+          break;
+        case 'payment.paid':
+          await _handlePaymentPaid(data);
+          break;
+        case 'payment.failed':
+          await _handlePaymentFailed(data);
+          break;
+      }
+      
+      return {
+        'success': true,
+        'event_type': eventType,
+        'message': 'Webhook processed successfully',
+      };
+    } catch (e) {
+      debugPrint('Webhook Error: $e');
+      return {
+        'success': false,
+        'error': 'Failed to process webhook: $e',
+      };
+    }
+  }
+
+  // Handle successful payment
+  Future<void> _handlePaymentSuccess(Map<String, dynamic> data) async {
+    final sourceId = data['id'];
+    final orderId = data['attributes']['metadata']['order_id'];
+    
+    await updateOrderPaymentStatus(orderId, 'paid');
+  }
+
+  // Handle failed payment
+  Future<void> _handlePaymentFailure(Map<String, dynamic> data) async {
+    final sourceId = data['id'];
+    final orderId = data['attributes']['metadata']['order_id'];
+    
+    await updateOrderPaymentStatus(orderId, 'failed');
+  }
+
+  // Handle payment paid event
+  Future<void> _handlePaymentPaid(Map<String, dynamic> data) async {
+    final paymentId = data['id'];
+    final orderId = data['attributes']['metadata']['order_id'];
+    
+    await updateOrderPaymentStatus(orderId, 'paid');
+  }
+
+  // Handle payment failed event
+  Future<void> _handlePaymentFailed(Map<String, dynamic> data) async {
+    final paymentId = data['id'];
+    final orderId = data['attributes']['metadata']['order_id'];
+    
+    await updateOrderPaymentStatus(orderId, 'failed');
+  }
+
+  // Create payment intent with Paymongo (legacy method for in-app payments)
   Future<Map<String, dynamic>> createPaymentIntent({
     required double amount,
     required String currency,
@@ -139,7 +599,7 @@ class PaymentService {
     }
   }
 
-  // Process payment with Paymongo
+  // Process payment with Paymongo (legacy method)
   Future<Map<String, dynamic>> processPayment({
     required String paymentIntentId,
     required String paymentMethodId,
@@ -194,7 +654,7 @@ class PaymentService {
     }
   }
 
-  // Create GCash payment source
+  // Create GCash payment source (legacy method)
   Future<Map<String, dynamic>> createGCashSource({
     required double amount,
     required String currency,
@@ -278,8 +738,8 @@ class PaymentService {
     }
   }
 
-  // Verify payment status
-  Future<Map<String, dynamic>> verifyPaymentStatus(String paymentIntentId) async {
+  // Verify payment status (legacy method)
+  Future<Map<String, dynamic>> verifyPaymentIntentStatus(String paymentIntentId) async {
     try {
       final url = Uri.parse('${PaymongoConfig.baseUrl}/payment_intents/$paymentIntentId');
       
@@ -420,6 +880,89 @@ class PaymentService {
     }
   }
 
+  // Test Paymongo API connection
+  Future<Map<String, dynamic>> testPaymongoConnection() async {
+    try {
+      debugPrint('Testing Paymongo API connection...');
+      debugPrint('Environment: ${PaymongoConfig.environment}');
+      debugPrint('Base URL: ${PaymongoConfig.baseUrl}');
+      debugPrint('Secret Key: ${PaymongoConfig.secretKey.substring(0, 10)}...');
+      debugPrint('Public Key: ${PaymongoConfig.publicKey.substring(0, 10)}...');
+
+      if (!PaymongoConfig.isConfigured) {
+        return {
+          'success': false,
+          'error': 'Paymongo not configured',
+          'details': PaymongoConfig.configurationError,
+        };
+      }
+
+      // Test API connection by creating a minimal payment method
+      // This is a better test than trying to list payment intents
+      final url = Uri.parse('${PaymongoConfig.baseUrl}/payment_methods');
+      
+      final testRequestBody = {
+        'data': {
+          'attributes': {
+            'type': 'gcash',
+            'billing': {
+              'name': 'Test User',
+              'email': 'test@example.com',
+            },
+          },
+        },
+      };
+
+      final response = await http.post(
+        url,
+        headers: {
+          'Authorization': 'Basic ${base64Encode(utf8.encode('${PaymongoConfig.secretKey}:'))}',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(testRequestBody),
+      );
+
+      debugPrint('Test Response Status: ${response.statusCode}');
+      debugPrint('Test Response Body: ${response.body}');
+
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        // Successfully created a test payment method
+        final data = jsonDecode(response.body);
+        return {
+          'success': true,
+          'message': 'Paymongo API connection successful',
+          'environment': PaymongoConfig.environment,
+          'test_payment_method_id': data['data']['id'],
+        };
+      } else if (response.statusCode == 401) {
+        return {
+          'success': false,
+          'error': 'Authentication failed',
+          'details': 'Invalid API credentials - Check your secret key',
+        };
+      } else if (response.statusCode == 400) {
+        return {
+          'success': false,
+          'error': 'Invalid request',
+          'details': 'API request format error: ${response.body}',
+        };
+      } else {
+        return {
+          'success': false,
+          'error': 'API connection failed',
+          'details': 'Status: ${response.statusCode}, Body: ${response.body}',
+        };
+      }
+    } catch (e) {
+      debugPrint('Paymongo Connection Test Error: $e');
+      return {
+        'success': false,
+        'error': 'Connection test failed',
+        'details': 'Network error: $e',
+      };
+    }
+  }
+
   // Get payment method display name
   String getPaymentMethodDisplayName(String method) {
     return _paymentMethods[method] ?? method;
@@ -428,6 +971,11 @@ class PaymentService {
   // Check if payment method is online
   bool isOnlinePaymentMethod(String method) {
     return method != 'cash_on_pickup';
+  }
+
+  // Check if payment method requires external browser
+  bool requiresExternalBrowser(String method) {
+    return method == 'gcash' || method == 'paymaya';
   }
 
   // Get payment method icon
@@ -444,7 +992,7 @@ class PaymentService {
     }
   }
 
-  // Process online payment with Paymongo
+  // Process online payment with Paymongo (legacy method)
   Future<Map<String, dynamic>> processOnlinePayment({
     required double amount,
     required String currency,
@@ -523,74 +1071,6 @@ class PaymentService {
       return {
         'success': false,
         'error': 'Failed to process online payment: $e',
-      };
-    }
-  }
-
-  // Create payment source for GCash/PayMaya
-  Future<Map<String, dynamic>> createPaymentSource({
-    required double amount,
-    required String currency,
-    required String paymentMethod,
-    required String orderId,
-    required String customerEmail,
-    required String customerName,
-  }) async {
-    try {
-      final url = Uri.parse('${PaymongoConfig.baseUrl}/sources');
-      
-      final response = await http.post(
-        url,
-        headers: {
-          'Authorization': 'Basic ${base64Encode(utf8.encode('${PaymongoConfig.secretKey}:'))}',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'data': {
-            'attributes': {
-              'type': paymentMethod,
-              'amount': (amount * 100).round(),
-              'currency': currency,
-              'redirect': {
-                'success': 'https://vegieconnect.app/payment/success',
-                'failed': 'https://vegieconnect.app/payment/failed',
-              },
-              'billing': {
-                'name': customerName,
-                'email': customerEmail,
-              },
-              'metadata': {
-                'order_id': orderId,
-                'payment_method': paymentMethod,
-                'environment': PaymongoConfig.environment,
-              },
-            },
-          },
-        }),
-      );
-
-      if (response.statusCode == 201) {
-        final data = jsonDecode(response.body);
-        return {
-          'success': true,
-          'source_id': data['data']['id'],
-          'redirect_url': data['data']['attributes']['redirect']['checkout_url'],
-          'status': data['data']['attributes']['status'],
-          'environment': PaymongoConfig.environment,
-        };
-      } else {
-        debugPrint('Payment Source Error: ${response.body}');
-        return {
-          'success': false,
-          'error': 'Failed to create payment source',
-          'details': response.body,
-        };
-      }
-    } catch (e) {
-      debugPrint('Payment Source Error: $e');
-      return {
-        'success': false,
-        'error': 'Network error: $e',
       };
     }
   }

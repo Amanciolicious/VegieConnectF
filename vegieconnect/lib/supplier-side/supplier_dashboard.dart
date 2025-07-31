@@ -5,6 +5,7 @@ import 'package:vegieconnect/supplier-side/add_product_page.dart';
 import 'package:vegieconnect/supplier-side/farm_map_page.dart' show SupplierLocationPage;
 import 'package:vegieconnect/supplier-side/supplier_location_management_page.dart';
 import 'package:vegieconnect/supplier-side/supplier_chat_page.dart';
+import 'package:vegieconnect/supplier-side/supplier_orders_page.dart';
 import 'package:vegieconnect/widgets/chat_widgets.dart';
 import '../authentication/login_page.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -14,7 +15,6 @@ import '../services/image_storage_service.dart';
 import '../customer-side/product_details_page.dart';
 import 'package:vegieconnect/theme.dart'; // For AppColors
 import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
-import 'package:vegieconnect/supplier-side/supplier_orders_page.dart'; // Added import for SupplierOrdersPage
 
 class SupplierDashboard extends StatefulWidget {
   const SupplierDashboard({super.key});
@@ -177,7 +177,6 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
           _buildProductsTab(),
           _buildStockManagementTab(),
           _buildProfileTab(),
-          _buildOrdersTab(),
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
@@ -208,10 +207,6 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
           BottomNavigationBarItem(
             icon: Icon(Icons.person),
             label: 'Profile',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.receipt_long),
-            label: 'Orders',
           ),
         ],
       ),
@@ -1159,264 +1154,11 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
     );
   }
 
-  Widget _buildOrdersTab() {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      return const Center(child: Text('Not logged in.'));
-    }
-    // State for search/filter
-    String searchQuery = '';
-    String? statusFilter;
-    String? productFilter;
-    int page = 0;
-    int pageSize = 10;
-    return StatefulBuilder(
-      builder: (context, setState) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('Orders', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-                Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.download),
-                      tooltip: 'Export to CSV',
-                      onPressed: () => _exportOrdersToCSV(user.uid),
-                    ),
-                    ElevatedButton.icon(
-                      onPressed: () => _showCreateOrderDialog(context, user.uid),
-                      icon: const Icon(Icons.add),
-                      label: const Text('New Order'),
-                      style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryGreen, foregroundColor: Colors.white),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    decoration: const InputDecoration(hintText: 'Search by product, buyer, or note...'),
-                    onChanged: (val) => setState(() => searchQuery = val.trim().toLowerCase()),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                DropdownButton<String?>(
-                  value: statusFilter,
-                  hint: const Text('Status'),
-                  items: [null, 'pending', 'processing', 'fulfilled', 'shipped', 'delivered', 'cancelled']
-                      .map((s) => DropdownMenuItem(value: s, child: Text(s == null ? 'All' : s.capitalize())))
-                      .toList(),
-                  onChanged: (val) => setState(() => statusFilter = val),
-                ),
-                const SizedBox(width: 8),
-                // Product filter (optional, can be filled with product names)
-              ],
-            ),
-          ),
-          Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('orders')
-                  .where('sellerId', isEqualTo: user.uid)
-                  .orderBy('createdAt', descending: true)
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return const Center(child: Text('No orders yet.'));
-                }
-                var orders = snapshot.data!.docs;
-                // Apply search/filter
-                orders = orders.where((doc) {
-                  final o = doc.data() as Map<String, dynamic>;
-                  final matchesSearch = searchQuery.isEmpty ||
-                    (o['productName'] ?? '').toString().toLowerCase().contains(searchQuery) ||
-                    (o['buyerName'] ?? '').toString().toLowerCase().contains(searchQuery) ||
-                    (o['note'] ?? '').toString().toLowerCase().contains(searchQuery);
-                  final matchesStatus = statusFilter == null || (o['status'] ?? '') == statusFilter;
-                  return matchesSearch && matchesStatus;
-                }).toList();
-                // Pagination
-                final totalPages = (orders.length / pageSize).ceil();
-                final pagedOrders = orders.skip(page * pageSize).take(pageSize).toList();
-                return Column(
-                  children: [
-                    Expanded(
-                      child: ListView.separated(
-                        itemCount: pagedOrders.length,
-                        separatorBuilder: (context, index) => const Divider(height: 1),
-                        itemBuilder: (context, index) {
-                          final order = pagedOrders[index].data() as Map<String, dynamic>;
-                          final orderId = pagedOrders[index].id;
-                          final status = (order['status'] ?? 'pending').toString().toLowerCase();
-                          final productId = order['productId'] ?? '';
-                          final quantity = order['quantity'] ?? 1;
-                          return ListTile(
-                            leading: order['productImage'] != null && order['productImage'].toString().isNotEmpty
-                                ? Image.network(order['productImage'], width: 44, height: 44, fit: BoxFit.cover)
-                                : const Icon(Icons.shopping_basket, size: 44),
-                            title: Text(order['productName'] ?? 'Order'),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('Qty: $quantity | ₱${order['price'] ?? ''}'),
-                                if (order['buyerName'] != null) Text('Buyer: ${order['buyerName']}'),
-                                if (order['note'] != null) Text('Note: ${order['note']}'),
-                                Text('Date: ${order['createdAt'] != null ? (order['createdAt'] as Timestamp).toDate().toString() : ''}'),
-                              ],
-                            ),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                _statusChip(status),
-                                if (status == 'pending' || status == 'processing')
-                                  PopupMenuButton<String>(
-                                    onSelected: (val) => _updateOrderStatus(orderId, val),
-                                    itemBuilder: (context) => [
-                                      const PopupMenuItem(value: 'processing', child: Text('Mark as Processing')),
-                                      const PopupMenuItem(value: 'shipped', child: Text('Mark as Shipped')),
-                                      const PopupMenuItem(value: 'delivered', child: Text('Mark as Delivered')),
-                                      const PopupMenuItem(value: 'cancelled', child: Text('Cancel Order')),
-                                    ],
-                                  ),
-                                IconButton(
-                                  icon: const Icon(Icons.info_outline),
-                                  tooltip: 'Details',
-                                  onPressed: () => _showOrderDetailsDialog(context, order, orderId),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                    if (totalPages > 1)
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.chevron_left),
-                            onPressed: page > 0 ? () => setState(() => page--) : null,
-                          ),
-                          Text('Page ${page + 1} of $totalPages'),
-                          IconButton(
-                            icon: const Icon(Icons.chevron_right),
-                            onPressed: page < totalPages - 1 ? () => setState(() => page++) : null,
-                          ),
-                        ],
-                      ),
-                  ],
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _statusChip(String status) {
-    Color color;
-    switch (status) {
-      case 'fulfilled':
-        color = Colors.green;
-        break;
-      case 'processing':
-        color = Colors.orange;
-        break;
-      case 'shipped':
-        color = Colors.blue;
-        break;
-      case 'delivered':
-        color = Colors.purple;
-        break;
-      case 'cancelled':
-        color = Colors.red;
-        break;
-      default:
-        color = Colors.grey;
-    }
-    return Container(
-      margin: const EdgeInsets.only(right: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(8)),
-      child: Text(status.capitalize(), style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 12)),
-    );
-  }
-
-  Future<void> _updateOrderStatus(String orderId, String newStatus) async {
-    final orderRef = FirebaseFirestore.instance.collection('orders').doc(orderId);
-    await orderRef.update({'status': newStatus});
-  }
-
-  void _showOrderDetailsDialog(BuildContext context, Map<String, dynamic> order, String orderId) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Order Details'),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (order['productImage'] != null && (order['productImage'] as String).isNotEmpty)
-                Image.network(order['productImage'], width: 80, height: 80, fit: BoxFit.cover),
-              Text('Product: ${order['productName'] ?? ''}'),
-              Text('Quantity: ${order['quantity'] ?? ''}'),
-              Text('Price: ₱${order['price'] ?? ''}'),
-              if (order['buyerName'] != null) Text('Buyer: ${order['buyerName']}'),
-              if (order['buyerId'] != null) Text('Buyer ID: ${order['buyerId']}'),
-              if (order['note'] != null) Text('Note: ${order['note']}'),
-              Text('Status: ${order['status'] ?? ''}'),
-              Text('Created: ${order['createdAt'] != null ? (order['createdAt'] as Timestamp).toDate().toString() : ''}'),
-              if (order['updatedAt'] != null) Text('Updated: ${(order['updatedAt'] as Timestamp).toDate().toString()}'),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _exportOrdersToCSV(String sellerId) async {
-    // TODO: Implement CSV export logic (can use csv package and file_saver for web/mobile)
-    // For now, show a snackbar
-    // You can use List<List<String>> rows = ... and convert to CSV string
-    // Then save or share the file
-    // See: https://pub.dev/packages/csv
-    // and https://pub.dev/packages/file_saver
-    // For demo:
-    // ignore: use_build_context_synchronously
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Export to CSV coming soon!')));
-  }
-
-  void _showCreateOrderDialog(BuildContext context, String sellerId) {
-    showDialog(
-      context: context,
-      builder: (context) => _CreateOrderDialog(sellerId: sellerId),
-    );
-  }
-
-  void _showRateSupplierDialog(BuildContext context, String supplierId, String supplierName) {
+  Future _showRateSupplierDialog(BuildContext context, String supplierId, String supplierName) {
     int rating = 5;
     TextEditingController commentController = TextEditingController();
     final user = FirebaseAuth.instance.currentUser;
-    showDialog(
+    return showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: Text('Rate $supplierName'),
@@ -1507,106 +1249,4 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
 
 extension StringCasingExtension on String {
   String capitalize() => isEmpty ? this : '${this[0].toUpperCase()}${substring(1)}';
-}
-
-class _CreateOrderDialog extends StatefulWidget {
-  final String sellerId;
-  const _CreateOrderDialog({required this.sellerId});
-  @override
-  State<_CreateOrderDialog> createState() => _CreateOrderDialogState();
-}
-
-class _CreateOrderDialogState extends State<_CreateOrderDialog> {
-  String? _selectedProductId;
-  int _quantity = 1;
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Create New Order'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('products')
-                .where('sellerId', isEqualTo: widget.sellerId)
-                .snapshots(),
-            builder: (context, snapshot) {
-              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                return const Text('No products available.');
-              }
-              final products = snapshot.data!.docs;
-              return DropdownButton<String>(
-                value: _selectedProductId,
-                hint: const Text('Select Product'),
-                isExpanded: true,
-                items: products.map((doc) {
-                  final data = doc.data() as Map<String, dynamic>;
-                  return DropdownMenuItem<String>(
-                    value: doc.id,
-                    child: Text('${data['name']} (Stock: ${data['quantity']})'),
-                  );
-                }).toList(),
-                onChanged: (val) {
-                  setState(() => _selectedProductId = val);
-                },
-              );
-            },
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              const Text('Quantity:'),
-              const SizedBox(width: 8),
-              Expanded(
-                child: TextField(
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(hintText: '1'),
-                  onChanged: (val) {
-                    final q = int.tryParse(val);
-                    if (q != null && q > 0) setState(() => _quantity = q);
-                  },
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        ElevatedButton(
-          onPressed: _selectedProductId == null || _quantity <= 0
-              ? null
-              : () async {
-                  final productRef = FirebaseFirestore.instance.collection('products').doc(_selectedProductId);
-                  final productSnap = await productRef.get();
-                  final product = productSnap.data() as Map<String, dynamic>;
-                  final currentStock = product['quantity'] ?? 0;
-                  if (_quantity > currentStock) {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Not enough stock.')));
-                    return;
-                  }
-                  // Create order
-                  await FirebaseFirestore.instance.collection('orders').add({
-                    'productId': _selectedProductId,
-                    'productName': product['name'],
-                    'productImage': product['imageUrl'],
-                    'sellerId': widget.sellerId,
-                    'quantity': _quantity,
-                    'price': product['price'],
-                    'status': 'fulfilled',
-                    'createdAt': FieldValue.serverTimestamp(),
-                  });
-                  // Decrease stock
-                  await productRef.update({'quantity': currentStock - _quantity});
-                  Navigator.pop(context);
-                },
-          child: const Text('Create'),
-        ),
-      ],
-    );
-  }
 } 

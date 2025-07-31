@@ -11,7 +11,6 @@ import 'dart:io';
 import '../theme.dart';
 import '../services/image_storage_service.dart';
 import '../services/content_filter_service.dart';
-import '../services/auto_approval_service.dart';
 
 class AddProductPage extends StatefulWidget {
   final Map<String, dynamic>? product;

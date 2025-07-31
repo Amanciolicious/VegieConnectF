@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/messaging_service.dart';
 import '../theme.dart';
 import '../customer-side/chat_conversation_page.dart';
+import '../widgets/chat_widgets.dart';
 
 class SupplierChatPage extends StatefulWidget {
   const SupplierChatPage({super.key});
@@ -26,33 +27,21 @@ class _SupplierChatPageState extends State<SupplierChatPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.primaryGreen,
-        elevation: 0,
-        title: const Text(
-          'Customer Messages',
-          style: TextStyle(color: Colors.white),
-        ),
-        centerTitle: true,
+      appBar: NeumorphicAppBar(
+        title: const Text('Customer Messages'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.search, color: Colors.white),
-            onPressed: () {
-              _showSearchDialog();
-            },
+          NeumorphicButton(
+            onPressed: _showSearchDialog,
+            style: AppNeumorphic.button,
+            child: const Icon(Icons.search, color: AppColors.textPrimary),
           ),
         ],
       ),
       body: StreamBuilder<List<ChatSummary>>(
-        stream: _messagingService.getSupplierChats(),
+        stream: _messagingService.getRealCustomerSupplierChats(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryGreen),
-              ),
-            );
+            return const Center(child: CircularProgressIndicator());
           }
 
           if (snapshot.hasError) {
@@ -62,7 +51,7 @@ class _SupplierChatPageState extends State<SupplierChatPage> {
                 children: [
                   Icon(
                     Icons.error_outline,
-                    size: 80,
+                    size: 64,
                     color: AppColors.accentRed,
                   ),
                   const SizedBox(height: 16),
@@ -76,14 +65,6 @@ class _SupplierChatPageState extends State<SupplierChatPage> {
                     style: AppTextStyles.body.copyWith(
                       color: AppColors.textSecondary,
                     ),
-                  ),
-                  const SizedBox(height: 24),
-                  NeumorphicButton(
-                    onPressed: () {
-                      setState(() {});
-                    },
-                    style: AppNeumorphic.button,
-                    child: const Text('Retry'),
                   ),
                 ],
               ),
@@ -101,10 +82,24 @@ class _SupplierChatPageState extends State<SupplierChatPage> {
             itemCount: chats.length,
             itemBuilder: (context, index) {
               final chat = chats[index];
-              return _buildChatTile(chat);
+              return ChatListItem(
+                chat: chat,
+                onTap: () => _openChat(chat),
+                unreadCount: _getUnreadCount(chat),
+              );
             },
           );
         },
+      ),
+      floatingActionButton: NeumorphicFloatingActionButton(
+        onPressed: () => _showNewChatDialog(),
+        style: AppNeumorphic.button.copyWith(
+          color: AppColors.primaryGreen,
+        ),
+        child: const Icon(
+          Icons.chat,
+          color: Colors.white,
+        ),
       ),
     );
   }
@@ -147,96 +142,7 @@ class _SupplierChatPageState extends State<SupplierChatPage> {
     );
   }
 
-  Widget _buildChatTile(ChatSummary chat) {
-    final currentUserId = _auth.currentUser?.uid;
-    final otherParticipantId = chat.participants
-        .firstWhere((id) => id != currentUserId, orElse: () => '');
-    
-    final isUnread = chat.lastSenderId != currentUserId && 
-                     chat.lastMessageTime != null &&
-                     chat.lastMessageTime!.isAfter(DateTime.now().subtract(const Duration(days: 7)));
 
-    return Neumorphic(
-      style: AppNeumorphic.card,
-      margin: const EdgeInsets.only(bottom: 12),
-      child: ListTile(
-        contentPadding: const EdgeInsets.all(16),
-        leading: CircleAvatar(
-          radius: 25,
-          backgroundColor: AppColors.accentGreen,
-          child: FutureBuilder<DocumentSnapshot>(
-            future: _firestore.collection('users').doc(otherParticipantId).get(),
-            builder: (context, snapshot) {
-              String displayName = 'Customer';
-              if (snapshot.hasData && snapshot.data!.exists) {
-                final userData = snapshot.data!.data() as Map<String, dynamic>?;
-                displayName = userData?['displayName'] ?? userData?['email'] ?? 'Customer';
-              }
-              return Text(
-                displayName.isNotEmpty ? displayName[0].toUpperCase() : 'C',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              );
-            },
-          ),
-        ),
-        title: FutureBuilder<DocumentSnapshot>(
-          future: _firestore.collection('users').doc(otherParticipantId).get(),
-          builder: (context, snapshot) {
-            String displayName = 'Customer';
-            if (snapshot.hasData && snapshot.data!.exists) {
-              final userData = snapshot.data!.data() as Map<String, dynamic>?;
-              displayName = userData?['displayName'] ?? userData?['email'] ?? 'Customer';
-            }
-            return Text(
-              displayName,
-              style: AppTextStyles.body.copyWith(
-                fontWeight: FontWeight.bold,
-                color: isUnread ? AppColors.primaryGreen : AppColors.textPrimary,
-              ),
-            );
-          },
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 4),
-            Text(
-              chat.lastMessage ?? 'No messages yet',
-              style: AppTextStyles.body.copyWith(
-                color: AppColors.textSecondary,
-                fontSize: 14,
-              ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              _formatTime(chat.lastMessageTime),
-              style: AppTextStyles.body.copyWith(
-                color: AppColors.textSecondary,
-                fontSize: 12,
-              ),
-            ),
-          ],
-        ),
-        trailing: isUnread
-            ? Container(
-                width: 12,
-                height: 12,
-                decoration: const BoxDecoration(
-                  color: AppColors.accentRed,
-                  shape: BoxShape.circle,
-                ),
-              )
-            : null,
-        onTap: () => _openChat(chat),
-      ),
-    );
-  }
 
   void _openChat(ChatSummary chat) {
     Navigator.of(context).push(
@@ -298,5 +204,141 @@ class _SupplierChatPageState extends State<SupplierChatPage> {
         ],
       ),
     );
+  }
+
+  int _getUnreadCount(ChatSummary chat) {
+    // TODO: Implement actual unread count logic
+    // For now, return a random number for demonstration
+    final currentUserId = _auth.currentUser?.uid;
+    final isUnread = chat.lastSenderId != currentUserId && 
+                     chat.lastMessageTime != null &&
+                     chat.lastMessageTime!.isAfter(DateTime.now().subtract(const Duration(days: 7)));
+    
+    return isUnread ? (chat.id.hashCode % 5) + 1 : 0;
+  }
+
+  void _showNewChatDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('New Chat'),
+        content: const Text('Select a customer to start chatting with:'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _showCustomerSelectionDialog();
+            },
+            child: const Text('Select Customer'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showCustomerSelectionDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Select Customer'),
+        content: SizedBox(
+          width: double.maxFinite,
+          height: 300,
+          child: StreamBuilder<List<Map<String, dynamic>>>(
+            stream: _messagingService.getAvailableCustomers(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              if (snapshot.hasError) {
+                return const Center(child: Text('Error loading customers'));
+              }
+
+              final customers = snapshot.data ?? [];
+
+              if (customers.isEmpty) {
+                return const Center(
+                  child: Text('No customers available'),
+                );
+              }
+
+              return ListView.builder(
+                itemCount: customers.length,
+                itemBuilder: (context, index) {
+                  final customer = customers[index];
+                  return ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: AppColors.accentGreen,
+                      child: Text(
+                        (customer['displayName'] ?? '?')[0].toUpperCase(),
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                    ),
+                    title: Text(customer['displayName'] ?? 'Unknown Customer'),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(customer['email'] ?? ''),
+                        if (customer['location'] != null && customer['location'].isNotEmpty)
+                          Text(
+                            '📍 ${customer['location']}',
+                            style: AppTextStyles.body.copyWith(
+                              fontSize: 12,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                      ],
+                    ),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _startChatWithCustomer(customer['id']);
+                    },
+                  );
+                },
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _startChatWithCustomer(String customerId) async {
+    try {
+      final chatId = await _messagingService.createChatWithUser(
+        customerId,
+        initialMessage: 'Hello! I\'m a supplier and I\'m here to help you with your vegetable needs.',
+      );
+      if (!mounted) return;
+
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => ChatConversationPage(
+            chatId: chatId,
+            chatTitle: 'New Chat',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error starting chat: $e'),
+          backgroundColor: AppColors.accentRed,
+        ),
+      );
+    }
   }
 } 

@@ -13,6 +13,7 @@ class SupplierLocation {
   final DateTime? updatedAt;
   final bool isActive;
   final double? rating;
+  final int? ratingCount;
   final bool? isNearest;
 
   SupplierLocation({
@@ -28,6 +29,7 @@ class SupplierLocation {
     this.updatedAt,
     this.isActive = true,
     this.rating,
+    this.ratingCount,
     this.isNearest = false,
   });
 
@@ -45,6 +47,7 @@ class SupplierLocation {
       'updatedAt': updatedAt,
       'isActive': isActive,
       'rating': rating,
+      'ratingCount': ratingCount,
       'isNearest': isNearest,
     };
   }
@@ -63,6 +66,7 @@ class SupplierLocation {
       updatedAt: map['updatedAt'] != null ? (map['updatedAt'] as Timestamp).toDate() : null,
       isActive: map['isActive'] ?? true,
       rating: map['rating'] != null ? (map['rating'] as num).toDouble() : null,
+      ratingCount: map['ratingCount'] ?? 0,
       isNearest: map['isNearest'] ?? false,
     );
   }
@@ -80,6 +84,7 @@ class SupplierLocation {
     DateTime? updatedAt,
     bool? isActive,
     double? rating,
+    int? ratingCount,
     bool? isNearest,
   }) {
     return SupplierLocation(
@@ -95,6 +100,7 @@ class SupplierLocation {
       updatedAt: updatedAt ?? this.updatedAt,
       isActive: isActive ?? this.isActive,
       rating: rating ?? this.rating,
+      ratingCount: ratingCount ?? this.ratingCount,
       isNearest: isNearest ?? this.isNearest,
     );
   }

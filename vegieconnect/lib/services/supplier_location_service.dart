@@ -18,23 +18,46 @@ class SupplierLocationService {
           .where('isActive', isEqualTo: true)
           .get();
 
-      return snapshot.docs.map((doc) {
+      final locations = <SupplierLocation>[];
+      
+      for (var doc in snapshot.docs) {
         final data = doc.data();
-        return SupplierLocation(
+        final supplierId = data['supplierId'] ?? '';
+        
+        // Fetch real-time rating data from suppliers collection
+        double? rating;
+        int ratingCount = 0;
+        
+        try {
+          final supplierDoc = await _firestore.collection('suppliers').doc(supplierId).get();
+          if (supplierDoc.exists) {
+            final supplierData = supplierDoc.data()!;
+            rating = supplierData['averageRating']?.toDouble();
+            ratingCount = supplierData['ratingCount'] ?? 0;
+          }
+        } catch (e) {
+          // If supplier rating fetch fails, use fallback rating from location data
+          rating = data['rating']?.toDouble();
+        }
+
+        locations.add(SupplierLocation(
           id: doc.id,
-          supplierId: data['supplierId'] ?? '',
+          supplierId: supplierId,
           supplierName: data['supplierName'] ?? '',
           locationName: data['locationName'] ?? '',
           description: data['description'] ?? '',
           address: data['address'] ?? '',
           latitude: data['latitude'] ?? 0.0,
           longitude: data['longitude'] ?? 0.0,
-          rating: data['rating'] ?? 0.0,
+          rating: rating,
+          ratingCount: ratingCount,
           isActive: data['isActive'] ?? true,
           createdAt: data['createdAt']?.toDate(),
           updatedAt: data['updatedAt']?.toDate(),
-        );
-      }).toList();
+        ));
+      }
+
+      return locations;
     } catch (e) {
       throw Exception('Failed to get supplier locations: $e');
     }
@@ -55,6 +78,23 @@ class SupplierLocationService {
       }
 
       final data = snapshot.docs.first.data();
+      
+      // Fetch real-time rating data from suppliers collection
+      double? rating;
+      int ratingCount = 0;
+      
+      try {
+        final supplierDoc = await _firestore.collection('suppliers').doc(supplierId).get();
+        if (supplierDoc.exists) {
+          final supplierData = supplierDoc.data()!;
+          rating = supplierData['averageRating']?.toDouble();
+          ratingCount = supplierData['ratingCount'] ?? 0;
+        }
+      } catch (e) {
+        // If supplier rating fetch fails, use fallback rating from location data
+        rating = data['rating']?.toDouble();
+      }
+
       return SupplierLocation(
         id: snapshot.docs.first.id,
         supplierId: data['supplierId'] ?? '',
@@ -64,7 +104,8 @@ class SupplierLocationService {
         address: data['address'] ?? '',
         latitude: data['latitude'] ?? 0.0,
         longitude: data['longitude'] ?? 0.0,
-        rating: data['rating'] ?? 0.0,
+        rating: rating,
+        ratingCount: ratingCount,
         isActive: data['isActive'] ?? true,
         createdAt: data['createdAt']?.toDate(),
         updatedAt: data['updatedAt']?.toDate(),

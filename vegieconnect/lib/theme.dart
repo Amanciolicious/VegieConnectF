@@ -52,6 +52,11 @@ class AppTextStyles {
     color: Colors.white,
     fontFamily: 'Poppins',
   );
+  static const TextStyle caption = TextStyle(
+    fontSize: 12,
+    color: AppColors.textSecondary,
+    fontFamily: 'Poppins',
+  );
 }
 
 // Neumorphic style helpers

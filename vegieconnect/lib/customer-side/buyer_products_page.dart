@@ -6,11 +6,21 @@ import 'package:vegieconnect/theme.dart'; // For AppColors
 import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
 // Import the ChatPage
 import 'chat_conversation_page.dart'; // Import the ChatConversationPage
-import 'package:vegieconnect/services/messaging_service.dart'; // Import the MessagingService
+import 'package:vegieconnect/services/local_messaging_service.dart'; // Import the MessagingService
 
 class BuyerProductsPage extends StatefulWidget {
   final String? supplierId;
-  const BuyerProductsPage({super.key, this.supplierId});
+  final String? searchQuery;
+  final String? categoryFilter;
+  final bool? promoFilter;
+  
+  const BuyerProductsPage({
+    super.key, 
+    this.supplierId,
+    this.searchQuery,
+    this.categoryFilter,
+    this.promoFilter,
+  });
 
   static Route routeForSupplier(String supplierId) =>
       MaterialPageRoute(builder: (_) => BuyerProductsPage(supplierId: supplierId));
@@ -27,6 +37,21 @@ class _BuyerProductsPageState extends State<BuyerProductsPage> {
   final user = FirebaseAuth.instance.currentUser;
 
   @override
+  void initState() {
+    super.initState();
+    // Initialize search query if provided
+    if (widget.searchQuery != null) {
+      _searchQuery = widget.searchQuery!;
+      _searchController.text = widget.searchQuery!;
+    }
+    
+    // Initialize category filter if provided
+    if (widget.categoryFilter != null) {
+      _selectedCategory = widget.categoryFilter!;
+    }
+  }
+
+  @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
@@ -40,7 +65,7 @@ class _BuyerProductsPageState extends State<BuyerProductsPage> {
       appBar: AppBar(
         backgroundColor: AppColors.primaryGreen,
         title: Text(
-          widget.supplierId != null ? 'Supplier Products' : 'Browse Products',
+          _getAppBarTitle(),
           style: AppTextStyles.headline.copyWith(color: Colors.white, fontSize: screenWidth * 0.055),
         ),
         elevation: 0,
@@ -207,49 +232,49 @@ class _BuyerProductsPageState extends State<BuyerProductsPage> {
                                     SizedBox(height: screenWidth * 0.03),
                                     Text(product['name'] ?? '', style: AppTextStyles.body.copyWith(fontWeight: FontWeight.bold, fontSize: screenWidth * 0.055)),
                                     SizedBox(height: screenWidth * 0.01),
-                                    Row(
-                                      children: [
-                                        Text('Supplier: ${product['supplierName'] ?? ''}', style: AppTextStyles.body.copyWith(fontSize: screenWidth * 0.04)),
-                                        SizedBox(width: 8),
-                                        NeumorphicButton(
-                                          style: AppNeumorphic.button.copyWith(
-                                            color: Colors.blue,
-                                            boxShape: NeumorphicBoxShape.roundRect(BorderRadius.circular(12)),
-                                          ),
-                                          onPressed: () async {
-                                            Navigator.pop(context); // Close dialog
-                                            try {
-                                              final messagingService = MessagingService();
-                                              final chatId = await messagingService.createChatWithSupplier(product['sellerId']);
-                                              if (!mounted) return;
-                                              
-                                              Navigator.push(
-                                                context,
-                                                MaterialPageRoute(
-                                                  builder: (_) => ChatConversationPage(
-                                                    chatId: chatId,
-                                                    chatTitle: product['supplierName'] ?? 'Supplier',
-                                                  ),
-                                                ),
-                                              );
-                                            } catch (e) {
-                                              ScaffoldMessenger.of(context).showSnackBar(
-                                                SnackBar(
-                                                  content: Text('Error starting chat: $e'),
-                                                  backgroundColor: AppColors.accentRed,
-                                                ),
-                                              );
-                                            }
-                                          },
-                                          child: Row(
-                                            children: [
-                                              Icon(Icons.chat, color: Colors.white, size: 18),
-                                              SizedBox(width: 4),
-                                              Text('Chat with supplier?', style: TextStyle(color: Colors.white, fontSize: screenWidth * 0.032)),
-                                            ],
-                                          ),
+                                    Text('Supplier: ${product['supplierName'] ?? ''}', style: AppTextStyles.body.copyWith(fontSize: screenWidth * 0.04)),
+                                    SizedBox(height: screenWidth * 0.01),
+                                    NeumorphicButton(
+                                      style: AppNeumorphic.button.copyWith(
+                                        color: Colors.blue,
+                                        boxShape: NeumorphicBoxShape.roundRect(BorderRadius.circular(12)),
+                                      ),
+                                      onPressed: () async {
+                                        Navigator.pop(context); // Close dialog
+                                        try {
+                                          final messagingService = LocalMessagingService();
+                                          final chatId = await messagingService.createChatWithSupplier(product['sellerId']);
+                                          if (!mounted) return;
+                                          
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) => ChatConversationPage(
+                                                chatId: chatId,
+                                                chatTitle: product['supplierName'] ?? 'Supplier',
+                                              ),
+                                            ),
+                                          );
+                                        } catch (e) {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(
+                                              content: Text('Error starting chat: $e'),
+                                              backgroundColor: AppColors.accentRed,
+                                            ),
+                                          );
+                                        }
+                                      },
+                                      child: Container(
+                                        padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.03, vertical: screenWidth * 0.015),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(Icons.chat, color: Colors.white, size: 16),
+                                            SizedBox(width: 6),
+                                            Text('Chat', style: TextStyle(color: Colors.white, fontSize: screenWidth * 0.035, fontWeight: FontWeight.w500)),
+                                          ],
                                         ),
-                                      ],
+                                      ),
                                     ),
                                     SizedBox(height: screenWidth * 0.01),
                                     Text('\u20b1${product['price']?.toStringAsFixed(2) ?? '0.00'}', style: AppTextStyles.price.copyWith(fontSize: screenWidth * 0.045)),
@@ -323,48 +348,74 @@ class _BuyerProductsPageState extends State<BuyerProductsPage> {
                                         final result = await showDialog<int>(
                                           context: context,
                                           builder: (context) {
-                                            return AlertDialog(
-                                              title: const Text('Add to Cart'),
-                                              content: Column(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  Text('How many would you like to add to cart?'),
-                                                  const SizedBox(height: 12),
-                                                  Row(
+                                            return StatefulBuilder(
+                                              builder: (context, setDialogState) {
+                                                return AlertDialog(
+                                                  title: const Text('Add to Cart'),
+                                                  content: Column(
+                                                    mainAxisSize: MainAxisSize.min,
                                                     children: [
-                                                      IconButton(
-                                                        icon: const Icon(Icons.remove),
-                                                        onPressed: quantity > 1
-                                                            ? () {
-                                                                quantity--;
-                                                                setState(() {});
-                                                              }
-                                                            : null,
+                                                      Text('How many would you like to add to cart?'),
+                                                      const SizedBox(height: 12),
+                                                      Row(
+                                                        mainAxisAlignment: MainAxisAlignment.center,
+                                                        children: [
+                                                          IconButton(
+                                                            icon: const Icon(Icons.remove),
+                                                            onPressed: quantity > 1
+                                                                ? () {
+                                                                    quantity--;
+                                                                    setDialogState(() {});
+                                                                  }
+                                                                : null,
+                                                          ),
+                                                          Container(
+                                                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                                            decoration: BoxDecoration(
+                                                              border: Border.all(color: Colors.grey),
+                                                              borderRadius: BorderRadius.circular(8),
+                                                            ),
+                                                            child: Text(
+                                                              '$quantity',
+                                                              style: const TextStyle(
+                                                                fontSize: 18,
+                                                                fontWeight: FontWeight.bold,
+                                                              ),
+                                                            ),
+                                                          ),
+                                                          IconButton(
+                                                            icon: const Icon(Icons.add),
+                                                            onPressed: quantity < maxQty
+                                                                ? () {
+                                                                    quantity++;
+                                                                    setDialogState(() {});
+                                                                  }
+                                                                : null,
+                                                          ),
+                                                        ],
                                                       ),
-                                                      Text('$quantity'),
-                                                      IconButton(
-                                                        icon: const Icon(Icons.add),
-                                                        onPressed: quantity < maxQty
-                                                            ? () {
-                                                                quantity++;
-                                                                setState(() {});
-                                                              }
-                                                            : null,
+                                                      const SizedBox(height: 8),
+                                                      Text(
+                                                        'Available: $maxQty ${product['unit'] ?? 'units'}',
+                                                        style: const TextStyle(
+                                                          color: Colors.grey,
+                                                          fontSize: 12,
+                                                        ),
                                                       ),
                                                     ],
                                                   ),
-                                                ],
-                                              ),
-                                              actions: [
-                                                TextButton(
-                                                  onPressed: () => Navigator.pop(context),
-                                                  child: const Text('Cancel'),
-                                                ),
-                                                ElevatedButton(
-                                                  onPressed: () => Navigator.pop(context, quantity),
-                                                  child: const Text('Add'),
-                                                ),
-                                              ],
+                                                  actions: [
+                                                    TextButton(
+                                                      onPressed: () => Navigator.pop(context),
+                                                      child: const Text('Cancel'),
+                                                    ),
+                                                    ElevatedButton(
+                                                      onPressed: () => Navigator.pop(context, quantity),
+                                                      child: const Text('Add'),
+                                                    ),
+                                                  ],
+                                                );
+                                              },
                                             );
                                           },
                                         );
@@ -495,53 +546,79 @@ class _BuyerProductsPageState extends State<BuyerProductsPage> {
                                     );
                                     return;
                                   }
-                                  int quantity = 1;
                                   final maxQty = (product['quantity'] ?? 1) as int;
+                                  int quantity = 1; // Move quantity outside the builder
                                   final result = await showDialog<int>(
                                     context: context,
                                     builder: (context) {
-                                      return AlertDialog(
-                                        title: const Text('Add to Cart'),
-                                        content: Column(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Text('How many would you like to add to cart?'),
-                                            const SizedBox(height: 12),
-                                            Row(
+                                      return StatefulBuilder(
+                                        builder: (context, setDialogState) {
+                                          return AlertDialog(
+                                            title: const Text('Add to Cart'),
+                                            content: Column(
+                                              mainAxisSize: MainAxisSize.min,
                                               children: [
-                                                IconButton(
-                                                  icon: const Icon(Icons.remove),
-                                                  onPressed: quantity > 1
-                                                      ? () {
-                                                          quantity--;
-                                                          setState(() {});
-                                                        }
-                                                      : null,
+                                                Text('How many would you like to add to cart?'),
+                                                const SizedBox(height: 12),
+                                                Row(
+                                                  mainAxisAlignment: MainAxisAlignment.center,
+                                                  children: [
+                                                    IconButton(
+                                                      icon: const Icon(Icons.remove),
+                                                      onPressed: quantity > 1
+                                                          ? () {
+                                                              quantity--;
+                                                              setDialogState(() {});
+                                                            }
+                                                          : null,
+                                                    ),
+                                                    Container(
+                                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                                      decoration: BoxDecoration(
+                                                        border: Border.all(color: Colors.grey),
+                                                        borderRadius: BorderRadius.circular(8),
+                                                      ),
+                                                      child: Text(
+                                                        '$quantity',
+                                                        style: const TextStyle(
+                                                          fontSize: 18,
+                                                          fontWeight: FontWeight.bold,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    IconButton(
+                                                      icon: const Icon(Icons.add),
+                                                      onPressed: quantity < maxQty
+                                                          ? () {
+                                                              quantity++;
+                                                              setDialogState(() {});
+                                                            }
+                                                          : null,
+                                                    ),
+                                                  ],
                                                 ),
-                                                Text('$quantity'),
-                                                IconButton(
-                                                  icon: const Icon(Icons.add),
-                                                  onPressed: quantity < maxQty
-                                                      ? () {
-                                                          quantity++;
-                                                          setState(() {});
-                                                        }
-                                                      : null,
+                                                const SizedBox(height: 8),
+                                                Text(
+                                                  'Available: $maxQty ${product['unit'] ?? 'units'}',
+                                                  style: const TextStyle(
+                                                    color: Colors.grey,
+                                                    fontSize: 12,
+                                                  ),
                                                 ),
                                               ],
                                             ),
-                                          ],
-                                        ),
-                                        actions: [
-                                          TextButton(
-                                            onPressed: () => Navigator.pop(context),
-                                            child: const Text('Cancel'),
-                                          ),
-                                          ElevatedButton(
-                                            onPressed: () => Navigator.pop(context, quantity),
-                                            child: const Text('Add'),
-                                          ),
-                                        ],
+                                            actions: [
+                                              TextButton(
+                                                onPressed: () => Navigator.pop(context),
+                                                child: const Text('Cancel'),
+                                              ),
+                                              ElevatedButton(
+                                                onPressed: () => Navigator.pop(context, quantity),
+                                                child: const Text('Add'),
+                                              ),
+                                            ],
+                                          );
+                                        },
                                       );
                                     },
                                   );
@@ -565,32 +642,36 @@ class _BuyerProductsPageState extends State<BuyerProductsPage> {
     );
   }
 
+  String _getAppBarTitle() {
+    if (widget.supplierId != null) {
+      return 'Supplier Products';
+    } else {
+      return 'Browse Products';
+    }
+  }
+
   Stream<QuerySnapshot> _buildProductQuery() {
-    final base = FirebaseFirestore.instance
+    Query base = FirebaseFirestore.instance
         .collection('products')
         .where('isActive', isEqualTo: true)
         .where('status', whereIn: ['approved', 'pending']); // Show approved and pending products
     
-    if (widget.supplierId != null) {
-      if (_selectedCategory == 'All') {
-        return base
-            .where('sellerId', isEqualTo: widget.supplierId)
-            .snapshots();
-      } else {
-        return base
-            .where('sellerId', isEqualTo: widget.supplierId)
-            .where('category', isEqualTo: _selectedCategory)
-            .snapshots();
-      }
-    } else {
-      if (_selectedCategory == 'All') {
-        return base.snapshots();
-      } else {
-        return base
-            .where('category', isEqualTo: _selectedCategory)
-            .snapshots();
-      }
+    // Apply promo filter if specified
+    if (widget.promoFilter == true) {
+      base = base.where('hasPromo', isEqualTo: true);
     }
+    
+    // Apply supplier filter if specified
+    if (widget.supplierId != null) {
+      base = base.where('sellerId', isEqualTo: widget.supplierId);
+    }
+    
+    // Apply category filter
+    if (_selectedCategory != 'All') {
+      base = base.where('category', isEqualTo: _selectedCategory);
+    }
+    
+    return base.snapshots();
   }
 
   Future<void> _addToCart(String productId, Map<String, dynamic> product, int quantity) async {
