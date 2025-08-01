@@ -1,9 +1,6 @@
 service cloud.firestore {
   match /databases/{database}/documents {
     function isAdmin() {
-      // If using custom claims:
-      // return request.auth.token.admin == true;
-      // If using a field in the user document:
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
@@ -15,29 +12,51 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'buyer';
     }
 
+    function isValidUser() {
+      return request.auth != null && 
+             request.auth.uid != null && 
+             request.auth.uid != '';
+    }
+
+    function hasValidParticipants(participants) {
+      return participants != null && 
+             participants is list && 
+             participants.size() > 0 &&
+             participants.hasAll([request.auth.uid]);
+    }
+
+    function hasValidMessageData(data) {
+      return data.senderId != null && 
+             data.senderId != '' &&
+             data.senderName != null && 
+             data.senderName != '' &&
+             data.message != null && 
+             data.message != '';
+    }
+
     // Users: Admins can read/write any, users can read/write their own
     match /users/{userId} {
-      allow read, write: if isAdmin() || (request.auth != null && request.auth.uid == userId);
-      allow read: if request.auth != null; // Allow reading user data for chat creation
+      allow read, write: if isAdmin() || (isValidUser() && request.auth.uid == userId);
+      allow read: if isValidUser(); // Allow reading user data for chat creation
 
       // Cart: Only the user can read/write their own cart
       match /cart/{cartItemId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read, write: if isValidUser() && request.auth.uid == userId;
       }
     }
 
     // Orders: Admins, seller, or buyer can read/write; create if involved
     match /orders/{orderId} {
       allow read: if isAdmin() || (
-        request.auth != null &&
+        isValidUser() &&
         (request.auth.uid == resource.data.sellerId || request.auth.uid == resource.data.buyerId)
       );
       allow create: if isAdmin() || (
-        request.auth != null &&
+        isValidUser() &&
         (request.resource.data.sellerId == request.auth.uid || request.resource.data.buyerId == request.auth.uid)
       );
       allow update: if isAdmin() || (
-        request.auth != null &&
+        isValidUser() &&
         (request.auth.uid == resource.data.sellerId || request.auth.uid == resource.data.buyerId)
       );
       allow delete: if isAdmin();
@@ -45,100 +64,95 @@ service cloud.firestore {
 
     // Payments: Allow authenticated users to create payments, admins can read all
     match /payments/{paymentId} {
-      allow read: if isAdmin() || (request.auth != null && request.auth.uid == resource.data.userId);
-      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
-      allow update: if isAdmin() || (request.auth.uid == resource.data.userId);
+      allow read: if isAdmin() || (isValidUser() && request.auth.uid == resource.data.userId);
+      allow create: if isValidUser() && request.auth.uid == request.resource.data.userId;
+      allow update: if isAdmin() || (isValidUser() && request.auth.uid == resource.data.userId);
       allow delete: if isAdmin();
     }
 
     // Notifications: Users can read their own notifications, admins can read all
     match /notifications/{notificationId} {
-      allow read: if isAdmin() || (request.auth != null && request.auth.uid == resource.data.userId);
-      allow create: if isAdmin() || (request.auth != null && request.auth.uid == request.resource.data.userId);
-      allow update: if isAdmin() || (request.auth != null && request.auth.uid == resource.data.userId);
-      allow delete: if isAdmin() || (request.auth != null && request.auth.uid == resource.data.userId);
-    }
-
-    // Chat Messages: Users can read/write messages in conversations they're part of
-    match /chat_messages/{messageId} {
-      allow read, write: if request.auth != null && (
-        request.auth.uid == resource.data.senderId || 
-        request.auth.uid == resource.data.receiverId ||
-        isAdmin()
-      );
-    }
-
-    // Chat Conversations: Users can read/write conversations they're part of
-    match /chat_conversations/{conversationId} {
-      allow read, write: if request.auth != null && (
-        request.auth.uid == resource.data.participant1 || 
-        request.auth.uid == resource.data.participant2 ||
-        isAdmin()
-      );
+      allow read: if isAdmin() || (isValidUser() && request.auth.uid == resource.data.userId);
+      allow create: if isAdmin() || (isValidUser() && request.auth.uid == request.resource.data.userId);
+      allow update: if isAdmin() || (isValidUser() && request.auth.uid == resource.data.userId);
+      allow delete: if isAdmin() || (isValidUser() && request.auth.uid == resource.data.userId);
     }
 
     // Chats: Users can read/write chats they're participants in
     match /chats/{chatId} {
-      allow read, write: if request.auth != null && (
-        request.auth.uid in resource.data.participants ||
+      allow read: if isValidUser() && (
+        hasValidParticipants(resource.data.participants) ||
         isAdmin()
       );
-      allow create: if request.auth != null && (
-        request.auth.uid in request.resource.data.participants
+      allow create: if isValidUser() && (
+        hasValidParticipants(request.resource.data.participants) &&
+        request.resource.data.chatType != null &&
+        request.resource.data.chatType != ''
       );
+      allow update: if isValidUser() && (
+        hasValidParticipants(resource.data.participants) ||
+        isAdmin()
+      );
+      allow delete: if isAdmin();
       
       // Messages subcollection: Participants can read/write messages
       match /messages/{messageId} {
-        allow read, write: if request.auth != null && (
-          request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants ||
+        allow read: if isValidUser() && (
+          hasValidParticipants(get(/databases/$(database)/documents/chats/$(chatId)).data.participants) ||
           isAdmin()
         );
-        allow create: if request.auth != null && (
-          request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants
+        allow create: if isValidUser() && (
+          hasValidParticipants(get(/databases/$(database)/documents/chats/$(chatId)).data.participants) &&
+          hasValidMessageData(request.resource.data)
         );
+        allow update: if isValidUser() && (
+          hasValidParticipants(get(/databases/$(database)/documents/chats/$(chatId)).data.participants) ||
+          isAdmin()
+        );
+        allow delete: if isAdmin();
       }
     }
 
     // Products: Anyone can read, only seller or admin can write/create
     match /products/{productId} {
       allow read: if true;
-      allow update, delete: if isAdmin() || (request.auth != null && request.auth.uid == resource.data.sellerId);
-      allow create: if isAdmin() || (request.auth != null && request.resource.data.sellerId == request.auth.uid);
+      allow update, delete: if isAdmin() || (isValidUser() && request.auth.uid == resource.data.sellerId);
+      allow create: if isAdmin() || (isValidUser() && request.resource.data.sellerId == request.auth.uid);
     }
 
     // Farm Locations: Anyone can read, only admin or authenticated users can write
     match /farm_locations/{farmId} {
       allow read: if true;
-      allow create, update, delete: if isAdmin() || request.auth != null;
+      allow create, update, delete: if isAdmin() || isValidUser();
     }
 
     // Supplier Locations: Anyone can read, only admin or the supplier (by supplierId field) can write
     match /supplier_locations/{docId} {
       allow read: if true;
       allow create, update, delete: if isAdmin() ||
-        (request.auth != null && request.auth.uid == request.resource.data.supplierId);
+        (isValidUser() && request.auth.uid == request.resource.data.supplierId);
     }
 
     // Suppliers: Anyone can read (for ratings), only admin or the supplier can write
     match /suppliers/{supplierId} {
       allow read: if true; // Public read access for rating display
-      allow create: if isAdmin() || (request.auth != null && request.auth.uid == supplierId);
-      allow update: if isAdmin() || (request.auth != null && request.auth.uid == supplierId);
+      allow create: if isAdmin() || (isValidUser() && request.auth.uid == supplierId);
+      allow update: if isAdmin() || (isValidUser() && request.auth.uid == supplierId);
       allow delete: if isAdmin();
     }
 
     // Order Ratings: Anyone can read, only the buyer who placed the order can create/update
     match /order_ratings/{ratingId} {
       allow read: if true; // Public read access for rating display
-      allow create: if request.auth != null && request.auth.uid == request.resource.data.buyerId;
-      allow update: if request.auth != null && request.auth.uid == resource.data.buyerId;
-      allow delete: if isAdmin() || (request.auth != null && request.auth.uid == resource.data.buyerId);
+      allow create: if isValidUser() && request.auth.uid == request.resource.data.buyerId;
+      allow update: if isValidUser() && request.auth.uid == resource.data.buyerId;
+      allow delete: if isAdmin() || (isValidUser() && request.auth.uid == resource.data.buyerId);
     }
 
     // Supplier Ratings: Anyone can read, only admin or authenticated users can write
     match /supplier_ratings/{ratingId} {
       allow read: if true;
-      allow create, update, delete: if isAdmin() || request.auth != null;
+      allow create, update, delete: if isAdmin() || isValidUser();
     }
 
     // Categories: Anyone can read, only admins can write
@@ -165,7 +179,7 @@ service cloud.firestore {
 
     // Test collection: Allow for testing purposes (remove in production)
     match /test/{docId} {
-      allow read, write: if request.auth != null;
+      allow read, write: if isValidUser();
     }
   }
 } 

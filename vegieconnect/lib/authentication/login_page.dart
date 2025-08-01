@@ -127,7 +127,7 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                       SizedBox(height: screenWidth * 0.04),
                       Text(
-                        'VegieConnect',
+                        'VeggieConnect',
                         style: AppTextStyles.headline.copyWith(
                           fontSize: screenWidth * 0.08,
                           color: AppColors.primaryGreen,
@@ -225,29 +225,32 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                       SizedBox(height: screenWidth * 0.05),
                       // Login Button
-                      NeumorphicButton(
-                        style: AppNeumorphic.button.copyWith(
-                          color: AppColors.primaryGreen,
-                        ),
-                        onPressed: _isLoading ? null : _handleLogin,
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(vertical: screenWidth * 0.04),
-                          child: _isLoading
-                              ? SizedBox(
-                                  height: screenWidth * 0.05,
-                                  width: screenWidth * 0.05,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      SizedBox(
+                        width: screenWidth * 0.6, // Make button smaller
+                        child: NeumorphicButton(
+                          style: AppNeumorphic.button.copyWith(
+                            color: AppColors.primaryGreen,
+                          ),
+                          onPressed: _isLoading ? null : _handleLogin,
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(vertical: screenWidth * 0.03), // Reduced padding
+                            child: _isLoading
+                                ? SizedBox(
+                                    height: screenWidth * 0.04,
+                                    width: screenWidth * 0.04,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                    ),
+                                  )
+                                : Text(
+                                    'Login',
+                                    style: AppTextStyles.button.copyWith(
+                                      color: Colors.white,
+                                      fontSize: screenWidth * 0.04, // Smaller font
+                                    ),
                                   ),
-                                )
-                              : Text(
-                                  'Login',
-                                  style: AppTextStyles.button.copyWith(
-                                    color: Colors.white,
-                                    fontSize: screenWidth * 0.045,
-                                  ),
-                                ),
+                          ),
                         ),
                       ),
                       SizedBox(height: screenWidth * 0.04),

@@ -28,6 +28,11 @@ class PaymentService {
   // Get current environment
   String get environment => PaymongoConfig.environment;
 
+  // Test Paymongo connection
+  Future<Map<String, dynamic>> testConnection() async {
+    return await testPaymongoConnection();
+  }
+
   // Create payment intent with Paymongo for external browser processing
   Future<Map<String, dynamic>> createExternalPaymentIntent({
     required double amount,
@@ -887,7 +892,6 @@ class PaymentService {
       debugPrint('Environment: ${PaymongoConfig.environment}');
       debugPrint('Base URL: ${PaymongoConfig.baseUrl}');
       debugPrint('Secret Key: ${PaymongoConfig.secretKey.substring(0, 10)}...');
-      debugPrint('Public Key: ${PaymongoConfig.publicKey.substring(0, 10)}...');
 
       if (!PaymongoConfig.isConfigured) {
         return {
@@ -897,48 +901,33 @@ class PaymentService {
         };
       }
 
-      // Test API connection by creating a minimal payment method
-      // This is a better test than trying to list payment intents
-      final url = Uri.parse('${PaymongoConfig.baseUrl}/payment_methods');
+      // Test API connection by listing payment intents (simpler test)
+      final url = Uri.parse('${PaymongoConfig.baseUrl}/payment_intents');
       
-      final testRequestBody = {
-        'data': {
-          'attributes': {
-            'type': 'gcash',
-            'billing': {
-              'name': 'Test User',
-              'email': 'test@example.com',
-            },
-          },
-        },
-      };
-
-      final response = await http.post(
+      final response = await http.get(
         url,
         headers: {
           'Authorization': 'Basic ${base64Encode(utf8.encode('${PaymongoConfig.secretKey}:'))}',
           'Content-Type': 'application/json',
         },
-        body: jsonEncode(testRequestBody),
       );
 
       debugPrint('Test Response Status: ${response.statusCode}');
       debugPrint('Test Response Body: ${response.body}');
 
-      if (response.statusCode == 201 || response.statusCode == 200) {
-        // Successfully created a test payment method
-        final data = jsonDecode(response.body);
+      if (response.statusCode == 200) {
+        // Successfully connected to Paymongo API
         return {
           'success': true,
           'message': 'Paymongo API connection successful',
           'environment': PaymongoConfig.environment,
-          'test_payment_method_id': data['data']['id'],
+          'details': 'Test mode - Ready for payment processing',
         };
       } else if (response.statusCode == 401) {
         return {
           'success': false,
           'error': 'Authentication failed',
-          'details': 'Invalid API credentials - Check your secret key',
+          'details': 'Invalid API credentials - Please check your test secret key',
         };
       } else if (response.statusCode == 400) {
         return {

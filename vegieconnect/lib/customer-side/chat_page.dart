@@ -95,6 +95,7 @@ class _ChatPageState extends State<ChatPage> {
                 chat: chat,
                 onTap: () => _openChat(chat),
                 unreadCount: _getUnreadCount(chat),
+                onDelete: () => _showDeleteChatDialog(chat),
               );
             },
           );
@@ -339,5 +340,49 @@ class _ChatPageState extends State<ChatPage> {
            DateTime.now().difference(chat.lastMessageTime!).inHours < 24 
            ? (chat.id.hashCode % 5) + 1 
            : 0;
+  }
+
+  void _showDeleteChatDialog(ChatSummary chat) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Conversation'),
+        content: Text('Are you sure you want to delete your conversation with ${chat.lastSenderName ?? 'this user'}? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _deleteChat(chat);
+            },
+            style: TextButton.styleFrom(foregroundColor: AppColors.accentRed),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteChat(ChatSummary chat) async {
+    try {
+      await _messagingService.deleteConversation(chat.id);
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Conversation deleted'),
+          backgroundColor: AppColors.primaryGreen,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error deleting conversation: $e'),
+          backgroundColor: AppColors.accentRed,
+        ),
+      );
+    }
   }
 } 

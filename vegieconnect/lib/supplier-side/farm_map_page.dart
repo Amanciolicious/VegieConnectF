@@ -659,16 +659,19 @@ class _SupplierLocationPageState extends State<SupplierLocationPage> {
                       point: LatLng(farm.latitude, farm.longitude),
                       width: 40,
                       height: 40,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.orange,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 2),
-                        ),
-                        child: const Icon(
-                          Icons.agriculture,
-                          color: Colors.white,
-                          size: 24,
+                      child: GestureDetector(
+                        onTap: () => _showFarmDetails(farm),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.orange,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 2),
+                          ),
+                          child: const Icon(
+                            Icons.agriculture,
+                            color: Colors.white,
+                            size: 24,
+                          ),
                         ),
                       ),
                     )).toList(),
@@ -860,6 +863,86 @@ class _SupplierLocationPageState extends State<SupplierLocationPage> {
               label: Text(_isEditingPin ? 'Cancel' : 'Move Location'),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+    );
+  }
+
+  void _showFarmDetails(FarmLocation farm) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              const Icon(Icons.agriculture, color: Colors.orange),
+              const SizedBox(width: 8),
+              Expanded(child: Text(farm.name)),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Farm Name
+              Text(
+                'Farm Name: ${farm.name}',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 8),
+              
+              // Canvassed By
+              Text(
+                'Canvassed By: ${farm.supplierName}',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                  color: Colors.blue,
+                ),
+              ),
+              const SizedBox(height: 8),
+              
+              // Description
+              if (farm.description.isNotEmpty) ...[
+                Text(
+                  'Description: ${farm.description}',
+                  style: const TextStyle(fontSize: 14),
+                ),
+                const SizedBox(height: 8),
+              ],
+              
+              // Address
+              if (farm.address.isNotEmpty) ...[
+                Text(
+                  'Address: ${farm.address}',
+                  style: const TextStyle(fontSize: 14),
+                ),
+                const SizedBox(height: 8),
+              ],
+              
+              // Coordinates
+              Text(
+                'Coordinates: ${farm.latitude.toStringAsFixed(6)}, ${farm.longitude.toStringAsFixed(6)}',
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              const SizedBox(height: 8),
+              
+              // Added Date
+              Text(
+                'Added: ${farm.createdAt.toString().split('.')[0]}',
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
     );
   }
 }

@@ -5,7 +5,7 @@ import '../services/messaging_service.dart';
 import '../services/notification_service.dart';
 import '../widgets/chat_widgets.dart' show ChatBubble, MessageInput, TypingIndicator;
 import '../theme.dart';
-import 'dart:async'; // Added for Timer
+import 'dart:async'; // Added for Timer and StreamSubscription
 import 'package:flutter/services.dart'; // Added for clipboard
 
 class ChatConversationPage extends StatefulWidget {
@@ -34,6 +34,8 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
   Map<String, bool> _typingUsers = {};
   List<ChatMessage> _messages = [];
   Timer? _typingTimer;
+  StreamSubscription? _messagesSubscription;
+  StreamSubscription? _typingSubscription;
 
   @override
   void initState() {
@@ -46,7 +48,12 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
     _scrollController.dispose();
     _messageController.dispose();
     _typingTimer?.cancel();
-    _messagingService.setTypingIndicator(widget.chatId, false);
+    _messagesSubscription?.cancel();
+    _typingSubscription?.cancel();
+    // Only set typing indicator if still mounted
+    if (mounted) {
+      _messagingService.setTypingIndicator(widget.chatId, false);
+    }
     super.dispose();
   }
 
@@ -56,28 +63,36 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
       await _messagingService.markMessagesAsRead(widget.chatId);
 
       // Listen to messages
-      _messagingService.getChatMessages(widget.chatId).listen((messages) {
-        setState(() {
-          _messages = messages;
-        });
-        
-        // Auto-scroll to bottom for new messages
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (_scrollController.hasClients && _messages.isNotEmpty) {
-            _scrollController.animateTo(
-              0,
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeOut,
-            );
-          }
-        });
+      _messagesSubscription = _messagingService.getChatMessages(widget.chatId).listen((messages) {
+        if (mounted) {
+          setState(() {
+            _messages = messages.where((msg) => 
+              msg.message.isNotEmpty && 
+              msg.senderName.isNotEmpty && 
+              msg.senderId.isNotEmpty
+            ).toList();
+          });
+          
+          // Auto-scroll to bottom for new messages
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && _scrollController.hasClients && _messages.isNotEmpty) {
+              _scrollController.animateTo(
+                0,
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeOut,
+              );
+            }
+          });
+        }
       });
 
       // Listen to typing indicators
-      _messagingService.getTypingIndicator(widget.chatId).listen((typingUsers) {
-        setState(() {
-          _typingUsers = typingUsers;
-        });
+      _typingSubscription = _messagingService.getTypingIndicator(widget.chatId).listen((typingUsers) {
+        if (mounted) {
+          setState(() {
+            _typingUsers = typingUsers;
+          });
+        }
       });
     } catch (e) {
       debugPrint('Error initializing chat: $e');
@@ -85,11 +100,13 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
   }
 
   Future<void> _sendMessage(String message) async {
-    if (message.trim().isEmpty) return;
+    if (message.trim().isEmpty || !mounted) return;
 
-    setState(() {
-      _isLoading = true;
-    });
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+      });
+    }
 
     try {
       await _messagingService.sendMessage(
@@ -101,11 +118,13 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
       _messageController.clear();
       
       // Stop typing indicator
-      _setTypingIndicator(false);
+      if (mounted) {
+        _setTypingIndicator(false);
+      }
       
       // Show notification to other user
       final currentUser = _auth.currentUser;
-      if (currentUser != null) {
+      if (currentUser != null && mounted) {
         _notificationService.sendChatNotification(
           senderName: currentUser.displayName ?? currentUser.email ?? 'Unknown',
           message: message.trim(),
@@ -114,16 +133,20 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
       }
     } catch (e) {
       debugPrint('Error sending message: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error sending message: $e'),
-          backgroundColor: AppColors.accentRed,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error sending message: $e'),
+            backgroundColor: AppColors.accentRed,
+          ),
+        );
+      }
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -136,13 +159,13 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
       _typingTimer!.cancel();
     }
 
-    if (text.isNotEmpty && !_isTyping) {
+    if (text.isNotEmpty && !_isTyping && mounted) {
       _setTypingIndicator(true);
       _isTyping = true;
     }
 
     _typingTimer = Timer(const Duration(milliseconds: 1000), () {
-      if (_isTyping) {
+      if (_isTyping && mounted) {
         _setTypingIndicator(false);
         _isTyping = false;
       }
@@ -426,6 +449,14 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
                 _showClearChatDialog();
               },
             ),
+            ListTile(
+              leading: const Icon(Icons.delete_forever, color: AppColors.accentRed),
+              title: const Text('Delete Conversation'),
+              onTap: () {
+                Navigator.pop(context);
+                _showDeleteConversationDialog();
+              },
+            ),
           ],
         ),
       ),
@@ -498,6 +529,57 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
           backgroundColor: AppColors.accentRed,
         ),
       );
+    }
+  }
+
+  void _showDeleteConversationDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Conversation'),
+        content: const Text('Are you sure you want to delete this entire conversation? This action cannot be undone and will remove all messages permanently.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _deleteConversation();
+            },
+            style: TextButton.styleFrom(foregroundColor: AppColors.accentRed),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteConversation() async {
+    try {
+      await _messagingService.deleteConversation(widget.chatId);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Conversation deleted'),
+            backgroundColor: AppColors.primaryGreen,
+          ),
+        );
+        
+        // Navigate back to chat list
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error deleting conversation: $e'),
+            backgroundColor: AppColors.accentRed,
+          ),
+        );
+      }
     }
   }
 } 

@@ -8,7 +8,7 @@ import '../authentication/login_page.dart';
 import 'buyer_products_page.dart';
 import 'buyer_order_history_page.dart';
 import 'farm_locations_page.dart';
-import 'payment_test_page.dart'; // Added for payment testing
+
 
 import 'package:vegieconnect/theme.dart'; // Correct import for AppColors
 import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
@@ -164,16 +164,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
                 );
               },
             ),
-            ListTile(
-              leading: const Icon(Icons.payment, color: AppColors.accentGreen),
-              title: const Text('Payment Test'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const PaymentTestPage()),
-                );
-              },
-            ),
+
             ListTile(
               leading: const Icon(Icons.chat_bubble_outline, color: AppColors.accentGreen),
               title: const Text('My Chats'),
@@ -186,21 +177,6 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
             ),
 
             const Divider(),
-            ListTile(
-              leading: const Icon(Icons.receipt_long, color: AppColors.accentGreen),
-              title: const Text('Orders'),
-              onTap: () {
-                Navigator.pop(context);
-                showDialog(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: const Text('Orders'),
-                    content: const Text('Order history coming soon!'),
-                    actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
-                  ),
-                );
-              },
-            ),
             ListTile(
               leading: const Icon(Icons.logout, color: Colors.red),
               title: const Text('Logout'),

@@ -298,12 +298,15 @@ class _FarmLocationsPageState extends State<FarmLocationsPage> {
               ),
             ],
           ),
-          actions: [
+                    actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.primaryGreen,
+              ),
               child: const Text('Close'),
             ),
-                          ElevatedButton.icon(
+            ElevatedButton.icon(
                 onPressed: () {
                   Navigator.of(context).pop();
                   _showDetailedDirections(nearestSupplier);
@@ -453,6 +456,9 @@ class _FarmLocationsPageState extends State<FarmLocationsPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.primaryGreen,
+              ),
               child: const Text('Close'),
             ),
             if (_userLocation != null)
@@ -700,6 +706,9 @@ class _FarmLocationsPageState extends State<FarmLocationsPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.primaryGreen,
+              ),
               child: const Text('Close'),
             ),
             ElevatedButton(
@@ -707,6 +716,10 @@ class _FarmLocationsPageState extends State<FarmLocationsPage> {
                 Navigator.of(context).pop();
                 _openInMaps(farm);
               },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryGreen,
+                foregroundColor: Colors.white,
+              ),
               child: const Text('Open in Maps'),
             ),
           ],
@@ -833,6 +846,9 @@ class _FarmLocationsPageState extends State<FarmLocationsPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.primaryGreen,
+              ),
               child: const Text('Close'),
             ),
             ElevatedButton(
@@ -840,6 +856,10 @@ class _FarmLocationsPageState extends State<FarmLocationsPage> {
                 Navigator.of(context).pop();
                 _openInMapsSupplier(supplier);
               },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryGreen,
+                foregroundColor: Colors.white,
+              ),
               child: const Text('Open in Maps'),
             ),
           ],

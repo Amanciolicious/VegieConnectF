@@ -77,6 +77,10 @@ class MessagingService {
       (snapshot) {
         final messages = snapshot.docs
             .map((doc) => ChatMessage.fromFirestore(doc))
+            .where((msg) => 
+                (msg.message ?? '').isNotEmpty && 
+                (msg.senderId ?? '').isNotEmpty &&
+                (msg.senderName ?? '').isNotEmpty)
             .toList();
         
         // Update cache
@@ -129,12 +133,14 @@ class MessagingService {
     try {
       final user = _auth.currentUser;
       if (user == null) throw Exception('User not authenticated');
+      if (chatId.isEmpty) throw Exception('Chat ID is empty');
+      if (message.trim().isEmpty) throw Exception('Message is empty');
 
       final chatMessage = ChatMessage(
         id: '', // Will be set by Firestore
         senderId: user.uid,
         senderName: user.displayName ?? user.email ?? 'Unknown',
-        message: message,
+        message: message.trim(),
         imageUrl: imageUrl,
         timestamp: DateTime.now(),
         metadata: metadata ?? {},
@@ -189,7 +195,7 @@ class MessagingService {
   Future<void> startTyping(String chatId) async {
     try {
       final user = _auth.currentUser;
-      if (user == null) return;
+      if (user == null || chatId.isEmpty) return;
 
       await _firestore.collection('chats').doc(chatId).set({
         'typingUsers': {
@@ -206,10 +212,10 @@ class MessagingService {
   Future<void> stopTyping(String chatId) async {
     try {
       final user = _auth.currentUser;
-      if (user == null) return;
+      if (user == null || chatId.isEmpty) return;
 
       await _firestore.collection('chats').doc(chatId).update({
-        'typingUsers.$user.uid': FieldValue.delete(),
+        'typingUsers.${user.uid}': FieldValue.delete(),
       });
     } catch (e) {
       debugPrint('Error stopping typing: $e');
@@ -292,11 +298,13 @@ class MessagingService {
       if (user == null) throw Exception('User not authenticated');
 
       final chatId = _generateChatId(user.uid, supplierId);
+      debugPrint('Generated chat ID: $chatId for user: ${user.uid} and supplier: $supplierId');
 
       // Check if chat exists
       final chatDoc = await _firestore.collection('chats').doc(chatId).get();
       
       if (!chatDoc.exists) {
+        debugPrint('Creating new chat: $chatId');
         // Get supplier details
         final supplierDoc = await _firestore.collection('users').doc(supplierId).get();
         final supplierData = supplierDoc.data();
@@ -313,8 +321,16 @@ class MessagingService {
           'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
           'typingUsers': {},
-          'metadata': {},
+          'metadata': {
+            'participantNames': {
+              user.uid: user.displayName ?? user.email ?? 'User',
+              supplierId: supplierName,
+            },
+          },
         });
+        debugPrint('New chat created successfully: $chatId');
+      } else {
+        debugPrint('Chat already exists: $chatId');
       }
 
       return chatId;
@@ -348,7 +364,7 @@ class MessagingService {
             try {
               return snapshot.docs
                   .map((doc) => ChatSummary.fromFirestore(doc))
-                  .where((chat) => chat.participants.isNotEmpty) // Filter out invalid chats
+                  .where((chat) => chat.participants.isNotEmpty && chat.participants.length >= 2) // Filter out invalid chats
                   .toList();
             } catch (e) {
               debugPrint('getUserChats: Error processing chat documents: $e');
@@ -384,7 +400,7 @@ class MessagingService {
             try {
               return snapshot.docs
                   .map((doc) => ChatSummary.fromFirestore(doc))
-                  .where((chat) => chat.participants.isNotEmpty) // Filter out invalid chats
+                  .where((chat) => chat.participants.isNotEmpty && chat.participants.length >= 2) // Filter out invalid chats
                   .toList();
             } catch (e) {
               debugPrint('getSupplierChats: Error processing chat documents: $e');
@@ -487,6 +503,42 @@ class MessagingService {
     }
   }
 
+  // Delete entire conversation
+  Future<void> deleteConversation(String chatId) async {
+    try {
+      // Delete all messages in the conversation
+      final messagesSnapshot = await _firestore
+          .collection('chats')
+          .doc(chatId)
+          .collection('messages')
+          .get();
+      
+      final batch = _firestore.batch();
+      for (final doc in messagesSnapshot.docs) {
+        batch.delete(doc.reference);
+      }
+      
+      // Delete the chat document itself
+      batch.delete(_firestore.collection('chats').doc(chatId));
+      
+      await batch.commit();
+      
+      // Clear cache and streams
+      _chatCache.remove(chatId);
+      _chatControllers[chatId]?.close();
+      _chatControllers.remove(chatId);
+      _chatSubscriptions[chatId]?.cancel();
+      _chatSubscriptions.remove(chatId);
+      
+      debugPrint('Conversation deleted successfully: $chatId');
+    } catch (e) {
+      debugPrint('Error deleting conversation: $e');
+      rethrow;
+    }
+  }
+
+
+
   // Enhanced method to get real customer-supplier chats
   Stream<List<ChatSummary>> getRealCustomerSupplierChats() {
     final user = _auth.currentUser;
@@ -495,19 +547,27 @@ class MessagingService {
       return Stream.value([]);
     }
 
+    debugPrint('getRealCustomerSupplierChats: Loading chats for user: ${user.uid}');
+
     try {
       return _firestore
           .collection('chats')
           .where('participants', arrayContains: user.uid)
-          .where('chatType', isEqualTo: 'supplier_buyer')
           .orderBy('updatedAt', descending: true)
           .snapshots()
           .map((snapshot) {
             try {
-              return snapshot.docs
+              final chats = snapshot.docs
                   .map((doc) => ChatSummary.fromFirestore(doc))
-                  .where((chat) => chat.participants.isNotEmpty)
+                  .where((chat) => chat.participants.isNotEmpty && chat.participants.length >= 2)
                   .toList();
+              
+              debugPrint('getRealCustomerSupplierChats: Found ${chats.length} chats for user: ${user.uid}');
+              for (final chat in chats) {
+                debugPrint('Chat ID: ${chat.id}, Participants: ${chat.participants}, Last Message: ${chat.lastMessage}');
+              }
+              
+              return chats;
             } catch (e) {
               debugPrint('getRealCustomerSupplierChats: Error processing chat documents: $e');
               return <ChatSummary>[];
@@ -515,6 +575,7 @@ class MessagingService {
           })
           .handleError((error) {
             debugPrint('getRealCustomerSupplierChats: Firestore error: $error');
+            // Return empty list instead of throwing error
             return <ChatSummary>[];
           });
     } catch (e) {
@@ -615,14 +676,12 @@ class MessagingService {
       final userData = userDoc.data() as Map<String, dynamic>;
       final otherUserData = otherUserDoc.data() as Map<String, dynamic>;
 
-      // Create chat with enhanced metadata
-      final chatRef = _firestore.collection('chats').doc();
-      await chatRef.set({
-        'participants': [user.uid, otherUserId],
+      // Use createOrGetChat to prevent duplicate chats
+      final chatId = await createOrGetChat(otherUserId);
+
+      // Update chat metadata with enhanced information
+      await _firestore.collection('chats').doc(chatId).update({
         'chatType': 'supplier_buyer',
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-        'typingUsers': {},
         'metadata': {
           'participantNames': {
             user.uid: userData['displayName'] ?? userData['email'] ?? 'Unknown',
@@ -639,8 +698,6 @@ class MessagingService {
         },
       });
 
-      final chatId = chatRef.id;
-
       // Send initial message if provided
       if (initialMessage != null && initialMessage.isNotEmpty) {
         await sendMessage(
@@ -649,7 +706,7 @@ class MessagingService {
         );
       }
 
-      debugPrint('Real chat created successfully: $chatId');
+      debugPrint('Real chat created/retrieved successfully: $chatId');
       return chatId;
     } catch (e) {
       debugPrint('Error creating real chat: $e');
@@ -734,7 +791,7 @@ class MessagingService {
   Future<void> setTypingIndicator(String chatId, bool isTyping) async {
     try {
       final user = _auth.currentUser;
-      if (user == null) return;
+      if (user == null || chatId.isEmpty) return;
 
       if (isTyping) {
         await startTyping(chatId);
@@ -855,12 +912,31 @@ class ChatMessage {
         );
       }
       
+      // Validate required fields
+      final senderId = data['senderId']?.toString() ?? '';
+      final senderName = data['senderName']?.toString() ?? '';
+      final message = data['message']?.toString() ?? '';
+      
+      // If any required field is empty, return a safe default
+      if (senderId.isEmpty || senderName.isEmpty || message.isEmpty) {
+        debugPrint('ChatMessage.fromFirestore: Missing required fields for ${doc.id}');
+        return ChatMessage(
+          id: doc.id,
+          senderId: senderId.isEmpty ? 'unknown' : senderId,
+          senderName: senderName.isEmpty ? 'Unknown User' : senderName,
+          message: message.isEmpty ? 'Empty message' : message,
+          timestamp: DateTime.now(),
+          metadata: {},
+          status: MessageStatus.failed,
+        );
+      }
+      
       return ChatMessage(
         id: doc.id,
-        senderId: data['senderId'] ?? '',
-        senderName: data['senderName'] ?? '',
-        message: data['message'] ?? '',
-        imageUrl: data['imageUrl'],
+        senderId: senderId,
+        senderName: senderName,
+        message: message,
+        imageUrl: data['imageUrl']?.toString(),
         timestamp: data['timestamp'] != null 
             ? (data['timestamp'] is Timestamp 
                 ? (data['timestamp'] as Timestamp).toDate() 
@@ -886,9 +962,9 @@ class ChatMessage {
       debugPrint('ChatMessage.fromFirestore: Error parsing document ${doc.id}: $e');
       return ChatMessage(
         id: doc.id,
-        senderId: '',
-        senderName: '',
-        message: '',
+        senderId: 'unknown',
+        senderName: 'Unknown User',
+        message: 'Error loading message',
         timestamp: DateTime.now(),
         metadata: {},
         status: MessageStatus.failed,
@@ -954,17 +1030,36 @@ class ChatSummary {
         );
       }
       
+      // Validate participants array
+      final participants = data['participants'];
+      List<String> participantList = [];
+      if (participants != null && participants is List) {
+        participantList = participants
+            .where((p) => p != null && p.toString().isNotEmpty)
+            .map((p) => p.toString())
+            .toList();
+      }
+      
+      // If no valid participants, return safe default
+      if (participantList.isEmpty) {
+        debugPrint('ChatSummary.fromFirestore: No valid participants for ${doc.id}');
+        return ChatSummary(
+          id: doc.id,
+          participants: [],
+        );
+      }
+      
       return ChatSummary(
         id: doc.id,
-        participants: List<String>.from(data['participants'] ?? []),
-        lastMessage: data['lastMessage'],
+        participants: participantList,
+        lastMessage: data['lastMessage']?.toString(),
         lastMessageTime: data['lastMessageTime'] != null 
             ? (data['lastMessageTime'] is Timestamp 
                 ? (data['lastMessageTime'] as Timestamp).toDate() 
                 : DateTime.tryParse(data['lastMessageTime'].toString()) ?? DateTime.now())
             : null,
-        lastSenderId: data['lastSenderId'],
-        lastSenderName: data['lastSenderName'],
+        lastSenderId: data['lastSenderId']?.toString(),
+        lastSenderName: data['lastSenderName']?.toString(),
         createdAt: data['createdAt'] != null 
             ? (data['createdAt'] is Timestamp 
                 ? (data['createdAt'] as Timestamp).toDate() 

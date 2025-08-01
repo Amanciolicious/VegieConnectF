@@ -176,23 +176,33 @@ class _AdminFarmMapPageState extends State<AdminFarmMapPage> {
                   
                   return DropdownButtonFormField<String>(
                     decoration: const InputDecoration(
-                      labelText: 'Select Supplier',
+                      labelText: 'Select Supplier (Required)',
                       border: OutlineInputBorder(),
+                      hintText: 'Choose the supplier who canvassed this farm',
                     ),
                     value: selectedSupplierId.isEmpty ? null : selectedSupplierId,
-                    items: suppliers.map((supplier) {
-                      final data = supplier.data() as Map<String, dynamic>;
-                      return DropdownMenuItem(
-                        value: supplier.id,
-                        child: Text(data['name'] ?? 'Unknown Supplier'),
-                      );
-                    }).toList(),
+                    items: [
+                      const DropdownMenuItem<String>(
+                        value: null,
+                        child: Text('Select a supplier...'),
+                      ),
+                      ...suppliers.map((supplier) {
+                        final data = supplier.data() as Map<String, dynamic>;
+                        return DropdownMenuItem(
+                          value: supplier.id,
+                          child: Text(data['name'] ?? 'Unknown Supplier'),
+                        );
+                      }).toList(),
+                    ],
                     onChanged: (value) {
                       if (value != null) {
                         final supplier = suppliers.firstWhere((s) => s.id == value);
                         final data = supplier.data() as Map<String, dynamic>;
                         selectedSupplierId = value;
                         selectedSupplierName = data['name'] ?? 'Unknown Supplier';
+                      } else {
+                        selectedSupplierId = '';
+                        selectedSupplierName = '';
                       }
                     },
                   );
@@ -235,6 +245,13 @@ class _AdminFarmMapPageState extends State<AdminFarmMapPage> {
                     location,
                     selectedSupplierId,
                     selectedSupplierName,
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Please fill in all required fields'),
+                      backgroundColor: Colors.red,
+                    ),
                   );
                 }
               },
@@ -300,20 +317,68 @@ class _AdminFarmMapPageState extends State<AdminFarmMapPage> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text(farm.name),
+          title: Row(
+            children: [
+              const Icon(Icons.agriculture, color: Colors.green),
+              const SizedBox(width: 8),
+              Expanded(child: Text(farm.name)),
+            ],
+          ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Supplier: ${farm.supplierName}'),
+              // Farm Name
+              Text(
+                'Farm Name: ${farm.name}',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
               const SizedBox(height: 8),
-              Text('Description: ${farm.description}'),
+              
+              // Canvassed By
+              Text(
+                'Canvassed By: ${farm.supplierName}',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                  color: Colors.blue,
+                ),
+              ),
               const SizedBox(height: 8),
-              Text('Address: ${farm.address}'),
+              
+              // Description
+              if (farm.description.isNotEmpty) ...[
+                Text(
+                  'Description: ${farm.description}',
+                  style: const TextStyle(fontSize: 14),
+                ),
+                const SizedBox(height: 8),
+              ],
+              
+              // Address
+              if (farm.address.isNotEmpty) ...[
+                Text(
+                  'Address: ${farm.address}',
+                  style: const TextStyle(fontSize: 14),
+                ),
+                const SizedBox(height: 8),
+              ],
+              
+              // Coordinates
+              Text(
+                'Coordinates: ${farm.latitude.toStringAsFixed(6)}, ${farm.longitude.toStringAsFixed(6)}',
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              ),
               const SizedBox(height: 8),
-              Text('Coordinates: ${farm.latitude.toStringAsFixed(6)}, ${farm.longitude.toStringAsFixed(6)}'),
-              const SizedBox(height: 8),
-              Text('Added: ${farm.createdAt.toString().split('.')[0]}'),
+              
+              // Added Date
+              Text(
+                'Added: ${farm.createdAt.toString().split('.')[0]}',
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              ),
             ],
           ),
           actions: [

@@ -1,6 +1,6 @@
 import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../services/local_messaging_service.dart';
+import '../services/messaging_service.dart';
 import '../theme.dart';
 import 'chat_conversation_page.dart';
 
@@ -12,7 +12,7 @@ class ChatListPage extends StatefulWidget {
 }
 
 class _ChatListPageState extends State<ChatListPage> {
-  final LocalMessagingService _messagingService = LocalMessagingService();
+  final MessagingService _messagingService = MessagingService();
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   @override
@@ -31,8 +31,8 @@ class _ChatListPageState extends State<ChatListPage> {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: StreamBuilder<List<LocalChatSummary>>(
-        stream: _messagingService.getUserChats(),
+      body: StreamBuilder<List<ChatSummary>>(
+        stream: _messagingService.getRealCustomerSupplierChats(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(
@@ -117,7 +117,13 @@ class _ChatListPageState extends State<ChatListPage> {
               final currentUserId = _auth.currentUser?.uid;
               final otherParticipantId = chat.participants
                   .firstWhere((id) => id != currentUserId, orElse: () => '');
-              final otherParticipantName = chat.participantNames[otherParticipantId] ?? 'Unknown';
+              
+              // Get other participant name from metadata or use default
+              String otherParticipantName = 'Supplier';
+              if (chat.metadata != null && chat.metadata!['participantNames'] != null) {
+                final participantNames = Map<String, dynamic>.from(chat.metadata!['participantNames']);
+                otherParticipantName = participantNames[otherParticipantId] ?? 'Supplier';
+              }
 
               return Container(
                 margin: const EdgeInsets.only(bottom: 12),
@@ -161,30 +167,13 @@ class _ChatListPageState extends State<ChatListPage> {
                         ],
                         const SizedBox(height: 4),
                         Text(
-                          _formatTime(chat.lastMessageTime),
+                          _formatTime(chat.lastMessageTime ?? DateTime.now()),
                           style: AppTextStyles.caption.copyWith(
                             color: AppColors.textSecondary,
                           ),
                         ),
                       ],
                     ),
-                    trailing: chat.unreadCount > 0
-                        ? Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: const BoxDecoration(
-                              color: AppColors.accentRed,
-                              shape: BoxShape.circle,
-                            ),
-                            child: Text(
-                              chat.unreadCount.toString(),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          )
-                        : null,
                     onTap: () {
                       Navigator.push(
                         context,
@@ -206,7 +195,9 @@ class _ChatListPageState extends State<ChatListPage> {
     );
   }
 
-  String _formatTime(DateTime timestamp) {
+  String _formatTime(DateTime? timestamp) {
+    if (timestamp == null) return 'Now';
+    
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final messageDate = DateTime(timestamp.year, timestamp.month, timestamp.day);

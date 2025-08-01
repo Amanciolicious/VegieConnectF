@@ -6,7 +6,7 @@ import 'package:vegieconnect/theme.dart'; // For AppColors
 import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
 // Import the ChatPage
 import 'chat_conversation_page.dart'; // Import the ChatConversationPage
-import 'package:vegieconnect/services/local_messaging_service.dart'; // Import the MessagingService
+import '../services/messaging_service.dart'; // Import the MessagingService
 
 class BuyerProductsPage extends StatefulWidget {
   final String? supplierId;
@@ -240,29 +240,18 @@ class _BuyerProductsPageState extends State<BuyerProductsPage> {
                                         boxShape: NeumorphicBoxShape.roundRect(BorderRadius.circular(12)),
                                       ),
                                       onPressed: () async {
-                                        Navigator.pop(context); // Close dialog
-                                        try {
-                                          final messagingService = LocalMessagingService();
-                                          final chatId = await messagingService.createChatWithSupplier(product['sellerId']);
-                                          if (!mounted) return;
-                                          
-                                          Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder: (_) => ChatConversationPage(
-                                                chatId: chatId,
-                                                chatTitle: product['supplierName'] ?? 'Supplier',
-                                              ),
-                                            ),
-                                          );
-                                        } catch (e) {
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            SnackBar(
-                                              content: Text('Error starting chat: $e'),
-                                              backgroundColor: AppColors.accentRed,
-                                            ),
-                                          );
-                                        }
+                                        // Close dialog first
+                                        Navigator.pop(context);
+                                        
+                                        // Add a small delay to ensure dialog is fully closed
+                                        await Future.delayed(const Duration(milliseconds: 200));
+                                        
+                                        // Use the helper method for safe navigation
+                                        await _navigateToChat(
+                                          context, 
+                                          product['sellerId']?.toString() ?? '', 
+                                          product['supplierName'] ?? 'Supplier'
+                                        );
                                       },
                                       child: Container(
                                         padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.03, vertical: screenWidth * 0.015),
@@ -681,36 +670,72 @@ class _BuyerProductsPageState extends State<BuyerProductsPage> {
       );
       return;
     }
-    final cartRef = FirebaseFirestore.instance
-        .collection('users')
-        .doc(user!.uid)
-        .collection('cart');
-    // Check if product already in cart
-    final existing = await cartRef
-        .where('productId', isEqualTo: productId)
-        .limit(1)
-        .get();
-    if (existing.docs.isNotEmpty) {
-      // Update quantity
-      final doc = existing.docs.first;
-      await cartRef.doc(doc.id).update({
-        'quantity': (doc['quantity'] ?? 1) + quantity,
-      });
-    } else {
-      await cartRef.add({
-        'productId': productId,
-        'sellerId': product['sellerId'],
-        'name': product['name'],
-        'imageUrl': product['imageUrl'],
-        'quantity': quantity,
-        'unit': product['unit'],
-        'price': product['price'],
-        'supplierName': product['supplierName'],
-      });
+
+    try {
+      debugPrint('Adding to cart: Product ID: $productId, Quantity: $quantity');
+      
+      final cartRef = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user!.uid)
+          .collection('cart');
+      
+      // Check if product already in cart
+      final existing = await cartRef
+          .where('productId', isEqualTo: productId)
+          .limit(1)
+          .get();
+      
+      if (existing.docs.isNotEmpty) {
+        // Update quantity
+        final doc = existing.docs.first;
+        final currentQuantity = doc['quantity'] ?? 1;
+        final newQuantity = currentQuantity + quantity;
+        
+        debugPrint('Updating existing cart item: Current: $currentQuantity, New: $newQuantity');
+        
+        await cartRef.doc(doc.id).update({
+          'quantity': newQuantity,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      } else {
+        // Add new item to cart
+        final cartItem = {
+          'productId': productId,
+          'sellerId': product['sellerId'] ?? '',
+          'name': product['name'] ?? '',
+          'imageUrl': product['imageUrl'] ?? '',
+          'quantity': quantity,
+          'unit': product['unit'] ?? '',
+          'price': product['price'] ?? 0.0,
+          'supplierName': product['supplierName'] ?? '',
+          'addedAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        };
+        
+        debugPrint('Adding new cart item: $cartItem');
+        
+        await cartRef.add(cartItem);
+      }
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Added to cart!'),
+            backgroundColor: AppColors.primaryGreen,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error adding to cart: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error adding to cart: ${e.toString()}'),
+            backgroundColor: AppColors.accentRed,
+          ),
+        );
+      }
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Added to cart!')),
-    );
   }
 
   Future<void> _toggleFavorite(String productId) async {
@@ -722,31 +747,66 @@ class _BuyerProductsPageState extends State<BuyerProductsPage> {
     }
 
     try {
+      debugPrint('Toggling favorite for product: $productId');
+      
       final userDoc = FirebaseFirestore.instance.collection('users').doc(user!.uid);
       final userData = await userDoc.get();
+      
+      if (!userData.exists) {
+        debugPrint('User document does not exist, creating...');
+        await userDoc.set({
+          'favorites': [],
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+      
       final favorites = List<String>.from(userData.data()?['favorites'] ?? []);
       
       if (favorites.contains(productId)) {
         // Remove from favorites
         favorites.remove(productId);
-        await userDoc.update({'favorites': favorites});
+        await userDoc.update({
+          'favorites': favorites,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
         await _updateProductPopularity(productId, -1);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Removed from favorites')),
-        );
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Removed from favorites'),
+              backgroundColor: AppColors.accentRed,
+            ),
+          );
+        }
       } else {
         // Add to favorites
         favorites.add(productId);
-        await userDoc.update({'favorites': favorites});
+        await userDoc.update({
+          'favorites': favorites,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
         await _updateProductPopularity(productId, 1);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Added to favorites')),
-        );
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Added to favorites'),
+              backgroundColor: AppColors.primaryGreen,
+            ),
+          );
+        }
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to update favorites: $e')),
-      );
+      debugPrint('Error toggling favorite: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update favorites: ${e.toString()}'),
+            backgroundColor: AppColors.accentRed,
+          ),
+        );
+      }
     }
   }
 
@@ -762,6 +822,62 @@ class _BuyerProductsPageState extends State<BuyerProductsPage> {
       });
     } catch (e) {
       debugPrint('Failed to update product popularity: $e');
+    }
+  }
+
+  // Helper method to safely navigate to chat
+  Future<void> _navigateToChat(BuildContext context, String supplierId, String supplierName) async {
+    try {
+      // Check if user is authenticated
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please log in to start a chat'),
+            backgroundColor: AppColors.accentRed,
+          ),
+        );
+        return;
+      }
+      
+      // Validate supplier ID
+      if (supplierId.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Invalid supplier information'),
+            backgroundColor: AppColors.accentRed,
+          ),
+        );
+        return;
+      }
+      
+      final messagingService = MessagingService();
+      debugPrint('Creating chat with supplier: $supplierId');
+      
+      final chatId = await messagingService.createChatWithSupplier(supplierId);
+      debugPrint('Chat created successfully: $chatId');
+      
+      if (context.mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ChatConversationPage(
+              chatId: chatId,
+              chatTitle: supplierName,
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Chat navigation error: $e');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error starting chat: ${e.toString()}'),
+            backgroundColor: AppColors.accentRed,
+          ),
+        );
+      }
     }
   }
 }
