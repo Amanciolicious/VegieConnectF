@@ -7,6 +7,7 @@ import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
 // Import the ChatPage
 import 'chat_conversation_page.dart'; // Import the ChatConversationPage
 import '../services/messaging_service.dart'; // Import the MessagingService
+import '../services/chat_navigation_service.dart'; // Import the ChatNavigationService
 
 class BuyerProductsPage extends StatefulWidget {
   final String? supplierId;
@@ -827,58 +828,8 @@ class _BuyerProductsPageState extends State<BuyerProductsPage> {
 
   // Helper method to safely navigate to chat
   Future<void> _navigateToChat(BuildContext context, String supplierId, String supplierName) async {
-    try {
-      // Check if user is authenticated
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please log in to start a chat'),
-            backgroundColor: AppColors.accentRed,
-          ),
-        );
-        return;
-      }
-      
-      // Validate supplier ID
-      if (supplierId.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Invalid supplier information'),
-            backgroundColor: AppColors.accentRed,
-          ),
-        );
-        return;
-      }
-      
-      final messagingService = MessagingService();
-      debugPrint('Creating chat with supplier: $supplierId');
-      
-      final chatId = await messagingService.createChatWithSupplier(supplierId);
-      debugPrint('Chat created successfully: $chatId');
-      
-      if (context.mounted) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => ChatConversationPage(
-              chatId: chatId,
-              chatTitle: supplierName,
-            ),
-          ),
-        );
-      }
-    } catch (e) {
-      debugPrint('Chat navigation error: $e');
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error starting chat: ${e.toString()}'),
-            backgroundColor: AppColors.accentRed,
-          ),
-        );
-      }
-    }
+    final chatNavigationService = ChatNavigationService();
+    await chatNavigationService.startChatWithSupplierById(context, supplierId, supplierName);
   }
 }
 

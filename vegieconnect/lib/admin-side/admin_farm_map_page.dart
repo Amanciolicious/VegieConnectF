@@ -192,7 +192,7 @@ class _AdminFarmMapPageState extends State<AdminFarmMapPage> {
                           value: supplier.id,
                           child: Text(data['name'] ?? 'Unknown Supplier'),
                         );
-                      }).toList(),
+                      }),
                     ],
                     onChanged: (value) {
                       if (value != null) {

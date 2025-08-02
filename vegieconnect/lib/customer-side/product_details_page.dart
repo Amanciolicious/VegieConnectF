@@ -3,6 +3,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../widgets/product_image_widget.dart';
+import '../services/messaging_service.dart';
+import '../services/chat_navigation_service.dart';
+import '../customer-side/chat_conversation_page.dart';
 import 'package:vegieconnect/theme.dart'; // For AppColors
 import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
 
@@ -129,6 +132,30 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
                               Text('Category: ${product['category'] ?? 'Unknown'}', style: AppTextStyles.body.copyWith(fontSize: screenWidth * 0.04, color: Colors.orange)),
                             ],
                           ),
+                          SizedBox(height: screenWidth * 0.03),
+                          // Chat with supplier button
+                          if (user == null || product['sellerId'] != user?.uid)
+                            NeumorphicButton(
+                              style: AppNeumorphic.button.copyWith(
+                                color: Colors.blue,
+                                boxShape: NeumorphicBoxShape.roundRect(BorderRadius.circular(screenWidth * 0.04)),
+                              ),
+                              onPressed: () => _startChatWithSupplier(context, product),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.chat_bubble, color: Colors.white, size: screenWidth * 0.05),
+                                  SizedBox(width: screenWidth * 0.02),
+                                  Text(
+                                    'Chat with Supplier',
+                                    style: AppTextStyles.button.copyWith(
+                                      color: Colors.white,
+                                      fontSize: screenWidth * 0.045,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                         ],
                       ),
                     ),
@@ -297,5 +324,11 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
         ],
       ),
     );
+  }
+
+  // Start chat with supplier
+  Future<void> _startChatWithSupplier(BuildContext context, Map<String, dynamic> product) async {
+    final chatNavigationService = ChatNavigationService();
+    await chatNavigationService.startChatWithSupplier(context, product);
   }
 } 

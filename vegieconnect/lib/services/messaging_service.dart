@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert'; // Added for jsonDecode and jsonEncode
 
 class MessagingService {
   static final MessagingService _instance = MessagingService._internal();
@@ -23,6 +25,9 @@ class MessagingService {
   final Map<String, List<ChatMessage>> _chatCache = {};
   final int _maxCacheSize = 100;
 
+  // Deleted chats tracking (per user)
+  final Map<String, Set<String>> _deletedChats = {};
+
   // Initialize messaging service
   Future<void> initialize() async {
     try {
@@ -30,12 +35,42 @@ class MessagingService {
       _auth.authStateChanges().listen((User? user) {
         if (user == null) {
           _clearAllChats();
+        } else {
+          _loadDeletedChats(user.uid);
         }
       });
       
       debugPrint('MessagingService initialized successfully');
     } catch (e) {
       debugPrint('Error initializing MessagingService: $e');
+    }
+  }
+
+  // Load deleted chats for user
+  Future<void> _loadDeletedChats(String userId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final deletedChatsJson = prefs.getString('deleted_chats_$userId');
+      if (deletedChatsJson != null) {
+        final List<dynamic> deletedList = jsonDecode(deletedChatsJson);
+        _deletedChats[userId] = Set<String>.from(deletedList);
+      } else {
+        _deletedChats[userId] = {};
+      }
+    } catch (e) {
+      debugPrint('Error loading deleted chats: $e');
+      _deletedChats[userId] = {};
+    }
+  }
+
+  // Save deleted chats for user
+  Future<void> _saveDeletedChats(String userId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final deletedList = _deletedChats[userId]?.toList() ?? [];
+      await prefs.setString('deleted_chats_$userId', jsonEncode(deletedList));
+    } catch (e) {
+      debugPrint('Error saving deleted chats: $e');
     }
   }
 
@@ -78,9 +113,9 @@ class MessagingService {
         final messages = snapshot.docs
             .map((doc) => ChatMessage.fromFirestore(doc))
             .where((msg) => 
-                (msg.message ?? '').isNotEmpty && 
-                (msg.senderId ?? '').isNotEmpty &&
-                (msg.senderName ?? '').isNotEmpty)
+                msg.message.isNotEmpty && 
+                msg.senderId.isNotEmpty &&
+                msg.senderName.isNotEmpty)
             .toList();
         
         // Update cache
@@ -300,17 +335,18 @@ class MessagingService {
       final chatId = _generateChatId(user.uid, supplierId);
       debugPrint('Generated chat ID: $chatId for user: ${user.uid} and supplier: $supplierId');
 
+      // Get supplier details (needed for both new and existing chats)
+      final supplierDoc = await _firestore.collection('users').doc(supplierId).get();
+      final supplierData = supplierDoc.data();
+      final supplierName = supplierData?['displayName'] ?? supplierData?['email'] ?? 'Supplier';
+      debugPrint('Supplier name resolved: $supplierName');
+
       // Check if chat exists
       final chatDoc = await _firestore.collection('chats').doc(chatId).get();
       
       if (!chatDoc.exists) {
         debugPrint('Creating new chat: $chatId');
-        // Get supplier details
-        final supplierDoc = await _firestore.collection('users').doc(supplierId).get();
-        final supplierData = supplierDoc.data();
-        final supplierName = supplierData?['displayName'] ?? supplierData?['email'] ?? 'Supplier';
-
-        // Create new chat
+        // Create new chat with proper metadata
         await _firestore.collection('chats').doc(chatId).set({
           'participants': [user.uid, supplierId],
           'participantNames': {
@@ -320,19 +356,36 @@ class MessagingService {
           'chatType': 'supplier_buyer',
           'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
+          'lastMessage': '', // Initialize empty to ensure chat appears in list
+          'lastMessageTime': FieldValue.serverTimestamp(),
+          'lastSenderId': user.uid,
+          'lastSenderName': user.displayName ?? user.email ?? 'User',
           'typingUsers': {},
           'metadata': {
             'participantNames': {
               user.uid: user.displayName ?? user.email ?? 'User',
               supplierId: supplierName,
             },
+            'chatType': 'supplier_buyer',
+            'createdBy': user.uid,
+            'createdAt': FieldValue.serverTimestamp(),
           },
         });
         debugPrint('New chat created successfully: $chatId');
       } else {
         debugPrint('Chat already exists: $chatId');
+        // Update the chat metadata to ensure it's properly indexed
+        await _firestore.collection('chats').doc(chatId).update({
+          'updatedAt': FieldValue.serverTimestamp(),
+          'participantNames': {
+            user.uid: user.displayName ?? user.email ?? 'User',
+            supplierId: supplierName,
+          },
+        });
+        debugPrint('Chat metadata updated successfully: $chatId');
       }
 
+      debugPrint('Returning chat ID: $chatId');
       return chatId;
     } catch (e) {
       debugPrint('Error creating chat with supplier: $e');
@@ -346,7 +399,7 @@ class MessagingService {
     return '${sortedIds[0]}_${sortedIds[1]}';
   }
 
-  // Get user chats
+  // Get user chats (filtered by deleted chats)
   Stream<List<ChatSummary>> getUserChats() {
     final user = _auth.currentUser;
     if (user == null) {
@@ -362,9 +415,13 @@ class MessagingService {
           .snapshots()
           .map((snapshot) {
             try {
+              final deletedChats = _deletedChats[user.uid] ?? {};
               return snapshot.docs
                   .map((doc) => ChatSummary.fromFirestore(doc))
-                  .where((chat) => chat.participants.isNotEmpty && chat.participants.length >= 2) // Filter out invalid chats
+                  .where((chat) => 
+                      chat.participants.isNotEmpty && 
+                      chat.participants.length >= 2 &&
+                      !deletedChats.contains(chat.id)) // Filter out deleted chats
                   .toList();
             } catch (e) {
               debugPrint('getUserChats: Error processing chat documents: $e');
@@ -381,7 +438,7 @@ class MessagingService {
     }
   }
 
-  // Get supplier chats (for supplier dashboard)
+  // Get supplier chats (for supplier dashboard) - only show chats with buyers who have messaged
   Stream<List<ChatSummary>> getSupplierChats() {
     final user = _auth.currentUser;
     if (user == null) {
@@ -398,9 +455,15 @@ class MessagingService {
           .snapshots()
           .map((snapshot) {
             try {
+              final deletedChats = _deletedChats[user.uid] ?? {};
               return snapshot.docs
                   .map((doc) => ChatSummary.fromFirestore(doc))
-                  .where((chat) => chat.participants.isNotEmpty && chat.participants.length >= 2) // Filter out invalid chats
+                  .where((chat) => 
+                      chat.participants.isNotEmpty && 
+                      chat.participants.length >= 2 &&
+                      !deletedChats.contains(chat.id) &&
+                      chat.lastMessage != null && // Only show chats with messages
+                      chat.lastMessage!.isNotEmpty)
                   .toList();
             } catch (e) {
               debugPrint('getSupplierChats: Error processing chat documents: $e');
@@ -417,11 +480,11 @@ class MessagingService {
     }
   }
 
-  // Get buyer chats (for buyer dashboard)
-  Stream<List<ChatSummary>> getBuyerChats() {
+  // Get customer-supplier chats (for both customer and supplier)
+  Stream<List<ChatSummary>> getRealCustomerSupplierChats() {
     final user = _auth.currentUser;
     if (user == null) {
-      debugPrint('getBuyerChats: No authenticated user');
+      debugPrint('getRealCustomerSupplierChats: No authenticated user');
       return Stream.value([]);
     }
 
@@ -434,22 +497,52 @@ class MessagingService {
           .snapshots()
           .map((snapshot) {
             try {
-              return snapshot.docs
+              final deletedChats = _deletedChats[user.uid] ?? {};
+              final chats = snapshot.docs
                   .map((doc) => ChatSummary.fromFirestore(doc))
-                  .where((chat) => chat.participants.isNotEmpty) // Filter out invalid chats
+                  .where((chat) => 
+                      chat.participants.isNotEmpty && 
+                      chat.participants.length >= 2 &&
+                      !deletedChats.contains(chat.id) &&
+                      chat.participants.contains(user.uid)) // Ensure user is actually a participant
                   .toList();
+              
+              debugPrint('Found ${chats.length} chats for user: ${user.uid}');
+              return chats;
             } catch (e) {
-              debugPrint('getBuyerChats: Error processing chat documents: $e');
+              debugPrint('getRealCustomerSupplierChats: Error processing chat documents: $e');
               return <ChatSummary>[];
             }
           })
           .handleError((error) {
-            debugPrint('getBuyerChats: Firestore error: $error');
+            debugPrint('getRealCustomerSupplierChats: Firestore error: $error');
             return <ChatSummary>[];
           });
     } catch (e) {
-      debugPrint('getBuyerChats: Error setting up stream: $e');
+      debugPrint('getRealCustomerSupplierChats: Error setting up stream: $e');
       return Stream.value(<ChatSummary>[]);
+    }
+  }
+
+  // Delete chat for current user (but keep for other participants)
+  Future<void> deleteChat(String chatId) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) throw Exception('User not authenticated');
+
+      // Add to deleted chats for this user
+      if (!_deletedChats.containsKey(user.uid)) {
+        _deletedChats[user.uid] = {};
+      }
+      _deletedChats[user.uid]!.add(chatId);
+      
+      // Save deleted chats
+      await _saveDeletedChats(user.uid);
+      
+      debugPrint('Chat $chatId deleted for user ${user.uid}');
+    } catch (e) {
+      debugPrint('Error deleting chat: $e');
+      rethrow;
     }
   }
 
@@ -459,9 +552,8 @@ class MessagingService {
       final user = _auth.currentUser;
       if (user == null) return;
 
-      final batch = _firestore.batch();
-      
-      final unreadMessages = await _firestore
+      // Update messages in Firestore
+      final messagesQuery = await _firestore
           .collection('chats')
           .doc(chatId)
           .collection('messages')
@@ -469,13 +561,13 @@ class MessagingService {
           .where('readBy', arrayContains: user.uid)
           .get();
 
-      for (final doc in unreadMessages.docs) {
+      final batch = _firestore.batch();
+      for (final doc in messagesQuery.docs) {
         batch.update(doc.reference, {
           'readBy': FieldValue.arrayUnion([user.uid]),
           'readAt': FieldValue.serverTimestamp(),
         });
       }
-
       await batch.commit();
     } catch (e) {
       debugPrint('Error marking messages as read: $e');
@@ -539,88 +631,6 @@ class MessagingService {
 
 
 
-  // Enhanced method to get real customer-supplier chats
-  Stream<List<ChatSummary>> getRealCustomerSupplierChats() {
-    final user = _auth.currentUser;
-    if (user == null) {
-      debugPrint('getRealCustomerSupplierChats: No authenticated user');
-      return Stream.value([]);
-    }
-
-    debugPrint('getRealCustomerSupplierChats: Loading chats for user: ${user.uid}');
-
-    try {
-      return _firestore
-          .collection('chats')
-          .where('participants', arrayContains: user.uid)
-          .orderBy('updatedAt', descending: true)
-          .snapshots()
-          .map((snapshot) {
-            try {
-              final chats = snapshot.docs
-                  .map((doc) => ChatSummary.fromFirestore(doc))
-                  .where((chat) => chat.participants.isNotEmpty && chat.participants.length >= 2)
-                  .toList();
-              
-              debugPrint('getRealCustomerSupplierChats: Found ${chats.length} chats for user: ${user.uid}');
-              for (final chat in chats) {
-                debugPrint('Chat ID: ${chat.id}, Participants: ${chat.participants}, Last Message: ${chat.lastMessage}');
-              }
-              
-              return chats;
-            } catch (e) {
-              debugPrint('getRealCustomerSupplierChats: Error processing chat documents: $e');
-              return <ChatSummary>[];
-            }
-          })
-          .handleError((error) {
-            debugPrint('getRealCustomerSupplierChats: Firestore error: $error');
-            // Return empty list instead of throwing error
-            return <ChatSummary>[];
-          });
-    } catch (e) {
-      debugPrint('getRealCustomerSupplierChats: Error setting up stream: $e');
-      return Stream.value(<ChatSummary>[]);
-    }
-  }
-
-  // Enhanced method to get available customers for suppliers
-  Stream<List<Map<String, dynamic>>> getAvailableCustomers() {
-    final user = _auth.currentUser;
-    if (user == null) return Stream.value([]);
-
-    try {
-      return _firestore
-          .collection('users')
-          .where('role', isEqualTo: 'buyer')
-          .snapshots()
-          .map((snapshot) {
-            try {
-              return snapshot.docs
-                  .map((doc) => {
-                    'id': doc.id,
-                    'displayName': doc.data()['displayName'] ?? 'Unknown Customer',
-                    'email': doc.data()['email'] ?? '',
-                    'phone': doc.data()['phone'] ?? '',
-                    'location': doc.data()['location'] ?? '',
-                  })
-                  .where((customer) => customer['id'] != user.uid)
-                  .toList();
-            } catch (e) {
-              debugPrint('getAvailableCustomers: Error processing customer documents: $e');
-              return <Map<String, dynamic>>[];
-            }
-          })
-          .handleError((error) {
-            debugPrint('getAvailableCustomers: Firestore error: $error');
-            return <Map<String, dynamic>>[];
-          });
-    } catch (e) {
-      debugPrint('getAvailableCustomers: Error setting up stream: $e');
-      return Stream.value(<Map<String, dynamic>>[]);
-    }
-  }
-
   // Enhanced method to get available suppliers for customers
   Stream<List<Map<String, dynamic>>> getAvailableSuppliers() {
     final user = _auth.currentUser;
@@ -659,60 +669,7 @@ class MessagingService {
     }
   }
 
-  // Enhanced method to create chat with real user data
-  Future<String> createChatWithUser(String otherUserId, {String? initialMessage}) async {
-    try {
-      final user = _auth.currentUser;
-      if (user == null) throw Exception('No authenticated user');
 
-      // Get user data for chat metadata
-      final userDoc = await _firestore.collection('users').doc(user.uid).get();
-      final otherUserDoc = await _firestore.collection('users').doc(otherUserId).get();
-      
-      if (!userDoc.exists || !otherUserDoc.exists) {
-        throw Exception('User data not found');
-      }
-
-      final userData = userDoc.data() as Map<String, dynamic>;
-      final otherUserData = otherUserDoc.data() as Map<String, dynamic>;
-
-      // Use createOrGetChat to prevent duplicate chats
-      final chatId = await createOrGetChat(otherUserId);
-
-      // Update chat metadata with enhanced information
-      await _firestore.collection('chats').doc(chatId).update({
-        'chatType': 'supplier_buyer',
-        'metadata': {
-          'participantNames': {
-            user.uid: userData['displayName'] ?? userData['email'] ?? 'Unknown',
-            otherUserId: otherUserData['displayName'] ?? otherUserData['email'] ?? 'Unknown',
-          },
-          'participantRoles': {
-            user.uid: userData['role'] ?? 'unknown',
-            otherUserId: otherUserData['role'] ?? 'unknown',
-          },
-          'businessInfo': otherUserData['businessName'] != null ? {
-            'businessName': otherUserData['businessName'],
-            'location': otherUserData['location'],
-          } : null,
-        },
-      });
-
-      // Send initial message if provided
-      if (initialMessage != null && initialMessage.isNotEmpty) {
-        await sendMessage(
-          chatId: chatId,
-          message: initialMessage,
-        );
-      }
-
-      debugPrint('Real chat created/retrieved successfully: $chatId');
-      return chatId;
-    } catch (e) {
-      debugPrint('Error creating real chat: $e');
-      rethrow;
-    }
-  }
 
   // Get unread message count
   Stream<int> getUnreadMessageCount() {
@@ -749,26 +706,23 @@ class MessagingService {
 
   // Clear all chats
   void _clearAllChats() {
-    for (final subscription in _chatSubscriptions.values) {
-      subscription.cancel();
-    }
-    _chatSubscriptions.clear();
-    
     for (final controller in _chatControllers.values) {
       controller.close();
     }
-    _chatControllers.clear();
-    
-    for (final subscription in _typingSubscriptions.values) {
-      subscription.cancel();
-    }
-    _typingSubscriptions.clear();
-    
     for (final controller in _typingControllers.values) {
       controller.close();
     }
-    _typingControllers.clear();
+    for (final subscription in _chatSubscriptions.values) {
+      subscription.cancel();
+    }
+    for (final subscription in _typingSubscriptions.values) {
+      subscription.cancel();
+    }
     
+    _chatControllers.clear();
+    _typingControllers.clear();
+    _chatSubscriptions.clear();
+    _typingSubscriptions.clear();
     _chatCache.clear();
   }
 
@@ -777,29 +731,22 @@ class MessagingService {
     _clearAllChats();
   }
 
-  // Get chat messages stream
+  // Get chat messages
   Stream<List<ChatMessage>> getChatMessages(String chatId) {
     return getChatStream(chatId);
   }
 
-  // Get typing indicator stream
+  // Get typing indicator
   Stream<Map<String, bool>> getTypingIndicator(String chatId) {
     return getTypingStream(chatId);
   }
 
   // Set typing indicator
   Future<void> setTypingIndicator(String chatId, bool isTyping) async {
-    try {
-      final user = _auth.currentUser;
-      if (user == null || chatId.isEmpty) return;
-
-      if (isTyping) {
-        await startTyping(chatId);
-      } else {
-        await stopTyping(chatId);
-      }
-    } catch (e) {
-      debugPrint('Error setting typing indicator: $e');
+    if (isTyping) {
+      await startTyping(chatId);
+    } else {
+      await stopTyping(chatId);
     }
   }
 

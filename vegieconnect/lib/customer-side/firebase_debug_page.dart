@@ -149,7 +149,7 @@ class _FirebaseDebugPageState extends State<FirebaseDebugPage> {
                   ],
                 ),
               );
-            }).toList(),
+            }),
           ],
         ),
       ),

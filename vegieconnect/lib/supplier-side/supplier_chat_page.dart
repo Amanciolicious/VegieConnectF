@@ -2,6 +2,7 @@ import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/messaging_service.dart';
+import '../services/chat_navigation_service.dart';
 import '../theme.dart';
 import '../customer-side/chat_conversation_page.dart';
 import '../widgets/chat_widgets.dart';
@@ -29,13 +30,6 @@ class _SupplierChatPageState extends State<SupplierChatPage> {
     return Scaffold(
       appBar: NeumorphicAppBar(
         title: const Text('Customer Messages'),
-        actions: [
-          NeumorphicButton(
-            onPressed: _showSearchDialog,
-            style: AppNeumorphic.button,
-            child: const Icon(Icons.search, color: AppColors.textPrimary),
-          ),
-        ],
       ),
       body: StreamBuilder<List<ChatSummary>>(
         stream: _messagingService.getRealCustomerSupplierChats(),
@@ -92,16 +86,6 @@ class _SupplierChatPageState extends State<SupplierChatPage> {
           );
         },
       ),
-      floatingActionButton: NeumorphicFloatingActionButton(
-        onPressed: () => _showNewChatDialog(),
-        style: AppNeumorphic.button.copyWith(
-          color: AppColors.primaryGreen,
-        ),
-        child: const Icon(
-          Icons.chat,
-          color: Colors.white,
-        ),
-      ),
     );
   }
 
@@ -146,13 +130,11 @@ class _SupplierChatPageState extends State<SupplierChatPage> {
 
 
   void _openChat(ChatSummary chat) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => ChatConversationPage(
-          chatId: chat.id,
-          chatTitle: _getChatTitle(chat),
-        ),
-      ),
+    final chatNavigationService = ChatNavigationService();
+    chatNavigationService.openExistingChat(
+      context,
+      chat.id,
+      _getChatTitle(chat),
     );
   }
 
@@ -191,22 +173,6 @@ class _SupplierChatPageState extends State<SupplierChatPage> {
     }
   }
 
-  void _showSearchDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Search Messages'),
-        content: const Text('Search functionality coming soon!'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
-
   int _getUnreadCount(ChatSummary chat) {
     // TODO: Implement actual unread count logic
     // For now, return a random number for demonstration
@@ -217,133 +183,6 @@ class _SupplierChatPageState extends State<SupplierChatPage> {
     
     return isUnread ? (chat.id.hashCode % 5) + 1 : 0;
   }
-
-  void _showNewChatDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('New Chat'),
-        content: const Text('Select a customer to start chatting with:'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _showCustomerSelectionDialog();
-            },
-            child: const Text('Select Customer'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showCustomerSelectionDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Select Customer'),
-        content: SizedBox(
-          width: double.maxFinite,
-          height: 300,
-          child: StreamBuilder<List<Map<String, dynamic>>>(
-            stream: _messagingService.getAvailableCustomers(),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
-
-              if (snapshot.hasError) {
-                return const Center(child: Text('Error loading customers'));
-              }
-
-              final customers = snapshot.data ?? [];
-
-              if (customers.isEmpty) {
-                return const Center(
-                  child: Text('No customers available'),
-                );
-              }
-
-              return ListView.builder(
-                itemCount: customers.length,
-                itemBuilder: (context, index) {
-                  final customer = customers[index];
-                  return ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: AppColors.accentGreen,
-                      child: Text(
-                        (customer['displayName'] ?? '?')[0].toUpperCase(),
-                        style: const TextStyle(color: Colors.white),
-                      ),
-                    ),
-                    title: Text(customer['displayName'] ?? 'Unknown Customer'),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(customer['email'] ?? ''),
-                        if (customer['location'] != null && customer['location'].isNotEmpty)
-                          Text(
-                            '📍 ${customer['location']}',
-                            style: AppTextStyles.body.copyWith(
-                              fontSize: 12,
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                      ],
-                    ),
-                    onTap: () {
-                      Navigator.pop(context);
-                      _startChatWithCustomer(customer['id']);
-                    },
-                  );
-                },
-              );
-            },
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _startChatWithCustomer(String customerId) async {
-    try {
-      final chatId = await _messagingService.createChatWithUser(
-        customerId,
-        initialMessage: 'Hello! I\'m a supplier and I\'m here to help you with your vegetable needs.',
-      );
-      if (!mounted) return;
-
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (context) => ChatConversationPage(
-            chatId: chatId,
-            chatTitle: 'New Chat',
-          ),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error starting chat: $e'),
-          backgroundColor: AppColors.accentRed,
-        ),
-      );
-    }
-  }
-
-
 
   void _showDeleteChatDialog(ChatSummary chat) {
     showDialog(
@@ -371,11 +210,11 @@ class _SupplierChatPageState extends State<SupplierChatPage> {
 
   Future<void> _deleteChat(ChatSummary chat) async {
     try {
-      await _messagingService.deleteConversation(chat.id);
+      await _messagingService.deleteChat(chat.id);
       
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Conversation deleted'),
+          content: Text('Conversation removed from your chat list'),
           backgroundColor: AppColors.primaryGreen,
         ),
       );

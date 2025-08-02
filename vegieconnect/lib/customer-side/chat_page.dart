@@ -2,6 +2,7 @@ import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/messaging_service.dart';
+import '../services/chat_navigation_service.dart';
 import '../widgets/chat_widgets.dart';
 import '../theme.dart';
 import 'chat_conversation_page.dart';
@@ -101,16 +102,6 @@ class _ChatPageState extends State<ChatPage> {
           );
         },
       ),
-      floatingActionButton: NeumorphicFloatingActionButton(
-        onPressed: () => _showNewChatDialog(),
-        style: AppNeumorphic.button.copyWith(
-          color: AppColors.primaryGreen,
-        ),
-        child: const Icon(
-          Icons.chat,
-          color: Colors.white,
-        ),
-      ),
     );
   }
 
@@ -137,17 +128,11 @@ class _ChatPageState extends State<ChatPage> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Start a conversation with suppliers or other users',
+                    'Chat with suppliers by clicking the chat button on their products',
                     style: AppTextStyles.body.copyWith(
                       color: AppColors.textSecondary,
                     ),
                     textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 24),
-                  NeumorphicButton(
-                    onPressed: () => _showNewChatDialog(),
-                    style: AppNeumorphic.button,
-                    child: const Text('Start Chat'),
                   ),
                 ],
               ),
@@ -159,13 +144,11 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   void _openChat(ChatSummary chat) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => ChatConversationPage(
-          chatId: chat.id,
-          chatTitle: _getChatTitle(chat),
-        ),
-      ),
+    final chatNavigationService = ChatNavigationService();
+    chatNavigationService.openExistingChat(
+      context,
+      chat.id,
+      _getChatTitle(chat),
     );
   }
 
@@ -183,139 +166,7 @@ class _ChatPageState extends State<ChatPage> {
     return chat.lastSenderName ?? 'User';
   }
 
-  void _showNewChatDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('New Chat'),
-        content: const Text('Select a supplier to start chatting with:'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _showSupplierSelectionDialog();
-            },
-            child: const Text('Select Supplier'),
-          ),
-        ],
-      ),
-    );
-  }
 
-  void _showSupplierSelectionDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Select Supplier'),
-        content: SizedBox(
-          width: double.maxFinite,
-          height: 300,
-          child: StreamBuilder<List<Map<String, dynamic>>>(
-            stream: _messagingService.getAvailableSuppliers(),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
-
-              if (snapshot.hasError) {
-                return const Center(child: Text('Error loading suppliers'));
-              }
-
-              final suppliers = snapshot.data ?? [];
-
-              if (suppliers.isEmpty) {
-                return const Center(
-                  child: Text('No suppliers available'),
-                );
-              }
-
-              return ListView.builder(
-                itemCount: suppliers.length,
-                itemBuilder: (context, index) {
-                  final supplier = suppliers[index];
-                  return ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: AppColors.accentGreen,
-                      child: Text(
-                        (supplier['displayName'] ?? '?')[0].toUpperCase(),
-                        style: const TextStyle(color: Colors.white),
-                      ),
-                    ),
-                    title: Text(supplier['displayName'] ?? 'Unknown Supplier'),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(supplier['email'] ?? ''),
-                        if (supplier['businessName'] != null && supplier['businessName'].isNotEmpty)
-                          Text(
-                            '🏪 ${supplier['businessName']}',
-                            style: AppTextStyles.body.copyWith(
-                              fontSize: 12,
-                              color: AppColors.primaryGreen,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        if (supplier['location'] != null && supplier['location'].isNotEmpty)
-                          Text(
-                            '📍 ${supplier['location']}',
-                            style: AppTextStyles.body.copyWith(
-                              fontSize: 12,
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                      ],
-                    ),
-                    onTap: () {
-                      Navigator.pop(context);
-                      _startChatWithSupplier(supplier['id']);
-                    },
-                  );
-                },
-              );
-            },
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _startChatWithSupplier(String supplierId) async {
-    try {
-      final chatId = await _messagingService.createChatWithUser(
-        supplierId,
-        initialMessage: 'Hello! I\'m interested in your fresh vegetables. Do you have any available today?',
-      );
-      if (!mounted) return;
-
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (context) => ChatConversationPage(
-            chatId: chatId,
-            chatTitle: 'New Chat',
-          ),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error starting chat: $e'),
-          backgroundColor: AppColors.accentRed,
-        ),
-      );
-    }
-  }
 
   void _showSearchDialog() {
     showDialog(
@@ -368,11 +219,11 @@ class _ChatPageState extends State<ChatPage> {
 
   Future<void> _deleteChat(ChatSummary chat) async {
     try {
-      await _messagingService.deleteConversation(chat.id);
+      await _messagingService.deleteChat(chat.id);
       
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Conversation deleted'),
+          content: Text('Conversation removed from your chat list'),
           backgroundColor: AppColors.primaryGreen,
         ),
       );

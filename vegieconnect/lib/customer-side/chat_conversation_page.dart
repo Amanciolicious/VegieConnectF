@@ -1,5 +1,6 @@
 import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import '../services/messaging_service.dart';
 import '../services/notification_service.dart';
@@ -59,43 +60,109 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
 
   Future<void> _initializeChat() async {
     try {
+      debugPrint('Initializing chat: ${widget.chatId}');
+      
+      // Validate chat ID
+      if (widget.chatId.isEmpty) {
+        debugPrint('Error: Empty chat ID');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Invalid chat session'),
+              backgroundColor: AppColors.accentRed,
+            ),
+          );
+          Navigator.pop(context);
+        }
+        return;
+      }
+      
+      // Verify chat exists in Firestore
+      try {
+        final chatDoc = await FirebaseFirestore.instance.collection('chats').doc(widget.chatId).get();
+        if (!chatDoc.exists) {
+          debugPrint('Error: Chat document does not exist: ${widget.chatId}');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Chat session not found'),
+                backgroundColor: AppColors.accentRed,
+              ),
+            );
+            Navigator.pop(context);
+          }
+          return;
+        }
+        debugPrint('Chat document verified: ${widget.chatId}');
+      } catch (e) {
+        debugPrint('Error verifying chat document: $e');
+      }
+
       // Mark messages as read
       await _messagingService.markMessagesAsRead(widget.chatId);
 
-      // Listen to messages
-      _messagesSubscription = _messagingService.getChatMessages(widget.chatId).listen((messages) {
-        if (mounted) {
-          setState(() {
-            _messages = messages.where((msg) => 
-              msg.message.isNotEmpty && 
-              msg.senderName.isNotEmpty && 
-              msg.senderId.isNotEmpty
-            ).toList();
-          });
-          
-          // Auto-scroll to bottom for new messages
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted && _scrollController.hasClients && _messages.isNotEmpty) {
-              _scrollController.animateTo(
-                0,
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeOut,
-              );
-            }
-          });
-        }
-      });
+      // Listen to messages with better error handling
+      _messagesSubscription = _messagingService.getChatMessages(widget.chatId).listen(
+        (messages) {
+          if (mounted) {
+            setState(() {
+              _messages = messages.where((msg) => 
+                msg.message.isNotEmpty && 
+                msg.senderName.isNotEmpty && 
+                msg.senderId.isNotEmpty
+              ).toList();
+            });
+            
+            // Auto-scroll to bottom for new messages
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted && _scrollController.hasClients && _messages.isNotEmpty) {
+                _scrollController.animateTo(
+                  0,
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOut,
+                );
+              }
+            });
+          }
+        },
+        onError: (error) {
+          debugPrint('Error in messages stream: $error');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Error loading messages: $error'),
+                backgroundColor: AppColors.accentRed,
+              ),
+            );
+          }
+        },
+      );
 
       // Listen to typing indicators
-      _typingSubscription = _messagingService.getTypingIndicator(widget.chatId).listen((typingUsers) {
-        if (mounted) {
-          setState(() {
-            _typingUsers = typingUsers;
-          });
-        }
-      });
+      _typingSubscription = _messagingService.getTypingIndicator(widget.chatId).listen(
+        (typingUsers) {
+          if (mounted) {
+            setState(() {
+              _typingUsers = typingUsers;
+            });
+          }
+        },
+        onError: (error) {
+          debugPrint('Error in typing stream: $error');
+        },
+      );
+      
+      debugPrint('Chat initialized successfully: ${widget.chatId}');
     } catch (e) {
       debugPrint('Error initializing chat: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error initializing chat: $e'),
+            backgroundColor: AppColors.accentRed,
+          ),
+        );
+      }
     }
   }
 
@@ -558,12 +625,12 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
 
   Future<void> _deleteConversation() async {
     try {
-      await _messagingService.deleteConversation(widget.chatId);
+      await _messagingService.deleteChat(widget.chatId);
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Conversation deleted'),
+            content: Text('Conversation removed from your chat list'),
             backgroundColor: AppColors.primaryGreen,
           ),
         );

@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
 import 'package:http/http.dart' as http;
 import 'dart:io';
@@ -615,14 +616,18 @@ class _AddProductPageState extends State<AddProductPage> {
                                   ),
                                 ),
                                 SizedBox(height: screenWidth * 0.03),
-                                if (_imageFile != null)
+                                if (_imageFile != null || _webImageBytes != null || _imageUrl != null)
                                   Container(
                                     width: screenWidth * 0.3,
                                     height: screenWidth * 0.3,
                                     decoration: BoxDecoration(
                                       borderRadius: BorderRadius.circular(screenWidth * 0.03),
                                       image: DecorationImage(
-                                        image: FileImage(_imageFile!),
+                                        image: _imageFile != null
+                                            ? FileImage(_imageFile!)
+                                            : _webImageBytes != null
+                                                ? MemoryImage(_webImageBytes!)
+                                                : NetworkImage(_imageUrl!) as ImageProvider,
                                         fit: BoxFit.cover,
                                       ),
                                     ),

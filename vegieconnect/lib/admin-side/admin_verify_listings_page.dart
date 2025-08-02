@@ -3,6 +3,8 @@ import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
 import 'package:vegieconnect/theme.dart';
 import '../services/content_filter_service.dart';
 import '../services/auto_approval_service.dart';
+import '../services/countdown_timer_service.dart';
+import '../widgets/countdown_timer_widget.dart';
 
 class AdminVerifyListingsPage extends StatefulWidget {
   const AdminVerifyListingsPage({super.key});
@@ -13,7 +15,29 @@ class AdminVerifyListingsPage extends StatefulWidget {
 
 class _AdminVerifyListingsPageState extends State<AdminVerifyListingsPage> {
   final ContentFilterService _contentFilterService = ContentFilterService();
+  final CountdownTimerService _countdownService = CountdownTimerService();
   String _filterStatus = 'all'; // 'all', 'pending', 'flagged', 'approved', 'rejected'
+
+  @override
+  void initState() {
+    super.initState();
+    // Start countdowns for all pending products when page loads
+    _countdownService.startCountdownForPendingProducts();
+  }
+
+  /// Start countdown for a specific product
+  void _startCountdownForProduct(String productId) {
+    if (!_countdownService.isCountdownActive(productId)) {
+      _countdownService.startCountdown(productId);
+    }
+  }
+
+  @override
+  void dispose() {
+    // Clean up countdowns when page is disposed
+    _countdownService.cancelAllCountdowns();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -644,6 +668,17 @@ class _AdminVerifyListingsPageState extends State<AdminVerifyListingsPage> {
               ),
               SizedBox(height: screenWidth * 0.03),
             ],
+            // Countdown Timer for Pending Products
+            if (product['status'] == 'pending' || product['status'] == null) ...[
+              SizedBox(height: screenWidth * 0.02),
+              CountdownTimerWidget(
+                productId: productId,
+                onTimerComplete: () {
+                  // Refresh the page when timer completes
+                  setState(() {});
+                },
+              ),
+            ],
             // Action Buttons
             if (product['status'] == 'pending' || product['status'] == null) ...[
               Row(
@@ -760,6 +795,9 @@ class _AdminVerifyListingsPageState extends State<AdminVerifyListingsPage> {
   Future<void> _verifyProduct(BuildContext context, String productId, bool isApproved) async {
     try {
       if (isApproved) {
+        // Cancel countdown for this product since it's being manually approved
+        _countdownService.cancelCountdown(productId);
+        
         // Use the new manual approval method
         final autoApprovalService = AutoApprovalService();
         await autoApprovalService.manualApproveProduct(productId);
@@ -773,6 +811,9 @@ class _AdminVerifyListingsPageState extends State<AdminVerifyListingsPage> {
           _filterStatus = 'recently_processed';
         });
       } else {
+        // Cancel countdown for this product since it's being rejected
+        _countdownService.cancelCountdown(productId);
+        
         final reason = await _showRejectionDialog(context);
         if (reason == null || reason.trim().isEmpty) return;
         await FirebaseFirestore.instance.collection('products').doc(productId).update({
