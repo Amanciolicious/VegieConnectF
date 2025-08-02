@@ -181,8 +181,6 @@ class _SupplierLocationManagementPageState extends State<SupplierLocationManagem
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
-
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(

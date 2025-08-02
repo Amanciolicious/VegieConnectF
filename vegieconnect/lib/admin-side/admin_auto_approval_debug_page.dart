@@ -1,7 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
 import '../theme.dart';
-import '../services/auto_approval_service.dart';
 
 
 class AdminAutoApprovalDebugPage extends StatefulWidget {
@@ -12,7 +11,6 @@ class AdminAutoApprovalDebugPage extends StatefulWidget {
 }
 
 class _AdminAutoApprovalDebugPageState extends State<AdminAutoApprovalDebugPage> {
-  final AutoApprovalService _autoApprovalService = AutoApprovalService();
  
   List<Map<String, dynamic>> _pendingProducts = [];
   bool _isLoading = false;

@@ -323,102 +323,6 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
     );
   }
 
-  Widget _buildRecentOrders(double screenWidth) {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      return const Center(child: Text('Not logged in.'));
-    }
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('orders')
-          .where('sellerId', isEqualTo: user.uid)
-          .orderBy('createdAt', descending: true)
-          .limit(5)
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return const Center(child: Text('No recent orders.'));
-        }
-        final orders = snapshot.data!.docs;
-        return ListView.separated(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: orders.length,
-          separatorBuilder: (context, index) => const Divider(height: 1),
-          itemBuilder: (context, index) {
-            final order = orders[index].data() as Map<String, dynamic>;
-            final status = (order['status'] ?? 'pending').toString().toLowerCase();
-            Color statusColor;
-            switch (status) {
-              case 'delivered':
-                statusColor = AppColors.primaryGreen;
-                break;
-              case 'processing':
-                statusColor = Colors.orange;
-                break;
-              default:
-                statusColor = Colors.grey;
-            }
-            return Container(
-              margin: EdgeInsets.symmetric(vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(screenWidth * 0.04),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
-                    blurRadius: 8,
-                    offset: Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: ListTile(
-                leading: order['productImage'] != null && order['productImage'].toString().isNotEmpty
-                  ? ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.network(
-                        order['productImage'],
-                        width: 44,
-                        height: 44,
-                        fit: BoxFit.cover,
-                      ),
-                    )
-                  : CircleAvatar(
-                      backgroundColor: AppColors.primaryGreen.withOpacity(0.1),
-                      child: Text(
-                        order['id'] != null && order['id'].toString().isNotEmpty
-                            ? order['id'].toString().replaceAll(RegExp(r'[^0-9]'), '')
-                            : '?',
-                        style: const TextStyle(
-                          color: AppColors.primaryGreen,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                title: Text('Order #${order['id'] ?? ''}', style: TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: Text('${order['customer'] ?? ''} • ₱${(order['price'] ?? 0).toStringAsFixed(2)}'),
-                trailing: Container(
-                  padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.02, vertical: screenWidth * 0.01),
-                  decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(screenWidth * 0.05),
-                  ),
-                  child: Text(
-                    status[0].toUpperCase() + status.substring(1),
-                    style: TextStyle(
-                      fontSize: screenWidth * 0.035,
-                      color: statusColor,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
 
   Widget _buildProductsTab() {
     final screenWidth = MediaQuery.of(context).size.width;
@@ -1021,7 +925,6 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
         final data = snapshot.data!.data() as Map<String, dynamic>;
         final userRole = data['role'] ?? '';
         final isBuyer = userRole == 'buyer';
-        final isNotSupplier = user.uid != user.uid; // This will always be false, fix below
         // Instead, get the supplierId from the profile being viewed (assume user.uid is supplierId for now)
         final supplierId = user.uid;
         return SingleChildScrollView(

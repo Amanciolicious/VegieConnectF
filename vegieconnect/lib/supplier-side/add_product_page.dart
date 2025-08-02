@@ -5,7 +5,6 @@ import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
 import 'package:http/http.dart' as http;
 import 'dart:io';
@@ -674,185 +673,188 @@ class _AddProductPageState extends State<AddProductPage> {
                             color: AppColors.primaryGreen,
                           ),
                           onPressed: _isUploading
-                                ? null
-                                : () async {
-                            if (_formKey.currentState!.validate()) {
-                              if (widget.product != null) {
-                                // Show confirmation dialog before updating
-                                final confirm = await showDialog<bool>(
-                                  context: context,
-                                  builder: (context) => AlertDialog(
-                                    title: const Text('Update Product'),
-                                    content: const Text('Are you sure you want to update this product?'),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () => Navigator.pop(context, false),
-                                        child: const Text('Cancel'),
-                                      ),
-                                      TextButton(
-                                        onPressed: () => Navigator.pop(context, true),
-                                        child: const Text('Update'),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                                if (confirm != true) return;
-                              }
-                              setState(() => _isUploading = true);
-                              final user = FirebaseAuth.instance.currentUser;
-                              if (user == null) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Not logged in!')),
-                                );
-                                setState(() => _isUploading = false);
-                                return;
-                              }
-                              try {
-                                // Fetch supplier name and trust status from Firestore
-                                final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
-                                final supplierName = userDoc.data()?['name'] ?? 'Unknown Supplier';
-                                final isTrusted = userDoc.data()?['isTrusted'] == true;
+      ? null
+      : () async {
+    // Capture parent context before any async/await or dialog
+    final parentContext = context;
 
-                                // --- Automatic Assessment Logic ---
-                                final prohibitedKeywords = ['illegal', 'banned', 'prohibited'];
-                                final name = _nameController.text.trim();
-                                final desc = _descController.text.trim();
-                                final price = double.tryParse(_priceController.text.trim()) ?? 0;
-                                final hasAllFields = name.isNotEmpty && desc.isNotEmpty && price > 0 && _quantity > 0 && _unit.isNotEmpty && _category.isNotEmpty;
-                                final priceValid = price > 0 && price < 10000;
-                                // Content filtering
-                                final contentFilterService = ContentFilterService();
-                                final contentCheck = contentFilterService.checkProductContent(
-                                  productName: name,
-                                  description: desc,
-                                  supplierId: user.uid,
-                                  category: _category,
-                                  price: price,
-                                );
+    if (_formKey.currentState!.validate()) {
+      if (widget.product != null) {
+        // Show confirmation dialog before updating
+        final confirm = await showDialog<bool>(
+          context: parentContext,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Update Product'),
+            content: const Text('Are you sure you want to update this product?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text('Update'),
+              ),
+            ],
+          ),
+        );
+        if (confirm != true) return;
+      }
+      setState(() => _isUploading = true);
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        ScaffoldMessenger.of(parentContext).showSnackBar(
+          const SnackBar(content: Text('Not logged in!')),
+        );
+        setState(() => _isUploading = false);
+        return;
+      }
+      try {
+        // Fetch supplier name and trust status from Firestore
+        final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+        final supplierName = userDoc.data()?['name'] ?? 'Unknown Supplier';
+        final isTrusted = userDoc.data()?['isTrusted'] == true;
 
-                                final noProhibited = !prohibitedKeywords.any((word) => name.toLowerCase().contains(word) || desc.toLowerCase().contains(word));
-                                // For image, check if _imageFile or _webImageBytes or _imageUrl is present
-                                final hasImage = (_imageFile != null) || (_webImageBytes != null) || ((_imageUrl ?? '').isNotEmpty);
+        // --- Automatic Assessment Logic ---
+        final prohibitedKeywords = ['illegal', 'banned', 'prohibited'];
+        final name = _nameController.text.trim();
+        final desc = _descController.text.trim();
+        final price = double.tryParse(_priceController.text.trim()) ?? 0;
+        final hasAllFields = name.isNotEmpty && desc.isNotEmpty && price > 0 && _quantity > 0 && _unit.isNotEmpty && _category.isNotEmpty;
+        final priceValid = price > 0 && price < 10000;
+        // Content filtering
+        final contentFilterService = ContentFilterService();
+        final contentCheck = contentFilterService.checkProductContent(
+          productName: name,
+          description: desc,
+          supplierId: user.uid,
+          category: _category,
+          price: price,
+        );
 
-                                String status = 'pending';
-                                bool isVerified = false;
-                                bool contentFlagged = false;
-                                bool autoApproved = false;
+        final noProhibited = !prohibitedKeywords.any((word) => name.toLowerCase().contains(word) || desc.toLowerCase().contains(word));
+        // For image, check if _imageFile or _webImageBytes or _imageUrl is present
+        final hasImage = (_imageFile != null) || (_webImageBytes != null) || ((_imageUrl ?? '').isNotEmpty);
 
-                                // Auto-approve if content is clean and supplier is trusted
-                                if (hasAllFields && priceValid && noProhibited && hasImage && isTrusted && contentCheck.isApproved) {
-                                  status = 'approved';
-                                  isVerified = true;
-                                  autoApproved = true;
-                                } else if (contentCheck.issues.isNotEmpty) {
-                                  contentFlagged = true;
-                                  status = 'pending';
-                                  isVerified = false;
-                                } else {
-                                  // For non-trusted suppliers, products remain pending for manual review
-                                  status = 'pending';
-                                  isVerified = false;
-                                  autoApproved = false;
-                                }
+        String status = 'pending';
+        bool isVerified = false;
+        bool contentFlagged = false;
+        bool autoApproved = false;
 
-                                if (widget.product == null || (widget.product?['status'] ?? '') == 'rejected') {
-                                  // Add new product or resubmit rejected product
-                                  final docRef = widget.product == null
-                                      ? await FirebaseFirestore.instance.collection('products').add({
-                                          'sellerId': user.uid,
-                                          'supplierName': supplierName,
-                                          'name': name,
-                                          'description': desc,
-                                          'price': price,
-                                          'quantity': _quantity,
-                                          'unit': _unit,
-                                          'category': _category,
-                                          'isActive': _isActive,
-                                          'createdAt': FieldValue.serverTimestamp(),
-                                          'updatedAt': FieldValue.serverTimestamp(),
-                                          'imageUrl': '',
-                                          'status': status,
-                                          'isVerified': isVerified,
-                                          'rejectionReason': '',
-                                          'contentFlagged': contentFlagged,
-                                          'autoApproved': autoApproved,
-                                          'contentIssues': contentCheck.issues,
-                                          'contentSeverity': contentCheck.severity.toString(),
-                                          'isTrustedSupplier': contentCheck.isTrustedSupplier,
-                                          'requiresManualReview': contentCheck.requiresManualReview,
-                                        })
-                                      : FirebaseFirestore.instance.collection('products').doc(widget.docId!);
-                                  final imagePath = await _saveImageLocally(widget.product == null ? docRef.id : widget.docId!);
-                                  if (imagePath != null) {
-                                    if (widget.product == null) {
-                                      await docRef.update({'imageUrl': imagePath});
-                                    } else {
-                                      await docRef.update({
-                                        'imageUrl': imagePath, 
-                                        'status': status, 
-                                        'isVerified': isVerified, 
-                                        'rejectionReason': '',
-                                        'contentFlagged': contentFlagged,
-                                        'autoApproved': autoApproved,
-                                        'contentIssues': contentCheck.issues,
-                                        'contentSeverity': contentCheck.severity.toString(),
-                                        'isTrustedSupplier': contentCheck.isTrustedSupplier,
-                                        'requiresManualReview': contentCheck.requiresManualReview,
-                                      });
-                                    }
-                                  } else if (widget.product != null) {
-                                    await docRef.update({
-                                      'status': status, 
-                                      'isVerified': isVerified, 
-                                      'rejectionReason': '',
-                                      'contentFlagged': contentFlagged,
-                                      'autoApproved': autoApproved,
-                                      'contentIssues': contentCheck.issues,
-                                      'contentSeverity': contentCheck.severity.toString(),
-                                      'isTrustedSupplier': contentCheck.isTrustedSupplier,
-                                      'requiresManualReview': contentCheck.requiresManualReview,
-                                    });
-                                  }
+        // Auto-approve if content is clean and supplier is trusted
+        if (hasAllFields && priceValid && noProhibited && hasImage && isTrusted && contentCheck.isApproved) {
+          status = 'approved';
+          isVerified = true;
+          autoApproved = true;
+        } else if (contentCheck.issues.isNotEmpty) {
+          contentFlagged = true;
+          status = 'pending';
+          isVerified = false;
+        } else {
+          // For non-trusted suppliers, products remain pending for manual review
+          status = 'pending';
+          isVerified = false;
+          autoApproved = false;
+        }
 
-                                } else {
-                                  // Edit existing product (not rejected)
-                                  final imagePath = await _saveImageLocally(widget.docId!);
-                                  await FirebaseFirestore.instance.collection('products').doc(widget.docId!).update({
-                                    'sellerId': user.uid,
-                                    'supplierName': supplierName,
-                                    'name': name,
-                                    'description': desc,
-                                    'price': price,
-                                    'quantity': _quantity,
-                                    'unit': _unit,
-                                    'category': _category,
-                                    'isActive': _isActive,
-                                    'updatedAt': FieldValue.serverTimestamp(),
-                                    'imageUrl': imagePath ?? _imageUrl ?? '',
-                                    'status': status,
-                                    'isVerified': isVerified,
-                                    'contentFlagged': contentFlagged,
-                                    'autoApproved': autoApproved,
-                                    'contentIssues': contentCheck.issues,
-                                    'contentSeverity': contentCheck.severity.toString(),
-                                    'isTrustedSupplier': contentCheck.isTrustedSupplier,
-                                    'requiresManualReview': contentCheck.requiresManualReview,
-                                  });
-                                }
-                                if (!mounted) return;
-                                setState(() => _isUploading = false);
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text(widget.product == null ? 'Product added!' : 'Product updated!')),
-                                );
-                                Navigator.pop(context);
-                              } catch (e) {
-                                setState(() => _isUploading = false);
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Failed to ${widget.product == null ? 'add' : 'update'} product: $e')),
-                                );
-                              }
-                            }
-                          },
+        if (widget.product == null || (widget.product?['status'] ?? '') == 'rejected') {
+          // Add new product or resubmit rejected product
+          final docRef = widget.product == null
+              ? await FirebaseFirestore.instance.collection('products').add({
+                  'sellerId': user.uid,
+                  'supplierName': supplierName,
+                  'name': name,
+                  'description': desc,
+                  'price': price,
+                  'quantity': _quantity,
+                  'unit': _unit,
+                  'category': _category,
+                  'isActive': _isActive,
+                  'createdAt': FieldValue.serverTimestamp(),
+                  'updatedAt': FieldValue.serverTimestamp(),
+                  'imageUrl': '',
+                  'status': status,
+                  'isVerified': isVerified,
+                  'rejectionReason': '',
+                  'contentFlagged': contentFlagged,
+                  'autoApproved': autoApproved,
+                  'contentIssues': contentCheck.issues,
+                  'contentSeverity': contentCheck.severity.toString(),
+                  'isTrustedSupplier': contentCheck.isTrustedSupplier,
+                  'requiresManualReview': contentCheck.requiresManualReview,
+                })
+              : FirebaseFirestore.instance.collection('products').doc(widget.docId!);
+          final imagePath = await _saveImageLocally(widget.product == null ? docRef.id : widget.docId!);
+          if (imagePath != null) {
+            if (widget.product == null) {
+              await docRef.update({'imageUrl': imagePath});
+            } else {
+              await docRef.update({
+                'imageUrl': imagePath, 
+                'status': status, 
+                'isVerified': isVerified, 
+                'rejectionReason': '',
+                'contentFlagged': contentFlagged,
+                'autoApproved': autoApproved,
+                'contentIssues': contentCheck.issues,
+                'contentSeverity': contentCheck.severity.toString(),
+                'isTrustedSupplier': contentCheck.isTrustedSupplier,
+                'requiresManualReview': contentCheck.requiresManualReview,
+              });
+            }
+          } else if (widget.product != null) {
+            await docRef.update({
+              'status': status, 
+              'isVerified': isVerified, 
+              'rejectionReason': '',
+              'contentFlagged': contentFlagged,
+              'autoApproved': autoApproved,
+              'contentIssues': contentCheck.issues,
+              'contentSeverity': contentCheck.severity.toString(),
+              'isTrustedSupplier': contentCheck.isTrustedSupplier,
+              'requiresManualReview': contentCheck.requiresManualReview,
+            });
+          }
+
+        } else {
+          // Edit existing product (not rejected)
+          final imagePath = await _saveImageLocally(widget.docId!);
+          await FirebaseFirestore.instance.collection('products').doc(widget.docId!).update({
+            'sellerId': user.uid,
+            'supplierName': supplierName,
+            'name': name,
+            'description': desc,
+            'price': price,
+            'quantity': _quantity,
+            'unit': _unit,
+            'category': _category,
+            'isActive': _isActive,
+            'updatedAt': FieldValue.serverTimestamp(),
+            'imageUrl': imagePath ?? _imageUrl ?? '',
+            'status': status,
+            'isVerified': isVerified,
+            'contentFlagged': contentFlagged,
+            'autoApproved': autoApproved,
+            'contentIssues': contentCheck.issues,
+            'contentSeverity': contentCheck.severity.toString(),
+            'isTrustedSupplier': contentCheck.isTrustedSupplier,
+            'requiresManualReview': contentCheck.requiresManualReview,
+          });
+        }
+        if (!mounted) return;
+        setState(() => _isUploading = false);
+        ScaffoldMessenger.of(parentContext).showSnackBar(
+          SnackBar(content: Text(widget.product == null ? 'Product added!' : 'Product updated!')),
+        );
+        Navigator.pop(parentContext);
+      } catch (e) {
+        setState(() => _isUploading = false);
+        ScaffoldMessenger.of(parentContext).showSnackBar(
+          SnackBar(content: Text('Failed to ${widget.product == null ? 'add' : 'update'} product: $e')),
+        );
+      }
+    }
+  },
                           child: Padding(
                             padding: EdgeInsets.symmetric(vertical: screenWidth * 0.03),
                             child: _isUploading

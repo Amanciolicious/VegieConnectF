@@ -18,7 +18,6 @@ class _SupplierOrdersPageState extends State<SupplierOrdersPage>
   String _statusFilter = 'all';
   String _dateFilter = 'all';
   bool _showOnlyPending = false;
-  bool _isLoading = false;
 
   final List<String> _statusOptions = [
     'all',
@@ -52,7 +51,6 @@ class _SupplierOrdersPageState extends State<SupplierOrdersPage>
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -827,7 +825,6 @@ class _SupplierOrdersPageState extends State<SupplierOrdersPage>
 
   Future<void> _updateOrderStatus(String orderId, String newStatus) async {
     try {
-      setState(() => _isLoading = true);
       
       await FirebaseFirestore.instance
           .collection('orders')
@@ -855,7 +852,6 @@ class _SupplierOrdersPageState extends State<SupplierOrdersPage>
         );
       }
     } finally {
-      setState(() => _isLoading = false);
     }
   }
 

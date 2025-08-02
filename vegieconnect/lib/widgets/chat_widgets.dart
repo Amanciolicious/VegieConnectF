@@ -38,7 +38,7 @@ class ChatBubble extends StatelessWidget {
                       radius: 16,
                       backgroundColor: AppColors.accentGreen,
                       child: Text(
-                        _getSafeInitial((message.senderName ?? '')),
+                        _getSafeInitial((message.senderName)),
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 12,
@@ -64,9 +64,9 @@ class ChatBubble extends StatelessWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              if (!isOwnMessage && (message.senderName ?? '').isNotEmpty) ...[
+                              if (!isOwnMessage && (message.senderName).isNotEmpty) ...[
                                 Text(
-                                  message.senderName ?? 'Unknown User',
+                                  message.senderName,
                                   style: AppTextStyles.body.copyWith(
                                     fontWeight: FontWeight.bold,
                                     color: AppColors.primaryGreen,

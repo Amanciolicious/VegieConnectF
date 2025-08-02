@@ -5,8 +5,8 @@ import '../widgets/product_image_widget.dart';
 import 'package:vegieconnect/theme.dart'; // For AppColors
 import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
 // Import the ChatPage
-import 'chat_conversation_page.dart'; // Import the ChatConversationPage
-import '../services/messaging_service.dart'; // Import the MessagingService
+// Import the ChatConversationPage
+// Import the MessagingService
 import '../services/chat_navigation_service.dart'; // Import the ChatNavigationService
 
 class BuyerProductsPage extends StatefulWidget {
@@ -243,15 +243,17 @@ class _BuyerProductsPageState extends State<BuyerProductsPage> {
                                       onPressed: () async {
                                         // Close dialog first
                                         Navigator.pop(context);
-                                        
+
                                         // Add a small delay to ensure dialog is fully closed
                                         await Future.delayed(const Duration(milliseconds: 200));
-                                        
-                                        // Use the helper method for safe navigation
+
+                                        // Use a parent context (from the widget tree) and check if mounted
+                                        if (!mounted) return;
+
                                         await _navigateToChat(
-                                          context, 
-                                          product['sellerId']?.toString() ?? '', 
-                                          product['supplierName'] ?? 'Supplier'
+                                          context,
+                                          product['sellerId']?.toString() ?? '',
+                                          product['supplierName'] ?? 'Supplier',
                                         );
                                       },
                                       child: Container(

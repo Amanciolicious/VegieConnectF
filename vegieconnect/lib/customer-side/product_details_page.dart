@@ -3,9 +3,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../widgets/product_image_widget.dart';
-import '../services/messaging_service.dart';
 import '../services/chat_navigation_service.dart';
-import '../customer-side/chat_conversation_page.dart';
 import 'package:vegieconnect/theme.dart'; // For AppColors
 import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
 

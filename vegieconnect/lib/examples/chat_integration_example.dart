@@ -53,7 +53,7 @@ class _ChatIntegrationExampleState extends State<ChatIntegrationExample> {
           _buildSection(
             '4. Chat Notifications',
             'Show unread message count',
-            _buildChatNotificationsExample(),
+            _buildChatNotificationsExample(0),
           ),
         ],
       ),
@@ -160,11 +160,11 @@ void _startChatFromProduct() {
       children: [
         ElevatedButton(
           onPressed: () => _openSupplierChat(),
-          child: const Text('Open Supplier Chat Dashboard'),
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.accentGreen,
             foregroundColor: Colors.white,
           ),
+          child: const Text('Open Supplier Chat Dashboard'),
         ),
         const SizedBox(height: 16),
         const Text(
@@ -199,11 +199,11 @@ Navigator.push(
       children: [
         ElevatedButton(
           onPressed: () => _openBuyerChat(),
-          child: const Text('Open Buyer Chat List'),
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.primaryGreen,
             foregroundColor: Colors.white,
           ),
+          child: const Text('Open Buyer Chat List'),
         ),
         const SizedBox(height: 16),
         const Text(

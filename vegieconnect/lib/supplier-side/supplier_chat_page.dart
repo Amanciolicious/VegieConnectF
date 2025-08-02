@@ -4,7 +4,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/messaging_service.dart';
 import '../services/chat_navigation_service.dart';
 import '../theme.dart';
-import '../customer-side/chat_conversation_page.dart';
 import '../widgets/chat_widgets.dart';
 
 class SupplierChatPage extends StatefulWidget {

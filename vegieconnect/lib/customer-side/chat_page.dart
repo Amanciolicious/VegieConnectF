@@ -5,7 +5,6 @@ import '../services/messaging_service.dart';
 import '../services/chat_navigation_service.dart';
 import '../widgets/chat_widgets.dart';
 import '../theme.dart';
-import 'chat_conversation_page.dart';
 
 class ChatPage extends StatefulWidget {
   const ChatPage({super.key, required supplierId});

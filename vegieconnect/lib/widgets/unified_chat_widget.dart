@@ -1,10 +1,8 @@
 import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/messaging_service.dart';
 import '../services/chat_navigation_service.dart';
 import '../theme.dart';
-import '../customer-side/chat_conversation_page.dart';
 import 'chat_widgets.dart';
 
 class UnifiedChatWidget extends StatefulWidget {

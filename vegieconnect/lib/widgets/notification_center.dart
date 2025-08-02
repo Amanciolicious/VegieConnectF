@@ -1,5 +1,4 @@
 import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../services/messaging_service.dart';
 import '../services/notification_service.dart';
 import '../theme.dart';
@@ -14,7 +13,6 @@ class NotificationCenter extends StatefulWidget {
 class _NotificationCenterState extends State<NotificationCenter> {
   final MessagingService _messagingService = MessagingService();
   final NotificationService _notificationService = NotificationService();
-  final FirebaseAuth _auth = FirebaseAuth.instance;
 
   @override
   void initState() {
