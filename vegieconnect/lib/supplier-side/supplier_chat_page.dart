@@ -154,6 +154,7 @@ class _SupplierChatPageState extends State<SupplierChatPage> {
       return participantNames[otherParticipantId] ?? 'Customer';
     }
 
+    // Try to get user data for better display
     return chat.lastSenderName ?? 'Customer';
   }
 

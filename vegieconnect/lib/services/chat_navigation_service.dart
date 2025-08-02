@@ -94,12 +94,16 @@ class ChatNavigationService {
         );
 
         // Show success message when returning
-        _showSuccessSnackBar(context, 'Chat session ended');
+        if (context.mounted) {
+          _showSuccessSnackBar(context, 'Chat session ended');
+        }
       }
     } catch (e) {
       debugPrint('Chat navigation error: $e');
       _closeLoadingDialog(context);
-      _showErrorSnackBar(context, 'Error starting chat: ${e.toString()}');
+      if (context.mounted) {
+        _showErrorSnackBar(context, 'Error starting chat: ${e.toString()}');
+      }
     }
   }
 
@@ -168,12 +172,16 @@ class ChatNavigationService {
         );
 
         // Show success message when returning
-        _showSuccessSnackBar(context, 'Chat session ended');
+        if (context.mounted) {
+          _showSuccessSnackBar(context, 'Chat session ended');
+        }
       }
     } catch (e) {
       debugPrint('Chat navigation error: $e');
       _closeLoadingDialog(context);
-      _showErrorSnackBar(context, 'Error starting chat: ${e.toString()}');
+      if (context.mounted) {
+        _showErrorSnackBar(context, 'Error starting chat: ${e.toString()}');
+      }
     }
   }
 
@@ -204,7 +212,9 @@ class ChatNavigationService {
       }
     } catch (e) {
       debugPrint('Error opening existing chat: $e');
-      _showErrorSnackBar(context, 'Error opening chat: ${e.toString()}');
+      if (context.mounted) {
+        _showErrorSnackBar(context, 'Error opening chat: ${e.toString()}');
+      }
     }
   }
 

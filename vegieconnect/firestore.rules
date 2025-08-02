@@ -1,0 +1,100 @@
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAdmin() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    function isSupplier() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'supplier';
+    }
+
+    function isBuyer() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'buyer';
+    }
+
+    function isValidUser() {
+      return request.auth != null && request.auth.uid != null;
+    }
+
+    // Users: Admins can read/write any, users can read/write their own
+    match /users/{userId} {
+      allow read, write: if isAdmin() || (isValidUser() && request.auth.uid == userId);
+      allow read: if isValidUser(); // Allow reading user data for chat creation
+      
+      // Cart subcollection: Users can read/write their own cart
+      match /cart/{cartItemId} {
+        allow read, write: if isValidUser() && request.auth.uid == userId;
+      }
+      
+      // Favorites: Users can read/write their own favorites
+      match /favorites/{favoriteId} {
+        allow read, write: if isValidUser() && request.auth.uid == userId;
+      }
+    }
+
+    // Orders: Admins, seller, or buyer can read/write; create if involved
+    match /orders/{orderId} {
+      allow read: if isAdmin() || (
+        isValidUser() &&
+        (request.auth.uid == resource.data.sellerId || request.auth.uid == resource.data.buyerId)
+      );
+      allow create: if isAdmin() || (
+        isValidUser() &&
+        (request.resource.data.sellerId == request.auth.uid || request.resource.data.buyerId == request.auth.uid)
+      );
+      allow update: if isAdmin() || (
+        isValidUser() &&
+        (request.auth.uid == resource.data.sellerId || request.auth.uid == resource.data.buyerId)
+      );
+      allow delete: if isAdmin();
+    }
+
+    // Payments: Allow authenticated users to create payments, admins can read all
+    match /payments/{paymentId} {
+      allow read: if isAdmin() || (isValidUser() && request.auth.uid == resource.data.userId);
+      allow create: if isValidUser() && request.auth.uid == request.resource.data.userId;
+      allow update: if isAdmin() || (isValidUser() && request.auth.uid == resource.data.userId);
+      allow delete: if isAdmin();
+    }
+
+    // Notifications: Users can read their own notifications, admins can read all
+    match /notifications/{notificationId} {
+      allow read: if isAdmin() || (isValidUser() && request.auth.uid == resource.data.userId);
+      allow create: if isAdmin() || (isValidUser() && request.auth.uid == request.resource.data.userId);
+      allow update: if isAdmin() || (isValidUser() && request.auth.uid == resource.data.userId);
+      allow delete: if isAdmin() || (isValidUser() && request.auth.uid == resource.data.userId);
+    }
+
+    // Chats: Allow participants to read/write their chats
+    match /chats/{chatId} {
+      allow read, write: if isValidUser() && (
+        request.auth.uid in resource.data.participants ||
+        request.auth.uid in request.resource.data.participants
+      );
+      
+      // Messages subcollection: Allow participants to read/write messages
+      match /messages/{messageId} {
+        allow read, write: if isValidUser() && (
+          request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants
+        );
+      }
+    }
+
+    // Products: Suppliers can manage their own products, buyers can read all
+    match /products/{productId} {
+      allow read: if isValidUser();
+      allow create: if isAdmin() || (isValidUser() && isSupplier());
+      allow update, delete: if isAdmin() || (
+        isValidUser() && 
+        isSupplier() && 
+        request.auth.uid == resource.data.sellerId
+      );
+    }
+
+    // Categories: Admins can manage, all users can read
+    match /categories/{categoryId} {
+      allow read: if isValidUser();
+      allow write: if isAdmin();
+    }
+  }
+} 

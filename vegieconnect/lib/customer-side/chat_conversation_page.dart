@@ -94,8 +94,25 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
           return;
         }
         debugPrint('Chat document verified: ${widget.chatId}');
+        
+        // Get chat participants for better display
+        final chatData = chatDoc.data() as Map<String, dynamic>;
+        final participantNames = chatData['participantNames'] as Map<String, dynamic>?;
+        if (participantNames != null) {
+          debugPrint('Chat participants: $participantNames');
+        }
       } catch (e) {
         debugPrint('Error verifying chat document: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error verifying chat: $e'),
+              backgroundColor: AppColors.accentRed,
+            ),
+          );
+          Navigator.pop(context);
+        }
+        return;
       }
 
       // Mark messages as read
@@ -192,11 +209,16 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
       // Show notification to other user
       final currentUser = _auth.currentUser;
       if (currentUser != null && mounted) {
-        _notificationService.sendChatNotification(
-          senderName: currentUser.displayName ?? currentUser.email ?? 'Unknown',
-          message: message.trim(),
-          chatId: widget.chatId,
-        );
+        try {
+          _notificationService.sendChatNotification(
+            senderName: currentUser.displayName ?? currentUser.email ?? 'Unknown',
+            message: message.trim(),
+            chatId: widget.chatId,
+          );
+        } catch (e) {
+          debugPrint('Error sending notification: $e');
+          // Don't show error to user for notification failures
+        }
       }
     } catch (e) {
       debugPrint('Error sending message: $e');

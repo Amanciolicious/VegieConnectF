@@ -162,8 +162,13 @@ class _ChatPageState extends State<ChatPage> {
 
     if (otherParticipantId.isEmpty) return 'Chat';
 
-    // For now, return a simple title. In a real app, you'd fetch user details
-    return chat.lastSenderName ?? 'User';
+    // Try to get participant names from chat metadata
+    if (chat.metadata != null && chat.metadata!['participantNames'] != null) {
+      final participantNames = Map<String, dynamic>.from(chat.metadata!['participantNames']);
+      return participantNames[otherParticipantId] ?? chat.lastSenderName ?? 'Supplier';
+    }
+
+    return chat.lastSenderName ?? 'Supplier';
   }
 
 

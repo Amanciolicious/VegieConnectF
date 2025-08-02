@@ -28,6 +28,10 @@ class MessagingService {
   // Deleted chats tracking (per user)
   final Map<String, Set<String>> _deletedChats = {};
 
+  // User data cache for better performance
+  final Map<String, Map<String, dynamic>> _userCache = {};
+  final int _maxUserCacheSize = 50;
+
   // Initialize messaging service
   Future<void> initialize() async {
     try {
@@ -37,6 +41,7 @@ class MessagingService {
           _clearAllChats();
         } else {
           _loadDeletedChats(user.uid);
+          _loadUserData(user.uid);
         }
       });
       
@@ -44,6 +49,46 @@ class MessagingService {
     } catch (e) {
       debugPrint('Error initializing MessagingService: $e');
     }
+  }
+
+  // Load user data for better chat experience
+  Future<void> _loadUserData(String userId) async {
+    try {
+      final userDoc = await _firestore.collection('users').doc(userId).get();
+      if (userDoc.exists) {
+        _userCache[userId] = userDoc.data()!;
+        _manageUserCacheSize();
+      }
+    } catch (e) {
+      debugPrint('Error loading user data: $e');
+    }
+  }
+
+  // Manage user cache size
+  void _manageUserCacheSize() {
+    if (_userCache.length > _maxUserCacheSize) {
+      final oldestUser = _userCache.keys.first;
+      _userCache.remove(oldestUser);
+    }
+  }
+
+  // Get user data with caching
+  Future<Map<String, dynamic>?> getUserData(String userId) async {
+    if (_userCache.containsKey(userId)) {
+      return _userCache[userId];
+    }
+
+    try {
+      final userDoc = await _firestore.collection('users').doc(userId).get();
+      if (userDoc.exists) {
+        _userCache[userId] = userDoc.data()!;
+        _manageUserCacheSize();
+        return _userCache[userId];
+      }
+    } catch (e) {
+      debugPrint('Error fetching user data: $e');
+    }
+    return null;
   }
 
   // Load deleted chats for user
@@ -90,7 +135,7 @@ class MessagingService {
     return _typingControllers[chatId]!.stream;
   }
 
-  // Initialize chat stream
+  // Initialize chat stream with enhanced error handling
   void _initializeChatStream(String chatId) {
     final controller = StreamController<List<ChatMessage>>.broadcast();
     _chatControllers[chatId] = controller;
@@ -110,23 +155,29 @@ class MessagingService {
         .snapshots()
         .listen(
       (snapshot) {
-        final messages = snapshot.docs
-            .map((doc) => ChatMessage.fromFirestore(doc))
-            .where((msg) => 
-                msg.message.isNotEmpty && 
-                msg.senderId.isNotEmpty &&
-                msg.senderName.isNotEmpty)
-            .toList();
-        
-        // Update cache
-        _chatCache[chatId] = messages;
-        _manageCacheSize();
-        
-        // Add to stream
-        controller.add(messages);
+        try {
+          final messages = snapshot.docs
+              .map((doc) => ChatMessage.fromFirestore(doc))
+              .where((msg) => 
+                  msg.message.isNotEmpty && 
+                  msg.senderId.isNotEmpty &&
+                  msg.senderName.isNotEmpty)
+              .toList();
+          
+          // Update cache
+          _chatCache[chatId] = messages;
+          _manageCacheSize();
+          
+          // Add to stream
+          controller.add(messages);
+        } catch (e) {
+          debugPrint('Error processing chat messages for $chatId: $e');
+          controller.addError(e);
+        }
       },
       onError: (error) {
         debugPrint('Error in chat stream for $chatId: $error');
+        controller.addError(error);
       },
     );
 
@@ -144,21 +195,29 @@ class MessagingService {
         .snapshots()
         .listen(
       (snapshot) {
-        if (snapshot.exists) {
-          final data = snapshot.data() as Map<String, dynamic>;
-          final typingUsers = Map<String, bool>.from(data['typingUsers'] ?? {});
-          controller.add(typingUsers);
+        try {
+          if (snapshot.exists) {
+            final data = snapshot.data() as Map<String, dynamic>;
+            final typingUsers = Map<String, bool>.from(data['typingUsers'] ?? {});
+            controller.add(typingUsers);
+          } else {
+            controller.add({});
+          }
+        } catch (e) {
+          debugPrint('Error processing typing indicators for $chatId: $e');
+          controller.addError(e);
         }
       },
       onError: (error) {
         debugPrint('Error in typing stream for $chatId: $error');
+        controller.addError(error);
       },
     );
 
     _typingSubscriptions[chatId] = subscription;
   }
 
-  // Send message
+  // Send message with enhanced validation
   Future<void> sendMessage({
     required String chatId,
     required String message,
@@ -171,10 +230,18 @@ class MessagingService {
       if (chatId.isEmpty) throw Exception('Chat ID is empty');
       if (message.trim().isEmpty) throw Exception('Message is empty');
 
+      // Get user data for better message metadata
+      final userData = await getUserData(user.uid);
+      final senderName = userData?['displayName'] ?? 
+                        userData?['email'] ?? 
+                        user.displayName ?? 
+                        user.email ?? 
+                        'Unknown';
+
       final chatMessage = ChatMessage(
         id: '', // Will be set by Firestore
         senderId: user.uid,
-        senderName: user.displayName ?? user.email ?? 'Unknown',
+        senderName: senderName,
         message: message.trim(),
         imageUrl: imageUrl,
         timestamp: DateTime.now(),
@@ -282,14 +349,37 @@ class MessagingService {
     }
   }
 
-  // Update chat metadata
+  // Update chat metadata with enhanced information
   Future<void> _updateChatMetadata(String chatId, ChatMessage lastMessage) async {
     try {
+      final user = _auth.currentUser;
+      if (user == null) return;
+
+      // Get participant names for better chat display
+      final chatDoc = await _firestore.collection('chats').doc(chatId).get();
+      Map<String, String> participantNames = {};
+      
+      if (chatDoc.exists) {
+        final data = chatDoc.data() as Map<String, dynamic>;
+        participantNames = Map<String, String>.from(data['participantNames'] ?? {});
+      }
+
+      // Update participant names if not set
+      if (!participantNames.containsKey(user.uid)) {
+        final userData = await getUserData(user.uid);
+        participantNames[user.uid] = userData?['displayName'] ?? 
+                                    userData?['email'] ?? 
+                                    user.displayName ?? 
+                                    user.email ?? 
+                                    'User';
+      }
+
       await _firestore.collection('chats').doc(chatId).set({
         'lastMessage': lastMessage.message,
         'lastMessageTime': lastMessage.timestamp,
         'lastSenderId': lastMessage.senderId,
         'lastSenderName': lastMessage.senderName,
+        'participantNames': participantNames,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     } catch (e) {
@@ -297,7 +387,7 @@ class MessagingService {
     }
   }
 
-  // Create or get chat between users
+  // Create or get chat between users with enhanced metadata
   Future<String> createOrGetChat(String otherUserId) async {
     try {
       final user = _auth.currentUser;
@@ -305,17 +395,53 @@ class MessagingService {
 
       final chatId = _generateChatId(user.uid, otherUserId);
 
+      // Get user data for better chat metadata
+      final userData = await getUserData(user.uid);
+      final otherUserData = await getUserData(otherUserId);
+
+      final userName = userData?['displayName'] ?? 
+                      userData?['email'] ?? 
+                      user.displayName ?? 
+                      user.email ?? 
+                      'User';
+      
+      final otherUserName = otherUserData?['displayName'] ?? 
+                           otherUserData?['email'] ?? 
+                           'Other User';
+
       // Check if chat exists
       final chatDoc = await _firestore.collection('chats').doc(chatId).get();
       
       if (!chatDoc.exists) {
-        // Create new chat
+        // Create new chat with enhanced metadata
         await _firestore.collection('chats').doc(chatId).set({
           'participants': [user.uid, otherUserId],
+          'participantNames': {
+            user.uid: userName,
+            otherUserId: otherUserName,
+          },
+          'chatType': 'user_to_user',
           'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
           'typingUsers': {},
-          'metadata': {},
+          'metadata': {
+            'participantNames': {
+              user.uid: userName,
+              otherUserId: otherUserName,
+            },
+            'chatType': 'user_to_user',
+            'createdBy': user.uid,
+            'createdAt': FieldValue.serverTimestamp(),
+          },
+        });
+      } else {
+        // Update participant names if needed
+        await _firestore.collection('chats').doc(chatId).update({
+          'participantNames': {
+            user.uid: userName,
+            otherUserId: otherUserName,
+          },
+          'updatedAt': FieldValue.serverTimestamp(),
         });
       }
 
@@ -326,7 +452,7 @@ class MessagingService {
     }
   }
 
-  // Create chat with supplier
+  // Create chat with supplier with enhanced metadata
   Future<String> createChatWithSupplier(String supplierId) async {
     try {
       final user = _auth.currentUser;
@@ -335,11 +461,22 @@ class MessagingService {
       final chatId = _generateChatId(user.uid, supplierId);
       debugPrint('Generated chat ID: $chatId for user: ${user.uid} and supplier: $supplierId');
 
-      // Get supplier details (needed for both new and existing chats)
+      // Get supplier details
       final supplierDoc = await _firestore.collection('users').doc(supplierId).get();
       final supplierData = supplierDoc.data();
-      final supplierName = supplierData?['displayName'] ?? supplierData?['email'] ?? 'Supplier';
+      final supplierName = supplierData?['displayName'] ?? 
+                          supplierData?['businessName'] ?? 
+                          supplierData?['email'] ?? 
+                          'Supplier';
       debugPrint('Supplier name resolved: $supplierName');
+
+      // Get user details
+      final userData = await getUserData(user.uid);
+      final userName = userData?['displayName'] ?? 
+                      userData?['email'] ?? 
+                      user.displayName ?? 
+                      user.email ?? 
+                      'User';
 
       // Check if chat exists
       final chatDoc = await _firestore.collection('chats').doc(chatId).get();
@@ -350,7 +487,7 @@ class MessagingService {
         await _firestore.collection('chats').doc(chatId).set({
           'participants': [user.uid, supplierId],
           'participantNames': {
-            user.uid: user.displayName ?? user.email ?? 'User',
+            user.uid: userName,
             supplierId: supplierName,
           },
           'chatType': 'supplier_buyer',
@@ -359,11 +496,11 @@ class MessagingService {
           'lastMessage': '', // Initialize empty to ensure chat appears in list
           'lastMessageTime': FieldValue.serverTimestamp(),
           'lastSenderId': user.uid,
-          'lastSenderName': user.displayName ?? user.email ?? 'User',
+          'lastSenderName': userName,
           'typingUsers': {},
           'metadata': {
             'participantNames': {
-              user.uid: user.displayName ?? user.email ?? 'User',
+              user.uid: userName,
               supplierId: supplierName,
             },
             'chatType': 'supplier_buyer',
@@ -378,7 +515,7 @@ class MessagingService {
         await _firestore.collection('chats').doc(chatId).update({
           'updatedAt': FieldValue.serverTimestamp(),
           'participantNames': {
-            user.uid: user.displayName ?? user.email ?? 'User',
+            user.uid: userName,
             supplierId: supplierName,
           },
         });
@@ -399,7 +536,7 @@ class MessagingService {
     return '${sortedIds[0]}_${sortedIds[1]}';
   }
 
-  // Get user chats (filtered by deleted chats)
+  // Get user chats with enhanced filtering and metadata
   Stream<List<ChatSummary>> getUserChats() {
     final user = _auth.currentUser;
     if (user == null) {
@@ -438,7 +575,7 @@ class MessagingService {
     }
   }
 
-  // Get supplier chats (for supplier dashboard) - only show chats with buyers who have messaged
+  // Get supplier chats with enhanced filtering
   Stream<List<ChatSummary>> getSupplierChats() {
     final user = _auth.currentUser;
     if (user == null) {
@@ -480,7 +617,7 @@ class MessagingService {
     }
   }
 
-  // Get customer-supplier chats (for both customer and supplier)
+  // Get customer-supplier chats with enhanced metadata
   Stream<List<ChatSummary>> getRealCustomerSupplierChats() {
     final user = _auth.currentUser;
     if (user == null) {
@@ -524,6 +661,84 @@ class MessagingService {
     }
   }
 
+  // Get chat participants with names
+  Future<Map<String, String>> getChatParticipants(String chatId) async {
+    try {
+      final chatDoc = await _firestore.collection('chats').doc(chatId).get();
+      if (chatDoc.exists) {
+        final data = chatDoc.data() as Map<String, dynamic>;
+        final participantNames = data['participantNames'] as Map<String, dynamic>?;
+        if (participantNames != null) {
+          return Map<String, String>.from(participantNames);
+        }
+      }
+      return {};
+    } catch (e) {
+      debugPrint('Error getting chat participants: $e');
+      return {};
+    }
+  }
+
+  // Get chat title for display
+  Future<String> getChatTitle(String chatId) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return 'Chat';
+
+      final participants = await getChatParticipants(chatId);
+      final otherParticipantId = participants.keys
+          .firstWhere((id) => id != user.uid, orElse: () => '');
+
+      if (otherParticipantId.isNotEmpty) {
+        return participants[otherParticipantId] ?? 'User';
+      }
+
+      return 'Chat';
+    } catch (e) {
+      debugPrint('Error getting chat title: $e');
+      return 'Chat';
+    }
+  }
+
+  // Enhanced method to get available suppliers for customers
+  Stream<List<Map<String, dynamic>>> getAvailableSuppliers() {
+    final user = _auth.currentUser;
+    if (user == null) return Stream.value([]);
+
+    try {
+      return _firestore
+          .collection('users')
+          .where('role', isEqualTo: 'supplier')
+          .snapshots()
+          .map((snapshot) {
+            try {
+              return snapshot.docs
+                  .map((doc) => {
+                    'id': doc.id,
+                    'displayName': doc.data()['displayName'] ?? 'Unknown Supplier',
+                    'email': doc.data()['email'] ?? '',
+                    'phone': doc.data()['phone'] ?? '',
+                    'location': doc.data()['location'] ?? '',
+                    'businessName': doc.data()['businessName'] ?? '',
+                    'profileImage': doc.data()['profileImage'] ?? '',
+                  })
+                  .where((supplier) => supplier['id'] != user.uid)
+                  .toList();
+            } catch (e) {
+              debugPrint('getAvailableSuppliers: Error processing supplier documents: $e');
+              return <Map<String, dynamic>>[];
+            }
+          })
+          .handleError((error) {
+            debugPrint('getAvailableSuppliers: Firestore error: $error');
+            return <Map<String, dynamic>>[];
+          });
+    } catch (e) {
+      debugPrint('getAvailableSuppliers: Error setting up stream: $e');
+      return Stream.value(<Map<String, dynamic>>[]);
+    }
+  }
+
   // Delete chat for current user (but keep for other participants)
   Future<void> deleteChat(String chatId) async {
     try {
@@ -546,7 +761,7 @@ class MessagingService {
     }
   }
 
-  // Mark messages as read
+  // Mark messages as read with enhanced tracking
   Future<void> markMessagesAsRead(String chatId) async {
     try {
       final user = _auth.currentUser;
@@ -629,49 +844,7 @@ class MessagingService {
     }
   }
 
-
-
-  // Enhanced method to get available suppliers for customers
-  Stream<List<Map<String, dynamic>>> getAvailableSuppliers() {
-    final user = _auth.currentUser;
-    if (user == null) return Stream.value([]);
-
-    try {
-      return _firestore
-          .collection('users')
-          .where('role', isEqualTo: 'supplier')
-          .snapshots()
-          .map((snapshot) {
-            try {
-              return snapshot.docs
-                  .map((doc) => {
-                    'id': doc.id,
-                    'displayName': doc.data()['displayName'] ?? 'Unknown Supplier',
-                    'email': doc.data()['email'] ?? '',
-                    'phone': doc.data()['phone'] ?? '',
-                    'location': doc.data()['location'] ?? '',
-                    'businessName': doc.data()['businessName'] ?? '',
-                  })
-                  .where((supplier) => supplier['id'] != user.uid)
-                  .toList();
-            } catch (e) {
-              debugPrint('getAvailableSuppliers: Error processing supplier documents: $e');
-              return <Map<String, dynamic>>[];
-            }
-          })
-          .handleError((error) {
-            debugPrint('getAvailableSuppliers: Firestore error: $error');
-            return <Map<String, dynamic>>[];
-          });
-    } catch (e) {
-      debugPrint('getAvailableSuppliers: Error setting up stream: $e');
-      return Stream.value(<Map<String, dynamic>>[]);
-    }
-  }
-
-
-
-  // Get unread message count
+  // Get unread message count with enhanced tracking
   Stream<int> getUnreadMessageCount() {
     final user = _auth.currentUser;
     if (user == null) return Stream.value(0);
@@ -724,6 +897,7 @@ class MessagingService {
     _chatSubscriptions.clear();
     _typingSubscriptions.clear();
     _chatCache.clear();
+    _userCache.clear();
   }
 
   // Dispose resources
