@@ -6,18 +6,18 @@ import 'profile_page.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../authentication/login_page.dart';
 import 'buyer_products_page.dart';
-import 'buyer_order_history_page.dart';
-import 'farm_locations_page.dart';
-
-
-import 'package:vegieconnect/theme.dart'; // Correct import for AppColors
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // Added for Firestore
-import 'product_details_page.dart'; // Added for ProductDetailsPage
-import '../widgets/notification_center.dart';
-// Added for ChatPage
-// Added for TextEditingController
-import 'chat_list_page.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
+import 'package:vegieconnect/theme.dart';
+import 'product_details_page.dart';
+import 'buyer_order_history_page.dart';
+import 'customer_messages_page.dart';
+import 'farm_locations_page.dart';
+import '../services/image_storage_service.dart';
+
+// Chat and notification center removed
 
 class CustomerHomePage extends StatefulWidget {
   const CustomerHomePage({super.key});
@@ -55,6 +55,131 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
     );
   }
 
+  void _showProfileImageOptions() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Update Profile Picture', style: AppTextStyles.headline),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildImageOption(
+                  icon: Icons.camera_alt,
+                  label: 'Camera',
+                  onTap: () => _pickImage(ImageSource.camera),
+                ),
+                _buildImageOption(
+                  icon: Icons.photo_library,
+                  label: 'Gallery',
+                  onTap: () => _pickImage(ImageSource.gallery),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildImageOption({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Neumorphic(
+            style: AppNeumorphic.card.copyWith(
+              color: AppColors.primaryGreen.withOpacity(0.1),
+            ),
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              child: Icon(icon, size: 40, color: AppColors.primaryGreen),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(label, style: AppTextStyles.body),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    Navigator.pop(context);
+    
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: source,
+        maxWidth: 512,
+        maxHeight: 512,
+        imageQuality: 75,
+      );
+      
+      if (image != null && user != null) {
+        await _uploadProfileImage(File(image.path));
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error picking image: $e'),
+          backgroundColor: AppColors.accentRed,
+        ),
+      );
+    }
+  }
+
+  Future<void> _uploadProfileImage(File imageFile) async {
+    if (user == null) return;
+    
+    try {
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(child: CircularProgressIndicator()),
+      );
+
+      // Save image locally using ImageStorageService
+      final savedPath = await ImageStorageService.saveProfileImageFromFile(imageFile, user!.uid);
+
+      // Update user document with local path
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user!.uid)
+          .update({'profileImageUrl': savedPath});
+
+      Navigator.pop(context); // Close loading dialog
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Profile picture updated successfully!'),
+          backgroundColor: AppColors.primaryGreen,
+        ),
+      );
+    } catch (e) {
+      Navigator.pop(context); // Close loading dialog
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error updating profile picture: $e'),
+          backgroundColor: AppColors.accentRed,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -80,25 +205,69 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
               ),
               child: DrawerHeader(
                 decoration: const BoxDecoration(color: Colors.transparent),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    CircleAvatar(
-                      radius: 32,
-                      backgroundColor: Colors.white,
-                      child: Icon(Icons.eco, size: 40, color: AppColors.accentGreen),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      user?.displayName ?? 'Vegie Lover',
-                      style: AppTextStyles.headline.copyWith(color: Colors.white),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      user?.email ?? 'vegieuser@email.com',
-                      style: const TextStyle(color: Colors.white70),
-                    ),
-                  ],
+                child: StreamBuilder<DocumentSnapshot>(
+                  stream: user != null 
+                    ? FirebaseFirestore.instance.collection('users').doc(user!.uid).snapshots()
+                    : null,
+                  builder: (context, snapshot) {
+                    final userData = snapshot.data?.data() as Map<String, dynamic>?;
+                    final profileImageUrl = userData?['profileImageUrl'] as String?;
+                    final displayName = userData?['name'] ?? user?.displayName ?? 'Vegie Lover';
+                    
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        GestureDetector(
+                          onTap: _showProfileImageOptions,
+                          child: Stack(
+                            children: [
+                              CircleAvatar(
+                                radius: 32,
+                                backgroundColor: Colors.white,
+                                backgroundImage: profileImageUrl != null 
+                                  ? NetworkImage(profileImageUrl) 
+                                  : null,
+                                child: profileImageUrl == null 
+                                  ? Icon(Icons.person, size: 40, color: AppColors.accentGreen)
+                                  : null,
+                              ),
+                              Positioned(
+                                bottom: 0,
+                                right: 0,
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: AppColors.primaryGreen, width: 2),
+                                  ),
+                                  child: Icon(
+                                    Icons.camera_alt,
+                                    size: 16,
+                                    color: AppColors.primaryGreen,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          displayName,
+                          style: AppTextStyles.headline.copyWith(color: Colors.white, fontSize: 18),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          user?.email ?? 'vegieuser@email.com',
+                          style: const TextStyle(color: Colors.white70, fontSize: 14),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    );
+                  },
                 ),
               ),
             ),
@@ -135,6 +304,16 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
               },
             ),
             ListTile(
+              leading: const Icon(Icons.chat_bubble_outline, color: AppColors.accentGreen),
+              title: const Text('Messages'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => CustomerMessagesPage()),
+                );
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.store, color: AppColors.accentGreen),
               title: const Text('Browse Products'),
               onTap: () {
@@ -165,16 +344,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
               },
             ),
 
-            ListTile(
-              leading: const Icon(Icons.chat_bubble_outline, color: AppColors.accentGreen),
-              title: const Text('My Chats'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const ChatListPage()),
-                );
-              },
-            ),
+            // Chat removed
 
             const Divider(),
             ListTile(
@@ -194,18 +364,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
         ),
         title: const Text('VegieConnect', style: TextStyle(color: Colors.white)),
         centerTitle: true,
-        actions: [
-          const NotificationCenter(),
-          IconButton(
-            icon: const Icon(Icons.chat, color: Colors.white),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const ChatListPage()),
-              );
-            },
-          ),
-        ],
+        actions: const [],
       ),
       body: SafeArea(child: _pages[_selectedIndex]),
       bottomNavigationBar: StreamBuilder<QuerySnapshot>(
@@ -286,7 +445,6 @@ class _HomeTab extends StatefulWidget {
 class _HomeTabState extends State<_HomeTab> {
   final TextEditingController _searchController = TextEditingController();
   String _userName = 'Vegie Lover';
-  String _userEmail = 'vegieuser@email.com';
   String _userLocation = 'Your Location';
   int _notificationCount = 0;
   List<Map<String, dynamic>> _categories = [];
@@ -322,7 +480,6 @@ class _HomeTabState extends State<_HomeTab> {
           final userData = userDoc.data()!;
           setState(() {
             _userName = userData['name'] ?? 'Vegie Lover';
-            _userEmail = userData['email'] ?? user.email ?? 'vegieuser@email.com';
             _userLocation = userData['location'] ?? 'Your Location';
           });
         }
@@ -423,14 +580,7 @@ class _HomeTabState extends State<_HomeTab> {
     );
   }
 
-  void _onNotificationTap() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const NotificationCenter(),
-      ),
-    );
-  }
+  
 
   void _onPromoBannerTap() {
     // Navigate to products with promo filter
@@ -498,6 +648,14 @@ class _HomeTabState extends State<_HomeTab> {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+    
+    // Optimized for Infinix Smart 8 (720x1612)
+    final headerPadding = screenWidth * 0.04; // ~29px
+    final verticalSpacing = screenHeight * 0.008; // ~13px
+    final searchHeight = screenHeight * 0.055; // ~89px
+    
     return ListView(
       padding: EdgeInsets.zero,
       children: [
@@ -507,44 +665,37 @@ class _HomeTabState extends State<_HomeTab> {
             boxShape: NeumorphicBoxShape.roundRect(BorderRadius.circular(0)),
           ),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+            padding: EdgeInsets.symmetric(horizontal: headerPadding, vertical: verticalSpacing),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.location_on, color: Colors.white),
-                    const SizedBox(width: 8),
-                    Text(
-                      _userLocation,
-                      style: const TextStyle(color: Colors.white70, fontSize: 14),
+                    Expanded(
+                      child: Container(), // Empty space to push notification to right
                     ),
-                    const Spacer(),
                     Stack(
                       children: [
-                        IconButton(
-                          icon: const Icon(Icons.notifications_none, color: Colors.white),
-                          onPressed: _onNotificationTap,
-                        ),
+                        Icon(Icons.notifications_outlined, color: Colors.white, size: screenWidth * 0.06),
                         if (_notificationCount > 0)
                           Positioned(
-                            right: 8,
-                            top: 8,
+                            right: 0,
+                            top: 0,
                             child: Container(
-                              padding: const EdgeInsets.all(2),
+                              padding: EdgeInsets.all(screenWidth * 0.005),
                               decoration: BoxDecoration(
                                 color: Colors.red,
-                                borderRadius: BorderRadius.circular(10),
+                                borderRadius: BorderRadius.circular(screenWidth * 0.025),
                               ),
-                              constraints: const BoxConstraints(
-                                minWidth: 16,
-                                minHeight: 16,
+                              constraints: BoxConstraints(
+                                minWidth: screenWidth * 0.04,
+                                minHeight: screenWidth * 0.04,
                               ),
                               child: Text(
                                 '$_notificationCount',
-                                style: const TextStyle(
+                                style: TextStyle(
                                   color: Colors.white,
-                                  fontSize: 10,
+                                  fontSize: screenWidth * 0.025,
                                   fontWeight: FontWeight.bold,
                                 ),
                                 textAlign: TextAlign.center,
@@ -555,31 +706,42 @@ class _HomeTabState extends State<_HomeTab> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 4),
+                SizedBox(height: verticalSpacing * 0.5),
                 Text(
                   'Welcome, $_userName!',
-                  style: AppTextStyles.headline.copyWith(color: Colors.white),
+                  style: AppTextStyles.headline.copyWith(
+                    color: Colors.white,
+                    fontSize: screenWidth * 0.055,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 16),
-                Neumorphic(
-                  style: AppNeumorphic.inset,
-                  child: Row(
-                    children: [
-                      const SizedBox(width: 12),
-                      const Icon(Icons.search, color: Colors.black38),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: TextField(
-                          controller: _searchController,
-                          onSubmitted: _onSearchSubmitted,
-                          decoration: InputDecoration(
-                            hintText: 'Search Vegetables',
-                            border: InputBorder.none,
+                SizedBox(height: verticalSpacing),
+                SizedBox(
+                  height: searchHeight,
+                  child: Neumorphic(
+                    style: AppNeumorphic.inset,
+                    child: Row(
+                      children: [
+                        SizedBox(width: screenWidth * 0.03),
+                        Icon(Icons.search, color: Colors.black38, size: screenWidth * 0.05),
+                        SizedBox(width: screenWidth * 0.02),
+                        Expanded(
+                          child: TextField(
+                            controller: _searchController,
+                            onSubmitted: _onSearchSubmitted,
+                            style: TextStyle(fontSize: screenWidth * 0.04),
+                            decoration: InputDecoration(
+                              hintText: 'Search Vegetables',
+                              hintStyle: TextStyle(fontSize: screenWidth * 0.04),
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.symmetric(vertical: screenHeight * 0.015),
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                    ],
+                        SizedBox(width: screenWidth * 0.03),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -590,8 +752,8 @@ class _HomeTabState extends State<_HomeTab> {
           style: AppNeumorphic.card.copyWith(
             color: AppColors.primaryGreen.withOpacity(0.15),
           ),
-          margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-          padding: const EdgeInsets.all(18),
+          margin: EdgeInsets.symmetric(horizontal: headerPadding, vertical: verticalSpacing),
+          padding: EdgeInsets.all(headerPadding),
           child: GestureDetector(
             onTap: _onPromoBannerTap,
             child: _isLoadingPromo
@@ -599,20 +761,34 @@ class _HomeTabState extends State<_HomeTab> {
                 : _currentPromo == null
                     ? Row(
                         children: [
-                          Icon(Icons.local_offer, color: AppColors.primaryGreen, size: 40),
-                          const SizedBox(width: 16),
+                          Icon(Icons.local_offer, color: AppColors.primaryGreen, size: screenWidth * 0.08),
+                          SizedBox(width: screenWidth * 0.03),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('Get 40% discount on your first order from app.',
-                                    style: AppTextStyles.subtitle.copyWith(fontWeight: FontWeight.bold)),
-                                const SizedBox(height: 6),
-                                Text('Shop Now', style: AppTextStyles.body.copyWith(color: AppColors.primaryGreen, fontWeight: FontWeight.w500)),
+                                Text(
+                                  'Get 40% discount on your first order from app.',
+                                  style: AppTextStyles.subtitle.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: screenWidth * 0.035,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                SizedBox(height: screenHeight * 0.003),
+                                Text(
+                                  'Shop Now',
+                                  style: AppTextStyles.body.copyWith(
+                                    color: AppColors.primaryGreen,
+                                    fontWeight: FontWeight.w500,
+                                    fontSize: screenWidth * 0.032,
+                                  ),
+                                ),
                               ],
                             ),
                           ),
-                          Icon(Icons.eco, color: AppColors.primaryGreen, size: 48),
+                          Icon(Icons.eco, color: AppColors.primaryGreen, size: screenWidth * 0.1),
                         ],
                       )
                     : Row(
@@ -620,21 +796,30 @@ class _HomeTabState extends State<_HomeTab> {
                           Icon(
                             _getPromoIcon(_currentPromo!['icon'] ?? 'local_offer'),
                             color: AppColors.primaryGreen,
-                            size: 40,
+                            size: screenWidth * 0.08,
                           ),
-                          const SizedBox(width: 16),
+                          SizedBox(width: screenWidth * 0.03),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
                                   _currentPromo!['title'] ?? 'Special Offer',
-                                  style: AppTextStyles.subtitle.copyWith(fontWeight: FontWeight.bold),
+                                  style: AppTextStyles.subtitle.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: screenWidth * 0.035,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                                const SizedBox(height: 6),
+                                SizedBox(height: screenHeight * 0.003),
                                 Text(
                                   _currentPromo!['subtitle'] ?? 'Shop Now',
-                                  style: AppTextStyles.body.copyWith(color: AppColors.primaryGreen, fontWeight: FontWeight.w500),
+                                  style: AppTextStyles.body.copyWith(
+                                    color: AppColors.primaryGreen,
+                                    fontWeight: FontWeight.w500,
+                                    fontSize: screenWidth * 0.032,
+                                  ),
                                 ),
                               ],
                             ),
@@ -642,68 +827,86 @@ class _HomeTabState extends State<_HomeTab> {
                           Icon(
                             _getPromoIcon(_currentPromo!['icon'] ?? 'eco'),
                             color: AppColors.primaryGreen,
-                            size: 48,
+                            size: screenWidth * 0.1,
                           ),
                         ],
                       ),
           ),
         ),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Text('Categories', style: AppTextStyles.headline.copyWith(fontSize: 18)),
+          padding: EdgeInsets.symmetric(horizontal: headerPadding),
+          child: Text(
+            'Categories', 
+            style: AppTextStyles.headline.copyWith(fontSize: screenWidth * 0.045),
+          ),
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: verticalSpacing),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
+          padding: EdgeInsets.symmetric(horizontal: headerPadding),
           child: _isLoadingCategories
-              ? const Center(child: CircularProgressIndicator())
+              ? Center(child: CircularProgressIndicator(strokeWidth: 2))
               : _categories.isEmpty
-                  ? const Center(child: Text('No categories available.'))
-                  : SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: _categories.map((category) {
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 16),
-                            child: GestureDetector(
-                              onTap: () => _onCategoryTap(category),
-                              child: Column(
-                                children: [
-                                  Neumorphic(
-                                    style: AppNeumorphic.card.copyWith(
-                                      color: AppColors.accentGreen.withOpacity(0.15),
-                                    ),
-                                    child: CircleAvatar(
-                                      backgroundColor: Colors.transparent,
-                                      radius: 32,
-                                      child: Icon(
-                                        _getCategoryIcon(category['icon'] ?? 'eco'),
-                                        color: AppColors.primaryGreen,
-                                        size: 32,
+                  ? Center(child: Text('No categories available.', style: TextStyle(fontSize: screenWidth * 0.035)))
+                  : SizedBox(
+                      height: screenHeight * 0.12, // Fixed height to prevent overflow
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: _categories.map((category) {
+                            return Padding(
+                              padding: EdgeInsets.only(right: screenWidth * 0.04),
+                              child: GestureDetector(
+                                onTap: () => _onCategoryTap(category),
+                                child: Column(
+                                  children: [
+                                    Neumorphic(
+                                      style: AppNeumorphic.card.copyWith(
+                                        color: AppColors.accentGreen.withOpacity(0.15),
+                                      ),
+                                      child: CircleAvatar(
+                                        backgroundColor: Colors.transparent,
+                                        radius: screenWidth * 0.065, // ~47px for 720px width
+                                        child: Icon(
+                                          _getCategoryIcon(category['icon'] ?? 'eco'),
+                                          color: AppColors.primaryGreen,
+                                          size: screenWidth * 0.065,
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    category['name'] ?? 'Category',
-                                    style: AppTextStyles.body.copyWith(fontWeight: FontWeight.w500),
-                                  ),
-                                ],
+                                    SizedBox(height: screenHeight * 0.005),
+                                    SizedBox(
+                                      width: screenWidth * 0.16,
+                                      child: Text(
+                                        category['name'] ?? 'Category',
+                                        style: AppTextStyles.body.copyWith(
+                                          fontWeight: FontWeight.w500,
+                                          fontSize: screenWidth * 0.03,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                          );
-                        }).toList(),
+                            );
+                          }).toList(),
+                        ),
                       ),
                     ),
         ),
-        const SizedBox(height: 24),
+        SizedBox(height: verticalSpacing * 2),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Text('Popular', style: AppTextStyles.headline.copyWith(fontSize: 18)),
+          padding: EdgeInsets.symmetric(horizontal: headerPadding),
+          child: Text(
+            'Popular', 
+            style: AppTextStyles.headline.copyWith(fontSize: screenWidth * 0.045),
+          ),
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: verticalSpacing),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
+          padding: EdgeInsets.symmetric(horizontal: headerPadding),
           child: StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
                 .collection('products')
@@ -714,19 +917,19 @@ class _HomeTabState extends State<_HomeTab> {
                 .snapshots(),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
+                return Center(child: CircularProgressIndicator(strokeWidth: 2));
               }
               if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                return const Center(child: Text('No popular products yet.'));
+                return Center(child: Text('No popular products yet.', style: TextStyle(fontSize: screenWidth * 0.035)));
               }
               final products = snapshot.data!.docs;
               return GridView.count(
                 crossAxisCount: 2,
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                mainAxisSpacing: 16,
-                crossAxisSpacing: 16,
-                childAspectRatio: 1.1,
+                mainAxisSpacing: screenWidth * 0.04,
+                crossAxisSpacing: screenWidth * 0.04,
+                childAspectRatio: 0.85, // Better aspect ratio for product cards
                 children: products.map((doc) {
                   final product = doc.data() as Map<String, dynamic>;
                   return GestureDetector(
@@ -743,22 +946,89 @@ class _HomeTabState extends State<_HomeTab> {
                     },
                     child: Neumorphic(
                       style: AppNeumorphic.card.copyWith(color: AppColors.primaryGreen.withOpacity(0.10)),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.eco, color: AppColors.primaryGreen, size: 48),
-                          const SizedBox(height: 10),
-                          Text(product['name'] ?? '', style: AppTextStyles.body.copyWith(fontWeight: FontWeight.w600)),
-                          const SizedBox(height: 6),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.favorite, color: Colors.redAccent, size: 18),
-                              const SizedBox(width: 4),
-                              Text((product['popularity'] ?? 0).toString(), style: AppTextStyles.body.copyWith(fontSize: 13)),
-                            ],
-                          ),
-                        ],
+                      child: Padding(
+                        padding: EdgeInsets.all(screenWidth * 0.02),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              flex: 3,
+                              child: Container(
+                                width: double.infinity,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(screenWidth * 0.02),
+                                  color: Colors.grey[100],
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(screenWidth * 0.02),
+                                  child: product['imageUrl'] != null && product['imageUrl'].isNotEmpty
+                                      ? Image.network(
+                                          product['imageUrl'],
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (context, error, stackTrace) {
+                                            return Center(
+                                              child: Icon(
+                                                Icons.eco,
+                                                color: AppColors.primaryGreen,
+                                                size: screenWidth * 0.08,
+                                              ),
+                                            );
+                                          },
+                                        )
+                                      : Center(
+                                          child: Icon(
+                                            Icons.eco,
+                                            color: AppColors.primaryGreen,
+                                            size: screenWidth * 0.08,
+                                          ),
+                                        ),
+                                ),
+                              ),
+                            ),
+                            SizedBox(height: screenHeight * 0.008),
+                            Expanded(
+                              flex: 2,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    product['name'] ?? '',
+                                    style: AppTextStyles.body.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: screenWidth * 0.035,
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        '₱${product['price']?.toStringAsFixed(2) ?? '0.00'}',
+                                        style: AppTextStyles.body.copyWith(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: screenWidth * 0.032,
+                                          color: AppColors.primaryGreen,
+                                        ),
+                                      ),
+                                      Row(
+                                        children: [
+                                          Icon(Icons.favorite, color: Colors.redAccent, size: screenWidth * 0.035),
+                                          SizedBox(width: screenWidth * 0.005),
+                                          Text(
+                                            (product['popularity'] ?? 0).toString(),
+                                            style: AppTextStyles.body.copyWith(fontSize: screenWidth * 0.028),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   );
@@ -767,7 +1037,7 @@ class _HomeTabState extends State<_HomeTab> {
             },
           ),
         ),
-        const SizedBox(height: 32),
+        SizedBox(height: screenHeight * 0.04),
       ],
     );
   }

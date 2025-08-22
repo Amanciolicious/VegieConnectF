@@ -12,6 +12,9 @@ import 'admin_manage_accounts_page.dart';
 import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:vegieconnect/services/image_storage_service.dart';
+import 'dart:io';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -27,11 +30,25 @@ class _AdminDashboardState extends State<AdminDashboard> {
   String? _statusFilter; // e.g., 'Active', 'Pending', 'Suspended'
   bool _isOnline = true;
   StreamSubscription<ConnectivityResult>? _connectivitySubscription;
+  String? _localProfileImagePath;
 
   @override
   void initState() {
     super.initState();
     _initializeConnectivity();
+    _loadLocalProfileImage();
+  }
+
+  Future<void> _loadLocalProfileImage() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final localPath = await ImageStorageService.getProfileImage(user.uid);
+      if (localPath != null) {
+        setState(() {
+          _localProfileImagePath = localPath;
+        });
+      }
+    }
   }
 
   @override
@@ -62,6 +79,140 @@ class _AdminDashboardState extends State<AdminDashboard> {
         );
       }
     });
+  }
+
+  void _showProfileImageOptions() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Update Profile Picture', style: AppTextStyles.headline),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildImageOption(
+                  icon: Icons.camera_alt,
+                  label: 'Camera',
+                  onTap: () => _pickImage(ImageSource.camera),
+                ),
+                _buildImageOption(
+                  icon: Icons.photo_library,
+                  label: 'Gallery',
+                  onTap: () => _pickImage(ImageSource.gallery),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildImageOption({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Neumorphic(
+            style: AppNeumorphic.card.copyWith(
+              color: AppColors.primaryGreen.withOpacity(0.1),
+            ),
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              child: Icon(icon, size: 40, color: AppColors.primaryGreen),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(label, style: AppTextStyles.body),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    Navigator.pop(context);
+    
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: source,
+        maxWidth: 512,
+        maxHeight: 512,
+        imageQuality: 75,
+      );
+      
+      if (image != null && FirebaseAuth.instance.currentUser != null) {
+        await _uploadProfileImage(File(image.path));
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error picking image: $e'),
+          backgroundColor: AppColors.accentRed,
+        ),
+      );
+    }
+  }
+
+  Future<void> _uploadProfileImage(File imageFile) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    
+    try {
+      // Save to local storage
+      final localPath = await ImageStorageService.saveProfileImageFromFile(imageFile, user.uid);
+      
+      // Clean up old profile images
+      await ImageStorageService.deleteOldProfileImages(user.uid);
+      
+      setState(() {
+        _localProfileImagePath = localPath;
+      });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Profile picture updated successfully!'),
+          backgroundColor: AppColors.primaryGreen,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error uploading image: $e'),
+          backgroundColor: AppColors.accentRed,
+        ),
+      );
+    }
+  }
+
+  ImageProvider? _getAdminProfileImage(Map<String, dynamic>? userData) {
+    // Priority: Local image > Network image
+    if (_localProfileImagePath != null) {
+      final file = ImageStorageService.loadImageFromPath(_localProfileImagePath!);
+      if (file != null) {
+        return FileImage(file);
+      }
+    }
+    
+    final profileImageUrl = userData?['profileImageUrl'] as String?;
+    if (profileImageUrl != null) {
+      return NetworkImage(profileImageUrl);
+    }
+    
+    return null;
   }
 
   Future<void> _createTestProduct() async {
@@ -208,11 +359,80 @@ class _AdminDashboardState extends State<AdminDashboard> {
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
-            DrawerHeader(
-              decoration: BoxDecoration(
+            Neumorphic(
+              style: AppNeumorphic.card.copyWith(
                 color: AppColors.primaryGreen,
+                boxShape: NeumorphicBoxShape.roundRect(const BorderRadius.only(
+                  topRight: Radius.circular(0),
+                  bottomRight: Radius.circular(0),
+                )),
               ),
-              child: Text('Admin Menu', style: AppTextStyles.headline.copyWith(color: Colors.white, fontSize: 24)),
+              child: DrawerHeader(
+                decoration: const BoxDecoration(color: Colors.transparent),
+                child: StreamBuilder<DocumentSnapshot>(
+                  stream: FirebaseAuth.instance.currentUser != null 
+                    ? FirebaseFirestore.instance.collection('users').doc(FirebaseAuth.instance.currentUser!.uid).snapshots()
+                    : null,
+                  builder: (context, snapshot) {
+                    final userData = snapshot.data?.data() as Map<String, dynamic>?;
+                    final profileImageUrl = userData?['profileImageUrl'] as String?;
+                    final displayName = userData?['name'] ?? FirebaseAuth.instance.currentUser?.displayName ?? 'Admin';
+                    final email = FirebaseAuth.instance.currentUser?.email ?? 'admin@email.com';
+                    
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        GestureDetector(
+                          onTap: _showProfileImageOptions,
+                          child: Stack(
+                            children: [
+                              CircleAvatar(
+                                radius: 32,
+                                backgroundColor: Colors.white,
+                                backgroundImage: _getAdminProfileImage(userData),
+                                child: _getAdminProfileImage(userData) == null 
+                                  ? Icon(Icons.admin_panel_settings, size: 40, color: AppColors.accentGreen)
+                                  : null,
+                              ),
+                              Positioned(
+                                bottom: 0,
+                                right: 0,
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: AppColors.primaryGreen, width: 2),
+                                  ),
+                                  child: Icon(
+                                    Icons.camera_alt,
+                                    size: 16,
+                                    color: AppColors.primaryGreen,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          displayName,
+                          style: AppTextStyles.headline.copyWith(color: Colors.white, fontSize: 18),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          email,
+                          style: const TextStyle(color: Colors.white70, fontSize: 14),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
             ),
             ListTile(
               leading: const Icon(Icons.dashboard),
@@ -354,23 +574,30 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }
 
   Widget _buildOverviewTab(double screenWidth, BorderRadius cardRadius) {
+    final screenHeight = MediaQuery.of(context).size.height;
+    
+    // Optimized for Infinix Smart 8 (720x1612)
+    final padding = screenWidth * 0.04; // ~29px
+    final cardHeight = screenHeight * 0.12; // ~194px
+    final spacing = screenWidth * 0.03; // ~22px
+    
     return SingleChildScrollView(
-      padding: EdgeInsets.all(screenWidth * 0.04),
+      padding: EdgeInsets.all(padding),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             'System Overview',
-            style: AppTextStyles.headline.copyWith(fontSize: screenWidth * 0.06),
+            style: AppTextStyles.headline.copyWith(fontSize: screenWidth * 0.05),
           ),
-          SizedBox(height: screenWidth * 0.05),
+          SizedBox(height: spacing),
           GridView.count(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             crossAxisCount: 2,
-            crossAxisSpacing: screenWidth * 0.04,
-            mainAxisSpacing: screenWidth * 0.04,
-            childAspectRatio: 1.5,
+            crossAxisSpacing: spacing,
+            mainAxisSpacing: spacing,
+            childAspectRatio: 1.4, // Better aspect ratio for cards
             children: [
               // Total Users (suppliers and buyers only)
               StreamBuilder<QuerySnapshot>(
@@ -415,10 +642,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   if (snapshot.hasData) {
                     for (var doc in snapshot.data!.docs) {
                       final data = doc.data() as Map<String, dynamic>;
-                      revenue += (data['price'] ?? 0) * (data['quantity'] ?? 1);
+                      revenue += (data['totalPrice'] ?? 0).toDouble();
                     }
                   }
-                  return _buildStatCard(screenWidth, cardRadius, 'Total Revenue', '\u20b1${revenue.toStringAsFixed(2)}', Icons.attach_money, Colors.green);
+                  return _buildStatCard(screenWidth, cardRadius, 'Total Revenue', '₱${revenue.toStringAsFixed(2)}', Icons.attach_money, Colors.green);
                 },
               ),
             ],
@@ -434,19 +661,37 @@ class _AdminDashboardState extends State<AdminDashboard> {
       child: Padding(
         padding: EdgeInsets.all(screenWidth * 0.04),
         child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 Icon(icon, color: color, size: screenWidth * 0.06),
                 const Spacer(),
-                Icon(Icons.trending_up, color: color, size: screenWidth * 0.05),
+                Icon(Icons.trending_up, color: color, size: screenWidth * 0.04),
               ],
             ),
-            SizedBox(height: screenWidth * 0.03),
-            Text(title, style: AppTextStyles.body.copyWith(fontSize: screenWidth * 0.04, color: AppColors.textSecondary)),
+            const Spacer(),
+            Text(
+              title, 
+              style: AppTextStyles.body.copyWith(
+                fontSize: screenWidth * 0.035,
+                color: AppColors.textSecondary,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
             SizedBox(height: screenWidth * 0.01),
-            Text(value, style: AppTextStyles.headline.copyWith(fontSize: screenWidth * 0.05, color: color)),
+            Text(
+              value, 
+              style: AppTextStyles.headline.copyWith(
+                fontSize: screenWidth * 0.05,
+                color: color,
+                fontWeight: FontWeight.bold,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ],
         ),
       ),

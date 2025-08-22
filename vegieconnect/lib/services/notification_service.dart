@@ -161,7 +161,7 @@ class NotificationService {
       // Handle foreground messages
       FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
 
-      // Handle background messages
+      // Handle background messages (Web requires a service worker at /firebase-messaging-sw.js)
       FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
       // Handle notification taps

@@ -5,7 +5,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:vegieconnect/widgets/chat_widgets.dart';
+// Chat widgets removed
 import '../models/supplier_location.dart';
 import '../services/supplier_location_service.dart';
 import '../services/map_service.dart';
@@ -382,12 +382,6 @@ class _SupplierLocationPageState extends State<SupplierLocationPage> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            StarRating(
-              rating: rating,
-              onRatingChanged: (val) {
-                rating = val;
-              },
-            ),
             const SizedBox(height: 16),
             TextField(
               controller: commentController,

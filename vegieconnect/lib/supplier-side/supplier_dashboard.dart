@@ -4,17 +4,15 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:vegieconnect/supplier-side/add_product_page.dart';
 import 'package:vegieconnect/supplier-side/farm_map_page.dart' show SupplierLocationPage;
 import 'package:vegieconnect/supplier-side/supplier_location_management_page.dart';
-import 'package:vegieconnect/supplier-side/supplier_chat_page.dart';
 import 'package:vegieconnect/supplier-side/supplier_orders_page.dart';
-import 'package:vegieconnect/widgets/chat_widgets.dart';
 import '../authentication/login_page.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-import '../widgets/product_image_widget.dart';
-import '../services/image_storage_service.dart';
-import '../customer-side/product_details_page.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:vegieconnect/services/image_storage_service.dart';
+import 'dart:io';
 import 'package:vegieconnect/theme.dart'; // For AppColors
 import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
+import 'supplier_chat_list_page.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class SupplierDashboard extends StatefulWidget {
   const SupplierDashboard({super.key});
@@ -25,6 +23,159 @@ class SupplierDashboard extends StatefulWidget {
 
 class _SupplierDashboardState extends State<SupplierDashboard> {
   int _selectedIndex = 0;
+  String? _localProfileImagePath;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLocalProfileImage();
+  }
+
+  Future<void> _loadLocalProfileImage() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final localPath = await ImageStorageService.getProfileImage(user.uid);
+      if (localPath != null) {
+        setState(() {
+          _localProfileImagePath = localPath;
+        });
+      }
+    }
+  }
+
+  void _showProfileImageOptions() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Update Profile Picture', style: AppTextStyles.headline),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildImageOption(
+                  icon: Icons.camera_alt,
+                  label: 'Camera',
+                  onTap: () => _pickImage(ImageSource.camera),
+                ),
+                _buildImageOption(
+                  icon: Icons.photo_library,
+                  label: 'Gallery',
+                  onTap: () => _pickImage(ImageSource.gallery),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildImageOption({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Neumorphic(
+            style: AppNeumorphic.card.copyWith(
+              color: AppColors.primaryGreen.withOpacity(0.1),
+            ),
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              child: Icon(icon, size: 40, color: AppColors.primaryGreen),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(label, style: AppTextStyles.body),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    Navigator.pop(context);
+    
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: source,
+        maxWidth: 512,
+        maxHeight: 512,
+        imageQuality: 75,
+      );
+      
+      if (image != null && FirebaseAuth.instance.currentUser != null) {
+        await _uploadProfileImage(File(image.path));
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error picking image: $e'),
+          backgroundColor: AppColors.accentRed,
+        ),
+      );
+    }
+  }
+
+  Future<void> _uploadProfileImage(File imageFile) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    
+    try {
+      // Save to local storage
+      final localPath = await ImageStorageService.saveProfileImageFromFile(imageFile, user.uid);
+      
+      // Clean up old profile images
+      await ImageStorageService.deleteOldProfileImages(user.uid);
+      
+      setState(() {
+        _localProfileImagePath = localPath;
+      });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Profile picture updated successfully!'),
+          backgroundColor: AppColors.primaryGreen,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error uploading image: $e'),
+          backgroundColor: AppColors.accentRed,
+        ),
+      );
+    }
+  }
+
+  ImageProvider? _getSupplierProfileImage(Map<String, dynamic>? userData) {
+    // Priority: Local image > Network image
+    if (_localProfileImagePath != null) {
+      final file = ImageStorageService.loadImageFromPath(_localProfileImagePath!);
+      if (file != null) {
+        return FileImage(file);
+      }
+    }
+    
+    final profileImageUrl = userData?['profileImageUrl'] as String?;
+    if (profileImageUrl != null) {
+      return NetworkImage(profileImageUrl);
+    }
+    
+    return null;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -59,11 +210,80 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
-            DrawerHeader(
-              decoration: BoxDecoration(
+            Neumorphic(
+              style: AppNeumorphic.card.copyWith(
                 color: AppColors.primaryGreen,
+                boxShape: NeumorphicBoxShape.roundRect(const BorderRadius.only(
+                  topRight: Radius.circular(0),
+                  bottomRight: Radius.circular(0),
+                )),
               ),
-              child: Text('Supplier Menu', style: AppTextStyles.headline.copyWith(color: Colors.white, fontSize: 24)),
+              child: DrawerHeader(
+                decoration: const BoxDecoration(color: Colors.transparent),
+                child: StreamBuilder<DocumentSnapshot>(
+                  stream: FirebaseAuth.instance.currentUser != null 
+                    ? FirebaseFirestore.instance.collection('users').doc(FirebaseAuth.instance.currentUser!.uid).snapshots()
+                    : null,
+                  builder: (context, snapshot) {
+                    final userData = snapshot.data?.data() as Map<String, dynamic>?;
+                    final profileImageUrl = userData?['profileImageUrl'] as String?;
+                    final displayName = userData?['name'] ?? FirebaseAuth.instance.currentUser?.displayName ?? 'Supplier';
+                    final email = FirebaseAuth.instance.currentUser?.email ?? 'supplier@email.com';
+                    
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        GestureDetector(
+                          onTap: _showProfileImageOptions,
+                          child: Stack(
+                            children: [
+                              CircleAvatar(
+                                radius: 32,
+                                backgroundColor: Colors.white,
+                                backgroundImage: _getSupplierProfileImage(userData),
+                                child: _getSupplierProfileImage(userData) == null 
+                                  ? Icon(Icons.store, size: 40, color: AppColors.accentGreen)
+                                  : null,
+                              ),
+                              Positioned(
+                                bottom: 0,
+                                right: 0,
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: AppColors.primaryGreen, width: 2),
+                                  ),
+                                  child: Icon(
+                                    Icons.camera_alt,
+                                    size: 16,
+                                    color: AppColors.primaryGreen,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          displayName,
+                          style: AppTextStyles.headline.copyWith(color: Colors.white, fontSize: 18),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          email,
+                          style: const TextStyle(color: Colors.white70, fontSize: 14),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
             ),
             ListTile(
               leading: const Icon(Icons.dashboard),
@@ -144,13 +364,13 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
             ),
             const Divider(),
             ListTile(
-              leading: const Icon(Icons.chat),
-              title: Text('Chat', style: AppTextStyles.body),
+              leading: const Icon(Icons.message),
+              title: Text('Messages', style: AppTextStyles.body),
               onTap: () {
                 Navigator.pop(context);
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const SupplierChatPage()),
+                  MaterialPageRoute(builder: (_) => SupplierChatListPage()),
                 );
               },
             ),
@@ -215,28 +435,35 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
 
   Widget _buildOverviewTab(double screenWidth, BorderRadius cardRadius) {
     final user = FirebaseAuth.instance.currentUser;
+    final screenHeight = MediaQuery.of(context).size.height;
+    
+    // Optimized for Infinix Smart 8 (720x1612)
+    final padding = screenWidth * 0.04; // ~29px
+    final cardHeight = screenHeight * 0.12; // ~194px
+    final spacing = screenWidth * 0.03; // ~22px
+    
     if (user == null) {
       return const Center(child: Text('Not logged in.'));
     }
     return SingleChildScrollView(
-      padding: EdgeInsets.all(screenWidth * 0.04),
+      padding: EdgeInsets.all(padding),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             'Business Overview',
-            style: AppTextStyles.headline.copyWith(fontSize: screenWidth * 0.06),
+            style: AppTextStyles.headline.copyWith(fontSize: screenWidth * 0.05),
           ),
-          SizedBox(height: screenWidth * 0.05),
+          SizedBox(height: spacing),
           SizedBox(
-            height: 220,
+            height: cardHeight * 2 + spacing, // Two rows of cards
             child: GridView.count(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               crossAxisCount: 2,
-              crossAxisSpacing: screenWidth * 0.04,
-              mainAxisSpacing: screenWidth * 0.04,
-              childAspectRatio: 1.5,
+              crossAxisSpacing: spacing,
+              mainAxisSpacing: spacing,
+              childAspectRatio: 1.6, // Adjusted for better fit
               children: [
                 // Total Products
                 StreamBuilder<QuerySnapshot>(
@@ -273,10 +500,10 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
                     if (snapshot.hasData) {
                       for (var doc in snapshot.data!.docs) {
                         final data = doc.data() as Map<String, dynamic>;
-                        revenue += (data['price'] ?? 0) * (data['quantity'] ?? 1);
+                        revenue += (data['totalPrice'] ?? 0).toDouble();
                       }
                     }
-                    return _buildStatCard(screenWidth, cardRadius, 'Revenue', '\u20b1${revenue.toStringAsFixed(2)}', Icons.attach_money, Colors.green);
+                    return _buildStatCard(screenWidth, cardRadius, 'Revenue', '₱${revenue.toStringAsFixed(2)}', Icons.attach_money, Colors.green);
                   },
                 ),
                 // Total Orders
@@ -304,19 +531,37 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
       child: Padding(
         padding: EdgeInsets.all(screenWidth * 0.04),
         child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 Icon(icon, color: color, size: screenWidth * 0.06),
                 const Spacer(),
-                Icon(Icons.trending_up, color: color, size: screenWidth * 0.05),
+                Icon(Icons.trending_up, color: color, size: screenWidth * 0.04),
               ],
             ),
-            SizedBox(height: screenWidth * 0.03),
-            Text(title, style: AppTextStyles.body.copyWith(fontSize: screenWidth * 0.04, color: AppColors.textSecondary)),
+            const Spacer(),
+            Text(
+              title, 
+              style: AppTextStyles.body.copyWith(
+                fontSize: screenWidth * 0.035,
+                color: AppColors.textSecondary,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
             SizedBox(height: screenWidth * 0.01),
-            Text(value, style: AppTextStyles.headline.copyWith(fontSize: screenWidth * 0.05, color: color)),
+            Text(
+              value, 
+              style: AppTextStyles.headline.copyWith(
+                fontSize: screenWidth * 0.05,
+                color: color,
+                fontWeight: FontWeight.bold,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ],
         ),
       ),
@@ -326,34 +571,50 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
 
   Widget _buildProductsTab() {
     final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final padding = screenWidth * 0.04;
+    
     return SingleChildScrollView(
-      padding: EdgeInsets.all(screenWidth * 0.04),
+      padding: EdgeInsets.all(padding),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'My Products',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              Expanded(
+                child: Text(
+                  'My Products',
+                  style: TextStyle(
+                    fontSize: screenWidth * 0.055,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
+              SizedBox(width: screenWidth * 0.02),
               ElevatedButton.icon(
                 onPressed: () {
                   Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => AddProductPage()),
                   );
                 },
-                icon: const Icon(Icons.add),
-                label: const Text('Add Product'),
+                icon: Icon(Icons.add, size: screenWidth * 0.04),
+                label: Text(
+                  'Add',
+                  style: TextStyle(fontSize: screenWidth * 0.032),
+                ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primaryGreen,
                   foregroundColor: Colors.white,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: screenWidth * 0.03,
+                    vertical: screenHeight * 0.008,
+                  ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          SizedBox(height: screenHeight * 0.02),
           _buildProductList(),
         ],
       ),
@@ -362,234 +623,98 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
 
   Widget _buildProductList() {
     final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      return const Center(child: Text('Not logged in.'));
-    }
+    
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('products')
-          .where('sellerId', isEqualTo: user.uid)
+          .where('sellerId', isEqualTo: user?.uid)
+          .orderBy('createdAt', descending: true)
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.hasError) {
-          return Center(child: Text('Error: \n${snapshot.error}'));
+          return Center(child: CircularProgressIndicator(strokeWidth: 2));
         }
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return const Center(child: Text('No products yet.'));
+          return Center(
+            child: Text(
+              'No products yet',
+              style: TextStyle(fontSize: screenWidth * 0.04),
+            ),
+          );
         }
+        
         final products = snapshot.data!.docs;
-        return GridView.builder(
+        return ListView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            crossAxisSpacing: screenWidth * 0.04,
-            mainAxisSpacing: screenWidth * 0.04,
-            childAspectRatio: 0.8,
-          ),
           itemCount: products.length,
           itemBuilder: (context, index) {
             final product = products[index].data() as Map<String, dynamic>;
             final docId = products[index].id;
-            return GestureDetector(
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => ProductDetailsPage(
-                      product: product,
-                      productId: docId,
-                    ),
-                  ),
-                );
-              },
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(screenWidth * 0.05),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.04),
-                      blurRadius: 8,
-                      offset: Offset(0, 2),
-                    ),
-                  ],
-                ),
-                padding: EdgeInsets.all(screenWidth * 0.03),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Center(
-                      child: SizedBox(
-                        height: screenWidth * 0.12,
-                        child: ProductImageWidget(
-                          imagePath: product['imageUrl'] ?? '',
-                          width: screenWidth * 0.16,
-                          height: screenWidth * 0.125,
-                          placeholder: Icon(Icons.shopping_basket, size: screenWidth * 0.08, color: AppColors.primaryGreen),
+            
+            return Container(
+              margin: EdgeInsets.only(bottom: screenHeight * 0.01),
+              child: Neumorphic(
+                style: AppNeumorphic.card,
+                child: Padding(
+                  padding: EdgeInsets.all(screenWidth * 0.04),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              product['name'] ?? 'Product',
+                              style: TextStyle(
+                                fontSize: screenWidth * 0.04,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            SizedBox(height: screenHeight * 0.005),
+                            Text(
+                              'Price: ₱${product['price'] ?? 0}',
+                              style: TextStyle(
+                                fontSize: screenWidth * 0.035,
+                                color: AppColors.primaryGreen,
+                              ),
+                            ),
+                            Text(
+                              'Stock: ${product['quantity'] ?? 0}',
+                              style: TextStyle(
+                                fontSize: screenWidth * 0.035,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      product['name'] ?? '',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '\u20b1${product['price']?.toStringAsFixed(2) ?? '0.00'}',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.primaryGreen,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Stock: ${product['quantity'] ?? 0} ${product['unit'] ?? ''}',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Supplier: ${product['supplierName'] ?? 'Unknown'}',
-                      style: const TextStyle(fontSize: 12, color: Colors.blueGrey),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const Spacer(),
-                    // Status label
-                    Container(
-                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: () {
-                          final status = (product['status'] ?? 'pending').toString();
-                          if (status == 'approved') return Colors.green.withOpacity(0.15);
-                          if (status == 'rejected') return Colors.red.withOpacity(0.15);
-                          return Colors.orange.withOpacity(0.15);
-                        }(),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
+                      Column(
                         children: [
-                          Text(
-                            (product['status'] ?? 'pending').toString().toUpperCase(),
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: () {
-                                final status = (product['status'] ?? 'pending').toString();
-                                if (status == 'approved') return Colors.green;
-                                if (status == 'rejected') return Colors.red;
-                                return Colors.orange;
-                              }(),
+                          Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: screenWidth * 0.02,
+                              vertical: screenHeight * 0.005,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _getStatusColor(product['status']).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(screenWidth * 0.02),
+                            ),
+                            child: Text(
+                              (product['status'] ?? 'pending').toString().toUpperCase(),
+                              style: TextStyle(
+                                fontSize: screenWidth * 0.03,
+                                fontWeight: FontWeight.bold,
+                                color: _getStatusColor(product['status']),
+                              ),
                             ),
                           ),
-                          // Show approval method if approved
-                          if ((product['status'] ?? '') == 'approved' && (product['approvalMethod'] ?? '').isNotEmpty)
-                            Text(
-                              product['approvalMethod'] == 'manual' ? 'Admin Approved' : 'Auto Approved',
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: () {
-                                  final status = (product['status'] ?? 'pending').toString();
-                                  if (status == 'approved') return Colors.green;
-                                  if (status == 'rejected') return Colors.red;
-                                  return Colors.orange;
-                                }(),
-                              ),
-                            ),
                         ],
                       ),
-                    ),
-                    // Show rejection reason if rejected
-                    if ((product['status'] ?? '') == 'rejected' && (product['rejectionReason'] ?? '').isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4.0),
-                        child: Text(
-                          'Reason: ${product['rejectionReason']}',
-                          style: const TextStyle(fontSize: 11, color: Colors.red, fontWeight: FontWeight.bold),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.edit, color: Colors.blue, size: 18),
-                          tooltip: 'Edit',
-                          onPressed: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => AddProductPage(
-                                  product: product,
-                                  docId: docId,
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.delete, color: Colors.red, size: 18),
-                          tooltip: 'Delete',
-                          onPressed: () async {
-                            final confirm = await showDialog<bool>(
-                              context: context,
-                              builder: (context) => AlertDialog(
-                                title: const Text('Delete Product'),
-                                content: const Text('Are you sure you want to delete this product?'),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(context, false),
-                                    child: const Text('Cancel'),
-                                  ),
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(context, true),
-                                    child: const Text('Delete', style: TextStyle(color: Colors.red)),
-                                  ),
-                                ],
-                              ),
-                            );
-                            if (confirm == true) {
-                              try {
-                                final imageUrl = product['imageUrl'] ?? '';
-                                if (imageUrl.isNotEmpty) {
-                                  if (ImageStorageService.isLocalPath(imageUrl)) {
-                                    await ImageStorageService.deleteImage(imageUrl);
-                                  } else if (ImageStorageService.isNetworkUrl(imageUrl)) {
-                                    try {
-                                      final ref = FirebaseStorage.instance.refFromURL(imageUrl);
-                                      await ref.delete();
-                                    } catch (e) {}
-                                  }
-                                }
-                                await FirebaseFirestore.instance.collection('products').doc(docId).delete();
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Product deleted.')),
-                                );
-                              } catch (e) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Failed to delete product: $e')),
-                                );
-                              }
-                            }
-                          },
-                        ),
-                      ],
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             );
@@ -599,8 +724,21 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
     );
   }
 
+  Color _getStatusColor(String? status) {
+    switch (status) {
+      case 'approved':
+        return Colors.green;
+      case 'rejected':
+        return Colors.red;
+      default:
+        return Colors.orange;
+    }
+  }
+
   Widget _buildStockManagementTab() {
     final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+    
     return SingleChildScrollView(
       padding: EdgeInsets.all(screenWidth * 0.04),
       child: Column(
@@ -610,18 +748,19 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
             'Stock Management',
             style: AppTextStyles.headline.copyWith(fontSize: screenWidth * 0.06),
           ),
-          SizedBox(height: screenWidth * 0.05),
+          SizedBox(height: screenHeight * 0.02),
           _buildStockOverview(),
-          SizedBox(height: screenWidth * 0.05),
+          SizedBox(height: screenHeight * 0.02),
           _buildStockList(),
         ],
       ),
     );
   }
 
-    Widget _buildStockOverview() {
+  Widget _buildStockOverview() {
     final screenWidth = MediaQuery.of(context).size.width;
     final user = FirebaseAuth.instance.currentUser;
+    
     if (user == null) {
       return const Center(child: Text('Not logged in.'));
     }
@@ -666,22 +805,19 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
           totalValue += quantity * price;
         }
         
-        return SizedBox(
-          height: 200, // Fixed height to prevent overflow
-          child: GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 2,
-            crossAxisSpacing: screenWidth * 0.04,
-            mainAxisSpacing: screenWidth * 0.04,
-            childAspectRatio: 1.5,
-            children: [
-              _buildStatCard(screenWidth, BorderRadius.circular(screenWidth * 0.05), 'Total Products', '$totalProducts', Icons.inventory, Colors.blue),
-              _buildStatCard(screenWidth, BorderRadius.circular(screenWidth * 0.05), 'Low Stock', '$lowStockProducts', Icons.warning, Colors.orange),
-              _buildStatCard(screenWidth, BorderRadius.circular(screenWidth * 0.05), 'Out of Stock', '$outOfStockProducts', Icons.remove_shopping_cart, Colors.red),
-              _buildStatCard(screenWidth, BorderRadius.circular(screenWidth * 0.05), 'Total Value', '\u20b1${totalValue.toStringAsFixed(2)}', Icons.attach_money, Colors.green),
-            ],
-          ),
+        return GridView.count(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisCount: 2,
+          crossAxisSpacing: screenWidth * 0.04,
+          mainAxisSpacing: screenWidth * 0.04,
+          childAspectRatio: 1.6,
+          children: [
+            _buildStatCard(screenWidth, BorderRadius.circular(screenWidth * 0.05), 'Total Products', '$totalProducts', Icons.inventory, Colors.blue),
+            _buildStatCard(screenWidth, BorderRadius.circular(screenWidth * 0.05), 'Low Stock', '$lowStockProducts', Icons.warning, Colors.orange),
+            _buildStatCard(screenWidth, BorderRadius.circular(screenWidth * 0.05), 'Out of Stock', '$outOfStockProducts', Icons.remove_shopping_cart, Colors.red),
+            _buildStatCard(screenWidth, BorderRadius.circular(screenWidth * 0.05), 'Total Value', '₱${totalValue.toStringAsFixed(2)}', Icons.attach_money, Colors.green),
+          ],
         );
       },
     );
@@ -690,92 +826,26 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
   Widget _buildStockList() {
     final screenWidth = MediaQuery.of(context).size.width;
     final user = FirebaseAuth.instance.currentUser;
+    
     if (user == null) {
-      return const Center(child: Text('Not logged in.'));
+      return Center(child: Text('Not logged in.', style: TextStyle(fontSize: screenWidth * 0.04)));
     }
     
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('products')
           .where('sellerId', isEqualTo: user.uid)
+          .orderBy('quantity')
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return Center(child: CircularProgressIndicator(strokeWidth: 2));
         }
         if (snapshot.hasError) {
-          return Center(
-            child: Neumorphic(
-              style: AppNeumorphic.card,
-              child: Padding(
-                padding: EdgeInsets.all(screenWidth * 0.08),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.error,
-                      size: screenWidth * 0.15,
-                      color: Colors.red,
-                    ),
-                    SizedBox(height: screenWidth * 0.04),
-                    Text(
-                      'Error Loading Products',
-                      style: AppTextStyles.headline.copyWith(
-                        fontSize: screenWidth * 0.06,
-                        color: Colors.red,
-                      ),
-                    ),
-                    SizedBox(height: screenWidth * 0.02),
-                    Text(
-                      'Please try again later',
-                      style: AppTextStyles.body.copyWith(
-                        fontSize: screenWidth * 0.04,
-                        color: AppColors.textSecondary,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
+          return Center(child: Text('Error: ${snapshot.error}', style: TextStyle(fontSize: screenWidth * 0.035)));
         }
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return Center(
-            child: Neumorphic(
-              style: AppNeumorphic.card,
-              child: Padding(
-                padding: EdgeInsets.all(screenWidth * 0.08),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.inventory_2,
-                      size: screenWidth * 0.15,
-                      color: AppColors.primaryGreen,
-                    ),
-                    SizedBox(height: screenWidth * 0.04),
-                    Text(
-                      'No Products Found',
-                      style: AppTextStyles.headline.copyWith(
-                        fontSize: screenWidth * 0.06,
-                        color: AppColors.primaryGreen,
-                      ),
-                    ),
-                    SizedBox(height: screenWidth * 0.02),
-                    Text(
-                      'Add your first product to start managing stock',
-                      style: AppTextStyles.body.copyWith(
-                        fontSize: screenWidth * 0.04,
-                        color: AppColors.textSecondary,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
+          return Center(child: Text('No products yet.', style: TextStyle(fontSize: screenWidth * 0.04)));
         }
         
         final products = snapshot.data!.docs;
@@ -798,92 +868,80 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
               stockColor = Colors.green;
             }
             
-            return Neumorphic(
-              style: AppNeumorphic.card,
+            return Container(
               margin: EdgeInsets.only(bottom: screenWidth * 0.03),
-              child: Padding(
-                padding: EdgeInsets.all(screenWidth * 0.04),
-                child: Row(
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(screenWidth * 0.03),
-                      child: SizedBox(
-                        width: screenWidth * 0.15,
-                        height: screenWidth * 0.15,
-                        child: ProductImageWidget(
-                          imagePath: product['imageUrl'] ?? '',
-                          width: screenWidth * 0.15,
-                          height: screenWidth * 0.15,
-                          placeholder: Icon(Icons.shopping_basket, size: screenWidth * 0.08, color: AppColors.primaryGreen),
+              child: Neumorphic(
+                style: AppNeumorphic.card,
+                child: Padding(
+                  padding: EdgeInsets.all(screenWidth * 0.04),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              product['name'] ?? 'Unknown Product',
+                              style: AppTextStyles.headline.copyWith(
+                                fontSize: screenWidth * 0.045,
+                              ),
+                            ),
+                            SizedBox(height: screenWidth * 0.01),
+                            Text(
+                              '₱${price.toStringAsFixed(2)}',
+                              style: AppTextStyles.price.copyWith(
+                                fontSize: screenWidth * 0.04,
+                              ),
+                            ),
+                            SizedBox(height: screenWidth * 0.01),
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.inventory_2,
+                                  size: screenWidth * 0.04,
+                                  color: stockColor,
+                                ),
+                                SizedBox(width: screenWidth * 0.02),
+                                Text(
+                                  '$quantity ${product['unit'] ?? ''}',
+                                  style: AppTextStyles.body.copyWith(
+                                    fontSize: screenWidth * 0.035,
+                                    color: stockColor,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       ),
-                    ),
-                    SizedBox(width: screenWidth * 0.04),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      Column(
                         children: [
-                          Text(
-                            product['name'] ?? 'Unknown Product',
-                            style: AppTextStyles.headline.copyWith(
-                              fontSize: screenWidth * 0.045,
+                          NeumorphicButton(
+                            style: AppNeumorphic.button.copyWith(
+                              color: AppColors.primaryGreen,
+                            ),
+                            onPressed: () => _updateStock(docId, quantity + 1),
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.03, vertical: screenWidth * 0.02),
+                              child: Icon(Icons.add, color: Colors.white, size: screenWidth * 0.05),
                             ),
                           ),
-                          SizedBox(height: screenWidth * 0.01),
-                          Text(
-                            '\u20b1${price.toStringAsFixed(2)}',
-                            style: AppTextStyles.price.copyWith(
-                              fontSize: screenWidth * 0.04,
+                          SizedBox(height: screenWidth * 0.02),
+                          NeumorphicButton(
+                            style: AppNeumorphic.button.copyWith(
+                              color: Colors.red,
                             ),
-                          ),
-                          SizedBox(height: screenWidth * 0.01),
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.inventory_2,
-                                size: screenWidth * 0.04,
-                                color: stockColor,
-                              ),
-                              SizedBox(width: screenWidth * 0.02),
-                              Text(
-                                '$quantity ${product['unit'] ?? ''}',
-                                style: AppTextStyles.body.copyWith(
-                                  fontSize: screenWidth * 0.035,
-                                  color: stockColor,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
+                            onPressed: () => _updateStock(docId, quantity > 0 ? quantity - 1 : 0),
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.03, vertical: screenWidth * 0.02),
+                              child: Icon(Icons.remove, color: Colors.white, size: screenWidth * 0.05),
+                            ),
                           ),
                         ],
                       ),
-                    ),
-                    Column(
-                      children: [
-                        NeumorphicButton(
-                          style: AppNeumorphic.button.copyWith(
-                            color: AppColors.primaryGreen,
-                          ),
-                          onPressed: () => _updateStock(docId, quantity + 1),
-                          child: Padding(
-                            padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.03, vertical: screenWidth * 0.02),
-                            child: Icon(Icons.add, color: Colors.white, size: screenWidth * 0.05),
-                          ),
-                        ),
-                        SizedBox(height: screenWidth * 0.02),
-                        NeumorphicButton(
-                          style: AppNeumorphic.button.copyWith(
-                            color: Colors.red,
-                          ),
-                          onPressed: () => _updateStock(docId, quantity > 0 ? quantity - 1 : 0),
-                          child: Padding(
-                            padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.03, vertical: screenWidth * 0.02),
-                            child: Icon(Icons.remove, color: Colors.white, size: screenWidth * 0.05),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             );
@@ -913,6 +971,7 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
   Widget _buildProfileTab() {
     final screenWidth = MediaQuery.of(context).size.width;
     final user = FirebaseAuth.instance.currentUser;
+    
     return FutureBuilder<DocumentSnapshot>(
       future: FirebaseFirestore.instance.collection('users').doc(user!.uid).get(),
       builder: (context, snapshot) {
@@ -922,21 +981,19 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
         if (!snapshot.hasData || !snapshot.data!.exists) {
           return const Center(child: Text('No profile data found.'));
         }
+        
         final data = snapshot.data!.data() as Map<String, dynamic>;
-        final userRole = data['role'] ?? '';
-        final isBuyer = userRole == 'buyer';
-        // Instead, get the supplierId from the profile being viewed (assume user.uid is supplierId for now)
-        final supplierId = user.uid;
+        
         return SingleChildScrollView(
           padding: EdgeInsets.all(screenWidth * 0.04),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'Profile',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                style: AppTextStyles.headline.copyWith(fontSize: screenWidth * 0.06),
               ),
-              const SizedBox(height: 20),
+              SizedBox(height: screenWidth * 0.05),
               Container(
                 decoration: BoxDecoration(
                   color: Colors.white,
@@ -955,30 +1012,35 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
                     CircleAvatar(
                       radius: screenWidth * 0.125,
                       backgroundColor: AppColors.primaryGreen.withOpacity(0.1),
-                      child: const Icon(
+                      child: Icon(
                         Icons.store,
-                        size: 50,
+                        size: screenWidth * 0.125,
                         color: AppColors.primaryGreen,
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    SizedBox(height: screenWidth * 0.04),
                     Text(
                       data['name'] ?? '',
-                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                      style: AppTextStyles.headline.copyWith(fontSize: screenWidth * 0.05),
                     ),
                     Text(
                       data['email'] ?? '',
-                      style: const TextStyle(fontSize: 14, color: Colors.grey),
+                      style: AppTextStyles.body.copyWith(
+                        fontSize: screenWidth * 0.035,
+                        color: Colors.grey,
+                      ),
                     ),
                     Text(
                       'Role: ${data['role'] ?? ''}',
-                      style: const TextStyle(fontSize: 14, color: Colors.grey),
+                      style: AppTextStyles.body.copyWith(
+                        fontSize: screenWidth * 0.035,
+                        color: Colors.grey,
+                      ),
                     ),
-                    const SizedBox(height: 20),
+                    SizedBox(height: screenWidth * 0.05),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
-                        // Products count
                         StreamBuilder<QuerySnapshot>(
                           stream: FirebaseFirestore.instance
                               .collection('products')
@@ -989,7 +1051,6 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
                             return _buildProfileStat(screenWidth, 'Products', '$count');
                           },
                         ),
-                        // Orders count
                         StreamBuilder<QuerySnapshot>(
                           stream: FirebaseFirestore.instance
                               .collection('orders')
@@ -1000,11 +1061,10 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
                             return _buildProfileStat(screenWidth, 'Orders', '$count');
                           },
                         ),
-                        // Rating average
                         StreamBuilder<QuerySnapshot>(
                           stream: FirebaseFirestore.instance
                               .collection('supplier_ratings')
-                              .where('supplierId', isEqualTo: user.uid)
+                              .where('sellerId', isEqualTo: user.uid)
                               .snapshots(),
                           builder: (context, snapshot) {
                             double avg = 0;
@@ -1020,16 +1080,6 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
                             return _buildProfileStat(screenWidth, 'Rating', avg > 0 ? avg.toStringAsFixed(1) : 'N/A');
                           },
                         ),
-                        // Rate Supplier button for buyers (only if not supplier)
-                        if (isBuyer && user.uid != supplierId)
-                          ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.orange,
-                              foregroundColor: Colors.white,
-                            ),
-                            onPressed: () => _showRateSupplierDialog(context, supplierId, data['name'] ?? ''),
-                            child: const Text('Rate Supplier'),
-                          ),
                       ],
                     ),
                   ],
@@ -1056,100 +1106,4 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
       ],
     );
   }
-
-  Future _showRateSupplierDialog(BuildContext context, String supplierId, String supplierName) {
-    int rating = 5;
-    TextEditingController commentController = TextEditingController();
-    final user = FirebaseAuth.instance.currentUser;
-    return showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Rate $supplierName'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            StarRating(
-              rating: rating,
-              onRatingChanged: (val) {
-                rating = val;
-              },
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: commentController,
-              decoration: const InputDecoration(
-                labelText: 'Comment (optional)',
-                border: OutlineInputBorder(),
-              ),
-              maxLines: 2,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (user == null) {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('You must be logged in to rate.')),
-                );
-                return;
-              }
-              // Fetch user role and block if not buyer or is supplier
-              final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
-              final userRole = userDoc.data()?['role'] ?? '';
-              if (userRole != 'buyer' || user.uid == supplierId) {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Only buyers can rate suppliers.')),
-                );
-                return;
-              }
-              // Save rating to Firestore
-              final ratingsRef = FirebaseFirestore.instance.collection('supplier_ratings');
-              await ratingsRef.add({
-                'supplierId': supplierId,
-                'buyerId': user.uid,
-                'rating': rating,
-                'comment': commentController.text.trim(),
-                'timestamp': FieldValue.serverTimestamp(),
-              });
-              // Recalculate average and update supplier_locations
-              final query = await ratingsRef.where('supplierId', isEqualTo: supplierId).get();
-              double avg = 0;
-              if (query.docs.isNotEmpty) {
-                double sum = 0;
-                for (var doc in query.docs) {
-                  sum += (doc['rating'] ?? 0) is int ? (doc['rating'] ?? 0).toDouble() : (doc['rating'] ?? 0);
-                }
-                avg = sum / query.docs.length;
-              }
-              // Update supplier_locations
-              final locQuery = await FirebaseFirestore.instance
-                  .collection('supplier_locations')
-                  .where('supplierId', isEqualTo: supplierId)
-                  .limit(1)
-                  .get();
-              if (locQuery.docs.isNotEmpty) {
-                await locQuery.docs.first.reference.update({'rating': avg});
-              }
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Thank you for your review!')),
-              );
-            },
-            child: const Text('Submit'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-extension StringCasingExtension on String {
-  String capitalize() => isEmpty ? this : '${this[0].toUpperCase()}${substring(1)}';
 } 

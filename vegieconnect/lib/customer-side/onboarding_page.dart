@@ -135,7 +135,10 @@ class _OnboardingPageState extends State<OnboardingPage> {
                       _controller.nextPage(duration: const Duration(milliseconds: 400), curve: Curves.easeInOut);
                     }
                   },
-                  child: Text(_pageIndex == _pages.length - 1 ? 'Get Started' : 'Next', style: AppTextStyles.button.copyWith(fontSize: 20)),
+                  child: Text(
+                    _pageIndex == _pages.length - 1 ? 'Get Started' : 'Next',
+                    style: AppTextStyles.button.copyWith(fontSize: 20, color: Colors.white),
+                  ),
                 ),
               ),
             ),

@@ -1,8 +1,8 @@
-import 'package:intl/intl.dart';
-import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
-import 'package:vegieconnect/theme.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../services/payment_service.dart';
+import 'package:vegieconnect/theme.dart';
+import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
+import 'package:intl/intl.dart';
+import 'rating_dialog.dart';
 import 'buyer_order_history_page.dart';
 
 class DigitalReceiptPage extends StatelessWidget {
@@ -24,13 +24,33 @@ class DigitalReceiptPage extends StatelessWidget {
   }
 
   String _getPaymentMethodDisplayName() {
-    final paymentService = PaymentService();
-    return paymentService.getPaymentMethodDisplayName(paymentMethod);
+    switch (paymentMethod) {
+      case 'cash_on_pickup':
+        return 'Cash on Pickup';
+      case 'gcash':
+        return 'GCash';
+      case 'paymaya':
+        return 'PayMaya';
+      case 'credit_card':
+        return 'Credit Card';
+      default:
+        return 'Unknown Payment Method';
+    }
   }
 
   String _getPaymentMethodIcon() {
-    final paymentService = PaymentService();
-    return paymentService.getPaymentMethodIcon(paymentMethod);
+    switch (paymentMethod) {
+      case 'cash_on_pickup':
+        return '💵';
+      case 'gcash':
+        return '📱';
+      case 'paymaya':
+        return '💳';
+      case 'credit_card':
+        return '💳';
+      default:
+        return '❓';
+    }
   }
 
   @override
@@ -279,63 +299,127 @@ class DigitalReceiptPage extends StatelessWidget {
                         'Track Order',
                         'Monitor your order status in your profile',
                       ),
+                      SizedBox(height: screenWidth * 0.04),
+          
+                      // Rating Button
+                      NeumorphicButton(
+                        style: AppNeumorphic.button.copyWith(
+                          color: Colors.amber,
+                        ),
+                        onPressed: () async {
+                          // Group items by supplier
+                          Map<String, List<Map<String, dynamic>>> supplierGroups = {};
+                          for (var item in cartItems) {
+                            final data = item.data();
+                            final supplierId = data['sellerId'] ?? '';
+                            final supplierName = data['supplierName'] ?? 'Unknown Supplier';
+                            
+                            if (!supplierGroups.containsKey(supplierId)) {
+                              supplierGroups[supplierId] = [];
+                            }
+                            supplierGroups[supplierId]!.add({
+                              'productId': item.id,
+                              'name': data['name'],
+                              'price': data['price'],
+                              'quantity': data['quantity'],
+                            });
+                          }
+
+                          // Show rating dialog for each supplier
+                          for (var entry in supplierGroups.entries) {
+                            final supplierId = entry.key;
+                            final products = entry.value;
+                            final supplierName = cartItems
+                                .firstWhere((item) => item.data()['sellerId'] == supplierId)
+                                .data()['supplierName'] ?? 'Unknown Supplier';
+
+                            await showDialog(
+                              context: context,
+                              barrierDismissible: false,
+                              builder: (context) => RatingDialog(
+                                orderId: orderId,
+                                supplierId: supplierId,
+                                supplierName: supplierName,
+                                products: products,
+                              ),
+                            );
+                          }
+                        },
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(vertical: screenWidth * 0.03),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.star, color: Colors.white, size: screenWidth * 0.05),
+                              SizedBox(width: screenWidth * 0.02),
+                              Text(
+                                'Rate Your Experience',
+                                style: AppTextStyles.button.copyWith(
+                                  fontSize: screenWidth * 0.04,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      SizedBox(height: screenWidth * 0.03),
+          
+                      // Action Buttons
+                      Row(
+                        children: [
+                          Expanded(
+                            child: NeumorphicButton(
+                              style: AppNeumorphic.button,
+                              onPressed: () {
+                                Navigator.popUntil(context, (route) => route.isFirst);
+                              },
+                              child: Padding(
+                                padding: EdgeInsets.symmetric(vertical: screenWidth * 0.03),
+                                child: Text(
+                                  'Continue Shopping',
+                                  style: AppTextStyles.button.copyWith(fontSize: screenWidth * 0.04),
+                                ),
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: screenWidth * 0.03),
+                          Expanded(
+                            child: NeumorphicButton(
+                              style: AppNeumorphic.button.copyWith(
+                                color: AppColors.primaryGreen,
+                              ),
+                              onPressed: () {
+                                // Navigate to order history
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const BuyerOrderHistoryPage(),
+                                  ),
+                                );
+                              },
+                              child: Padding(
+                                padding: EdgeInsets.symmetric(vertical: screenWidth * 0.03),
+                                child: Text(
+                                  'View Order History',
+                                  style: AppTextStyles.button.copyWith(
+                                    fontSize: screenWidth * 0.04,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
               ),
-              SizedBox(height: screenWidth * 0.04),
-              
-              // Action Buttons
-              Row(
-                children: [
-                  Expanded(
-                    child: NeumorphicButton(
-                      style: AppNeumorphic.button,
-                      onPressed: () {
-                        Navigator.popUntil(context, (route) => route.isFirst);
-                      },
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(vertical: screenWidth * 0.03),
-                        child: Text(
-                          'Continue Shopping',
-                          style: AppTextStyles.button.copyWith(fontSize: screenWidth * 0.04),
-                        ),
-                      ),
-                    ),
-                  ),
-                  SizedBox(width: screenWidth * 0.03),
-                  Expanded(
-                    child: NeumorphicButton(
-                      style: AppNeumorphic.button.copyWith(
-                        color: AppColors.primaryGreen,
-                      ),
-                      onPressed: () {
-                        // Navigate to order history
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const BuyerOrderHistoryPage(),
-                          ),
-                        );
-                      },
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(vertical: screenWidth * 0.03),
-                        child: Text(
-                          'View Order History',
-                          style: AppTextStyles.button.copyWith(
-                            fontSize: screenWidth * 0.04,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
             ],
           ),
-        ),
       ),
+    ),
     );
   }
 

@@ -4,8 +4,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:vegieconnect/theme.dart'; // For AppColors
 import 'package:image_picker/image_picker.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
+import 'package:vegieconnect/services/image_storage_service.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -16,8 +17,15 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   String? _avatarUrl;
+  String? _localAvatarPath;
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLocalProfileImage();
+  }
 
   @override
   void dispose() {
@@ -26,16 +34,135 @@ class _ProfilePageState extends State<ProfilePage> {
     super.dispose();
   }
 
-  Future<void> _pickAvatar() async {
-    final picker = ImagePicker();
-    final picked = await picker.pickImage(source: ImageSource.gallery);
-    if (picked != null) {
-      final ref = FirebaseStorage.instance.ref('avatars/${FirebaseAuth.instance.currentUser!.uid}.jpg');
-      await ref.putData(await picked.readAsBytes());
-      final url = await ref.getDownloadURL();
-      setState(() => _avatarUrl = url);
-      await FirebaseFirestore.instance.collection('users').doc(FirebaseAuth.instance.currentUser!.uid).update({'avatarUrl': url});
+  Future<void> _loadLocalProfileImage() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final localPath = await ImageStorageService.getProfileImage(user.uid);
+      if (localPath != null) {
+        setState(() {
+          _localAvatarPath = localPath;
+        });
+      }
     }
+  }
+
+  Future<void> _pickAvatar() async {
+    if (kIsWeb) {
+      await _pickImageWeb();
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: Icon(Icons.photo_library, color: AppColors.primaryGreen),
+              title: Text('Choose from Gallery'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImageFromSource(ImageSource.gallery);
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.camera_alt, color: AppColors.primaryGreen),
+              title: Text('Take Photo'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImageFromSource(ImageSource.camera);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickImageWeb() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final bytes = await ImageStorageService.pickImageFromWeb();
+      if (bytes == null) return;
+
+      final url = await ImageStorageService.uploadProfileImage(bytes: bytes, userId: user.uid);
+
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .update({'avatarUrl': url});
+
+      setState(() {
+        _avatarUrl = url;
+        _localAvatarPath = null; // web doesn't use local path
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Profile image updated successfully')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error updating profile picture: $e')),
+      );
+    }
+  }
+
+  Future<void> _pickImageFromSource(ImageSource source) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final imageFile = await ImageStorageService.pickProfileImage(
+        fromCamera: source == ImageSource.camera,
+      );
+      
+      if (imageFile != null) {
+        // Upload to Firebase Storage for cross-platform access
+        final url = await ImageStorageService.uploadProfileImage(file: imageFile, userId: user.uid);
+
+        // Save to local storage for faster reloads on mobile
+        final localPath = await ImageStorageService.saveProfileImageFromFile(imageFile, user.uid);
+        await ImageStorageService.deleteOldProfileImages(user.uid);
+
+        // Update Firestore profile
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .update({'avatarUrl': url});
+
+        setState(() {
+          _localAvatarPath = localPath;
+          _avatarUrl = url;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Profile image updated successfully')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to update profile image: $e')),
+      );
+    }
+  }
+
+  ImageProvider? _getProfileImage(Map<String, dynamic> data) {
+    // Priority: Local image > Network image
+    if (_localAvatarPath != null) {
+      final file = ImageStorageService.loadImageFromPath(_localAvatarPath!);
+      if (file != null) {
+        return FileImage(file);
+      }
+    }
+    
+    if (data['avatarUrl'] != null) {
+      return NetworkImage(data['avatarUrl']);
+    }
+    
+    return null;
   }
 
   void _showEditProfile(Map<String, dynamic> data) {
@@ -56,8 +183,8 @@ class _ProfilePageState extends State<ProfilePage> {
                 child: CircleAvatar(
                   radius: 40,
                   backgroundColor: AppColors.primaryGreen.withOpacity(0.1),
-                  backgroundImage: _avatarUrl != null ? NetworkImage(_avatarUrl!) : (data['avatarUrl'] != null ? NetworkImage(data['avatarUrl']) : null),
-                  child: _avatarUrl == null && data['avatarUrl'] == null ? Icon(Icons.camera_alt, color: AppColors.primaryGreen, size: 32) : null,
+                  backgroundImage: _getProfileImage(data),
+                  child: _getProfileImage(data) == null ? Icon(Icons.camera_alt, color: AppColors.primaryGreen, size: 32) : null,
                 ),
               ),
               const SizedBox(height: 16),
@@ -124,8 +251,8 @@ class _ProfilePageState extends State<ProfilePage> {
                   child: CircleAvatar(
                     radius: 48,
                     backgroundColor: AppColors.primaryGreen.withOpacity(0.1),
-                    backgroundImage: data['avatarUrl'] != null ? NetworkImage(data['avatarUrl']) : null,
-                    child: data['avatarUrl'] == null ? Icon(Icons.person, color: AppColors.primaryGreen, size: 48) : null,
+                    backgroundImage: _getProfileImage(data),
+                    child: _getProfileImage(data) == null ? Icon(Icons.person, color: AppColors.primaryGreen, size: 48) : null,
                   ),
                 ),
               ),
@@ -246,7 +373,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       Navigator.of(context).pushReplacementNamed('/login');
                     }
                   },
-                  child: Text('Logout', style: AppTextStyles.button.copyWith(fontSize: 18)),
+                  child: Text('Logout', style: AppTextStyles.button.copyWith(fontSize: 18, color: Colors.white)),
                 ),
               ),
             ],

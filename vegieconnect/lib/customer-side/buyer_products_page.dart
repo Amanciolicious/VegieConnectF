@@ -4,10 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../widgets/product_image_widget.dart';
 import 'package:vegieconnect/theme.dart'; // For AppColors
 import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
-// Import the ChatPage
-// Import the ChatConversationPage
-// Import the MessagingService
-import '../services/chat_navigation_service.dart'; // Import the ChatNavigationService
+import 'buyer_chat_page.dart';
 
 class BuyerProductsPage extends StatefulWidget {
   final String? supplierId;
@@ -235,39 +232,7 @@ class _BuyerProductsPageState extends State<BuyerProductsPage> {
                                     SizedBox(height: screenWidth * 0.01),
                                     Text('Supplier: ${product['supplierName'] ?? ''}', style: AppTextStyles.body.copyWith(fontSize: screenWidth * 0.04)),
                                     SizedBox(height: screenWidth * 0.01),
-                                    NeumorphicButton(
-                                      style: AppNeumorphic.button.copyWith(
-                                        color: Colors.blue,
-                                        boxShape: NeumorphicBoxShape.roundRect(BorderRadius.circular(12)),
-                                      ),
-                                      onPressed: () async {
-                                        // Close dialog first
-                                        Navigator.pop(context);
-
-                                        // Add a small delay to ensure dialog is fully closed
-                                        await Future.delayed(const Duration(milliseconds: 200));
-
-                                        // Use a parent context (from the widget tree) and check if mounted
-                                        if (!mounted) return;
-
-                                        await _navigateToChat(
-                                          context,
-                                          product['sellerId']?.toString() ?? '',
-                                          product['supplierName'] ?? 'Supplier',
-                                        );
-                                      },
-                                      child: Container(
-                                        padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.03, vertical: screenWidth * 0.015),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Icon(Icons.chat, color: Colors.white, size: 16),
-                                            SizedBox(width: 6),
-                                            Text('Chat', style: TextStyle(color: Colors.white, fontSize: screenWidth * 0.035, fontWeight: FontWeight.w500)),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
+                                    const SizedBox.shrink(),
                                     SizedBox(height: screenWidth * 0.01),
                                     Text('\u20b1${product['price']?.toStringAsFixed(2) ?? '0.00'}', style: AppTextStyles.price.copyWith(fontSize: screenWidth * 0.045)),
                                     SizedBox(height: screenWidth * 0.01),
@@ -334,6 +299,13 @@ class _BuyerProductsPageState extends State<BuyerProductsPage> {
                                     
                                     SizedBox(height: screenWidth * 0.02),
                                     ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: AppColors.primaryGreen,
+                                        foregroundColor: Colors.white,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                      ),
                                       onPressed: () async {
                                         int quantity = 1;
                                         final maxQty = (product['quantity'] ?? 1) as int;
@@ -415,7 +387,7 @@ class _BuyerProductsPageState extends State<BuyerProductsPage> {
                                           await _addToCart(productId, product, result);
                                         }
                                       },
-                                      child: Text('Add to Cart'),
+                                      child: const Text('Add to Cart'),
                                     ),
                                   ],
                                 ),
@@ -522,6 +494,44 @@ class _BuyerProductsPageState extends State<BuyerProductsPage> {
                                 },
                               ),
                             ),
+                            // Chat button
+                            if (user == null || (product['sellerId'] ?? '') != user?.uid)
+                              Positioned(
+                                top: 8,
+                                left: 8,
+                                child: NeumorphicButton(
+                                  style: AppNeumorphic.button.copyWith(
+                                    color: Colors.blue,
+                                    boxShape: NeumorphicBoxShape.circle(),
+                                  ),
+                                  onPressed: () {
+                                    final supplierId = product['sellerId'] as String?;
+                                    final supplierName = product['supplierName'] as String? ?? 'Supplier';
+                                    if (supplierId == null) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(content: Text('Supplier not found for this product.')),
+                                      );
+                                      return;
+                                    }
+                                    if (FirebaseAuth.instance.currentUser == null) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(content: Text('Please log in to start a chat.')),
+                                      );
+                                      return;
+                                    }
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => BuyerChatPage(
+                                          supplierId: supplierId,
+                                          supplierName: supplierName,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  child: Icon(Icons.chat_bubble, color: Colors.white, size: screenWidth * 0.04),
+                                ),
+                              ),
                             // Add to cart button
                             Positioned(
                               bottom: 12,
@@ -828,10 +838,6 @@ class _BuyerProductsPageState extends State<BuyerProductsPage> {
     }
   }
 
-  // Helper method to safely navigate to chat
-  Future<void> _navigateToChat(BuildContext context, String supplierId, String supplierName) async {
-    final chatNavigationService = ChatNavigationService();
-    await chatNavigationService.startChatWithSupplierById(context, supplierId, supplierName);
-  }
+  // Chat removed
 }
 

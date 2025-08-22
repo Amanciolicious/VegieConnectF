@@ -58,7 +58,7 @@ class LandingPage extends StatelessWidget {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text('Enter', style: AppTextStyles.button.copyWith(fontSize: 20)),
+                      Text('Enter', style: AppTextStyles.button.copyWith(fontSize: 20, color: Colors.white)),
                       const SizedBox(width: 12),
                       const Icon(Icons.arrow_downward, color: Colors.white, size: 28),
                     ],

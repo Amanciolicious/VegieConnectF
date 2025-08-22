@@ -1,230 +1,184 @@
-import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../services/messaging_service.dart';
-import '../services/chat_navigation_service.dart';
-import '../theme.dart';
-import '../widgets/chat_widgets.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
+import 'package:vegieconnect/services/chat_service.dart';
+import 'package:vegieconnect/theme.dart';
 
 class SupplierChatPage extends StatefulWidget {
-  const SupplierChatPage({super.key});
+  final String conversationId;
+  final String buyerId;
+  final String buyerName;
+  const SupplierChatPage({super.key, required this.conversationId, required this.buyerId, required this.buyerName});
 
   @override
   State<SupplierChatPage> createState() => _SupplierChatPageState();
 }
 
 class _SupplierChatPageState extends State<SupplierChatPage> {
-  final MessagingService _messagingService = MessagingService();
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final _controller = TextEditingController();
+  final ChatService _chatService = ChatService();
+  final user = FirebaseAuth.instance.currentUser;
+  List<Map<String, dynamic>> _localMessages = [];
 
   @override
   void initState() {
     super.initState();
-    _messagingService.initialize();
+    _initLocal();
+    // Sync offline messages when page loads
+    _chatService.checkAndSyncOfflineMessages();
+  }
+
+  Future<void> _initLocal() async {
+    try {
+      final cached = await _chatService.loadLocalMessages(widget.conversationId);
+      setState(() => _localMessages = cached);
+    } catch (e) {
+      print('Error loading local messages: $e');
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+    
+    // Optimized for Infinix Smart 8 (720x1612)
+    final padding = screenWidth * 0.04; // ~29px
+    final messagePadding = screenWidth * 0.03; // ~22px
+    final borderRadius = screenWidth * 0.03; // ~22px
+    
     return Scaffold(
-      appBar: NeumorphicAppBar(
-        title: const Text('Customer Messages'),
+      appBar: AppBar(
+        backgroundColor: AppColors.primaryGreen,
+        title: Text(
+          'Chat with ${widget.buyerName}', 
+          style: AppTextStyles.headline.copyWith(
+            color: Colors.white, 
+            fontSize: screenWidth * 0.045,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        elevation: 2,
       ),
-      body: StreamBuilder<List<ChatSummary>>(
-        stream: _messagingService.getRealCustomerSupplierChats(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          if (snapshot.hasError) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.error_outline,
-                    size: 64,
-                    color: AppColors.accentRed,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Error loading chats',
-                    style: AppTextStyles.headline,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Please try again later',
-                    style: AppTextStyles.body.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }
-
-          final chats = snapshot.data ?? [];
-
-          if (chats.isEmpty) {
-            return _buildEmptyState();
-          }
-
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: chats.length,
-            itemBuilder: (context, index) {
-              final chat = chats[index];
-              return ChatListItem(
-                chat: chat,
-                onTap: () => _openChat(chat),
-                unreadCount: _getUnreadCount(chat),
-                onDelete: () => _showDeleteChatDialog(chat),
-              );
-            },
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+      body: Column(
         children: [
-          Neumorphic(
-            style: AppNeumorphic.card,
-            child: Container(
-              padding: const EdgeInsets.all(32),
-              child: Column(
-                children: [
-                  Icon(
-                    Icons.chat_bubble_outline,
-                    size: 80,
-                    color: AppColors.accentGreen,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No Customer Messages Yet',
-                    style: AppTextStyles.headline,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'When customers message you about your products, they will appear here',
-                    style: AppTextStyles.body.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
+          Expanded(
+            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: _chatService.streamMessages(widget.conversationId),
+              builder: (context, snapshot) {
+                final docs = snapshot.data?.docs ?? [];
+                final List<Map<String, dynamic>> merged = [..._localMessages];
+                if (docs.isNotEmpty) {
+                  final fsMessages = docs.map((d) {
+                    final m = d.data();
+                    return {
+                      'senderId': m['senderId'],
+                      'text': m['text'],
+                      'timestamp': (m['timestamp'] as Timestamp?)?.toDate().toIso8601String() ?? DateTime.now().toIso8601String(),
+                    };
+                  }).toList();
+                  _chatService.setLocalMessages(conversationId: widget.conversationId, messages: fsMessages);
+                  merged
+                    ..clear()
+                    ..addAll(fsMessages);
+                }
+                return ListView.builder(
+                  padding: EdgeInsets.all(padding),
+                  itemCount: merged.length,
+                  itemBuilder: (context, index) {
+                    final data = merged[index];
+                    final isMine = data['senderId'] == user?.uid;
+                    return Align(
+                      alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
+                      child: Container(
+                        margin: EdgeInsets.symmetric(vertical: screenHeight * 0.005),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: messagePadding, 
+                          vertical: screenHeight * 0.008,
+                        ),
+                        constraints: BoxConstraints(
+                          maxWidth: screenWidth * 0.75,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isMine ? AppColors.primaryGreen : Colors.grey.shade200,
+                          borderRadius: BorderRadius.circular(borderRadius),
+                        ),
+                        child: Text(
+                          data['text'] ?? '',
+                          style: TextStyle(color: isMine ? Colors.white : Colors.black87),
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
             ),
           ),
+          _buildInputBar(screenWidth),
         ],
       ),
     );
   }
 
-
-
-  void _openChat(ChatSummary chat) {
-    final chatNavigationService = ChatNavigationService();
-    chatNavigationService.openExistingChat(
-      context,
-      chat.id,
-      _getChatTitle(chat),
-    );
-  }
-
-  String _getChatTitle(ChatSummary chat) {
-    final currentUserId = _auth.currentUser?.uid;
-    if (currentUserId == null) return 'Chat';
-
-    // Get the other participant's name
-    final otherParticipantId = chat.participants
-        .firstWhere((id) => id != currentUserId, orElse: () => '');
-
-    if (otherParticipantId.isEmpty) return 'Chat';
-
-    // Try to get participant names from chat metadata
-    if (chat.metadata != null && chat.metadata!['participantNames'] != null) {
-      final participantNames = Map<String, dynamic>.from(chat.metadata!['participantNames']);
-      return participantNames[otherParticipantId] ?? 'Customer';
-    }
-
-    // Try to get user data for better display
-    return chat.lastSenderName ?? 'Customer';
-  }
-
-  String _formatTime(DateTime? time) {
-    if (time == null) return '';
+  Widget _buildInputBar(double screenWidth) {
+    final screenHeight = MediaQuery.of(context).size.height;
     
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final messageDate = DateTime(time.year, time.month, time.day);
-
-    if (messageDate == today) {
-      return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
-    } else if (messageDate == today.subtract(const Duration(days: 1))) {
-      return 'Yesterday';
-    } else {
-      return '${time.day}/${time.month}/${time.year}';
-    }
-  }
-
-  int _getUnreadCount(ChatSummary chat) {
-    // TODO: Implement actual unread count logic
-    // For now, return a random number for demonstration
-    final currentUserId = _auth.currentUser?.uid;
-    final isUnread = chat.lastSenderId != currentUserId && 
-                     chat.lastMessageTime != null &&
-                     chat.lastMessageTime!.isAfter(DateTime.now().subtract(const Duration(days: 7)));
-    
-    return isUnread ? (chat.id.hashCode % 5) + 1 : 0;
-  }
-
-  void _showDeleteChatDialog(ChatSummary chat) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Conversation'),
-        content: Text('Are you sure you want to delete your conversation with ${chat.lastSenderName ?? 'this user'}? This action cannot be undone.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _deleteChat(chat);
-            },
-            style: TextButton.styleFrom(foregroundColor: AppColors.accentRed),
-            child: const Text('Delete'),
-          ),
-        ],
+    return SafeArea(
+      child: Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: screenWidth * 0.04, 
+          vertical: screenHeight * 0.01,
+        ),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 4,
+              offset: Offset(0, -2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Neumorphic(
+                style: AppNeumorphic.inset,
+                child: TextField(
+                  controller: _controller,
+                  decoration: InputDecoration(
+                    hintText: 'Type a message...',
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: screenWidth * 0.03,
+                      vertical: screenHeight * 0.012,
+                    ),
+                    hintStyle: TextStyle(fontSize: screenWidth * 0.04),
+                  ),
+                  style: TextStyle(fontSize: screenWidth * 0.04),
+                ),
+              ),
+            ),
+            SizedBox(width: screenWidth * 0.02),
+            NeumorphicButton(
+              style: AppNeumorphic.button.copyWith(color: AppColors.primaryGreen),
+              onPressed: () async {
+                if (_controller.text.trim().isEmpty) return;
+                await _chatService.sendMessage(
+                  conversationId: widget.conversationId,
+                  senderId: user!.uid,
+                  text: _controller.text,
+                );
+                _controller.clear();
+              },
+              child: const Icon(Icons.send, color: Colors.white),
+            )
+          ],
+        ),
       ),
     );
   }
+}
 
-  Future<void> _deleteChat(ChatSummary chat) async {
-    try {
-      await _messagingService.deleteChat(chat.id);
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Conversation removed from your chat list'),
-          backgroundColor: AppColors.primaryGreen,
-        ),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error deleting conversation: $e'),
-          backgroundColor: AppColors.accentRed,
-        ),
-      );
-    }
-  }
-} 
+

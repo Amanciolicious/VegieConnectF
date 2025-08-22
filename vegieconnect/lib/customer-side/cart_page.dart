@@ -348,7 +348,13 @@ class _CartPageState extends State<CartPage> {
                                   ),
                                 );
                               },
-                        child: Text('Proceed to Checkout', style: AppTextStyles.button.copyWith(fontSize: screenWidth * 0.05)),
+                        child: Text(
+                          'Proceed to Checkout',
+                          style: AppTextStyles.button.copyWith(
+                            fontSize: screenWidth * 0.05,
+                            color: Colors.white,
+                          ),
+                        ),
                       ),
                     ),
                   ],

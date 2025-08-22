@@ -15,14 +15,10 @@ class VerifyEmailPage extends StatefulWidget {
 
 class _VerifyEmailPageState extends State<VerifyEmailPage> {
   bool _isLoading = false;
-  String? _errorMessage;
-  String? _infoMessage;
 
   Future<void> _checkVerified() async {
     setState(() {
       _isLoading = true;
-      _errorMessage = null;
-      _infoMessage = null;
     });
     await FirebaseAuth.instance.currentUser?.reload();
     final user = FirebaseAuth.instance.currentUser;
@@ -35,7 +31,6 @@ class _VerifyEmailPageState extends State<VerifyEmailPage> {
       );
     } else {
       setState(() {
-        _errorMessage = 'Email not verified yet.';
         _isLoading = false;
       });
     }
@@ -44,18 +39,14 @@ class _VerifyEmailPageState extends State<VerifyEmailPage> {
   Future<void> _resendEmail() async {
     setState(() {
       _isLoading = true;
-      _errorMessage = null;
-      _infoMessage = null;
     });
     try {
       await FirebaseAuth.instance.currentUser?.sendEmailVerification();
       setState(() {
-        _infoMessage = 'Verification email resent!';
         _isLoading = false;
       });
     } catch (e) {
       setState(() {
-        _errorMessage = 'Failed to resend email.';
         _isLoading = false;
       });
     }

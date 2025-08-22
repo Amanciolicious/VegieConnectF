@@ -4,7 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:vegieconnect/theme.dart'; // For AppColors
 import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
-import '../widgets/supplier_rating_dialog.dart';
+import 'rating_dialog.dart';
 
 class BuyerOrderHistoryPage extends StatefulWidget {
   const BuyerOrderHistoryPage({super.key});
@@ -176,13 +176,12 @@ class _BuyerOrderHistoryPageState extends State<BuyerOrderHistoryPage> with Sing
                             if (status == 'delivered')
                               FutureBuilder<QuerySnapshot>(
                                 future: FirebaseFirestore.instance
-                                    .collection('order_ratings')
+                                    .collection('ratings')
                                     .where('orderId', isEqualTo: orders[index].id)
                                     .limit(1)
                                     .get(),
                                 builder: (context, ratingSnapshot) {
                                   final hasRated = ratingSnapshot.hasData && ratingSnapshot.data!.docs.isNotEmpty;
-                                  
                                   return TextButton.icon(
                                     icon: Icon(
                                       hasRated ? Icons.star : Icons.star_border,
@@ -196,14 +195,22 @@ class _BuyerOrderHistoryPageState extends State<BuyerOrderHistoryPage> with Sing
                                         fontSize: screenWidth * 0.04,
                                       ),
                                     ),
-                                    onPressed: hasRated ? null : () {
-                                      showDialog(
+                                    onPressed: hasRated ? null : () async {
+                                      final products = order['items'] ?? [
+                                        {
+                                          'productId': order['productId'] ?? '',
+                                          'name': order['productName'] ?? '',
+                                          'price': order['price'] ?? 0,
+                                          'quantity': order['quantity'] ?? 1,
+                                        }
+                                      ];
+                                      await showDialog(
                                         context: context,
-                                        builder: (context) => SupplierRatingDialog(
+                                        builder: (context) => RatingDialog(
                                           orderId: orders[index].id,
                                           supplierId: order['sellerId'] ?? '',
                                           supplierName: order['supplierName'] ?? 'Unknown Supplier',
-                                          orderNumber: order['orderNumber'] ?? orders[index].id,
+                                          products: List<Map<String, dynamic>>.from(products),
                                         ),
                                       );
                                     },

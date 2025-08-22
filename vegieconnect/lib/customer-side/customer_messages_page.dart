@@ -3,16 +3,16 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
 import 'package:vegieconnect/services/chat_service.dart';
 import 'package:vegieconnect/theme.dart';
-import 'supplier_chat_page.dart';
+import 'buyer_chat_page.dart';
 
-class SupplierChatListPage extends StatefulWidget {
-  const SupplierChatListPage({super.key});
+class CustomerMessagesPage extends StatefulWidget {
+  const CustomerMessagesPage({super.key});
 
   @override
-  State<SupplierChatListPage> createState() => _SupplierChatListPageState();
+  State<CustomerMessagesPage> createState() => _CustomerMessagesPageState();
 }
 
-class _SupplierChatListPageState extends State<SupplierChatListPage> {
+class _CustomerMessagesPageState extends State<CustomerMessagesPage> {
   final ChatService _chatService = ChatService();
   final Set<String> _selectedConversations = {};
   bool _isSelectionMode = false;
@@ -24,7 +24,14 @@ class _SupplierChatListPageState extends State<SupplierChatListPage> {
     final screenHeight = MediaQuery.of(context).size.height;
     
     if (user == null) {
-      return const Scaffold(body: Center(child: Text('Not logged in')));
+      return Scaffold(
+        body: Center(
+          child: Text(
+            'Please log in to view messages',
+            style: TextStyle(fontSize: screenWidth * 0.04),
+          ),
+        ),
+      );
     }
 
     // Optimized for Infinix Smart 8 (720x1612)
@@ -35,7 +42,7 @@ class _SupplierChatListPageState extends State<SupplierChatListPage> {
       appBar: AppBar(
         backgroundColor: AppColors.primaryGreen,
         title: Text(
-          _isSelectionMode ? '${_selectedConversations.length} selected' : 'Messages',
+          _isSelectionMode ? '${_selectedConversations.length} selected' : 'My Messages',
           style: AppTextStyles.headline.copyWith(
             color: Colors.white,
             fontSize: screenWidth * 0.045,
@@ -61,20 +68,36 @@ class _SupplierChatListPageState extends State<SupplierChatListPage> {
         ],
       ),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: _chatService.streamSupplierConversations(user.uid),
+        stream: _chatService.streamBuyerConversations(user.uid),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(child: CircularProgressIndicator(strokeWidth: 2));
-          }
-          if (snapshot.hasError) {
             return Center(
-              child: Text(
-                'Error: ${snapshot.error}',
-                style: TextStyle(fontSize: screenWidth * 0.04),
-                textAlign: TextAlign.center,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(color: AppColors.primaryGreen),
+                  SizedBox(height: 16),
+                  Text('Loading conversations...', style: AppTextStyles.subtitle),
+                ],
               ),
             );
           }
+
+          if (snapshot.hasError) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.error_outline, size: 64, color: AppColors.accentRed),
+                  SizedBox(height: 16),
+                  Text('Error loading messages', style: AppTextStyles.subtitle),
+                  SizedBox(height: 8),
+                  Text('${snapshot.error}', style: AppTextStyles.caption),
+                ],
+              ),
+            );
+          }
+
           final allConversations = snapshot.data?.docs ?? [];
           
           // Filter conversations on client side
@@ -84,23 +107,35 @@ class _SupplierChatListPageState extends State<SupplierChatListPage> {
             final hiddenFor = List<String>.from(data['hiddenFor'] ?? []);
             return isActive && !hiddenFor.contains(user.uid);
           }).toList();
+          
           if (conversations.isEmpty) {
             return Center(
-              child: Text(
-                'No conversations yet',
-                style: TextStyle(fontSize: screenWidth * 0.04),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.chat_bubble_outline, size: 80, color: AppColors.accentGreen),
+                  SizedBox(height: 24),
+                  Text('No conversations yet', style: AppTextStyles.headline),
+                  SizedBox(height: 12),
+                  Text(
+                    'Start chatting with suppliers by\nvisiting product pages',
+                    style: AppTextStyles.caption,
+                    textAlign: TextAlign.center,
+                  ),
+                ],
               ),
             );
           }
+
           return ListView.builder(
             padding: EdgeInsets.all(padding),
             itemCount: conversations.length,
             itemBuilder: (context, index) {
-              final data = conversations[index].data();
+              final conv = conversations[index].data();
               final conversationId = conversations[index].id;
-              final buyerName = data['buyerName'] ?? data['customerName'] ?? 'Unknown Customer';
-              final lastMessage = data['lastMessage'] ?? '';
-              final lastMessageTime = data['lastMessageTime'] as Timestamp?;
+              final supplierName = conv['supplierName'] ?? 'Unknown Supplier';
+              final lastMessage = conv['lastMessage'] ?? '';
+              final lastMessageTime = conv['lastMessageTime'] as Timestamp?;
               final isSelected = _selectedConversations.contains(conversationId);
 
               return Padding(
@@ -115,7 +150,7 @@ class _SupplierChatListPageState extends State<SupplierChatListPage> {
                       radius: screenWidth * 0.05,
                       backgroundColor: AppColors.primaryGreen,
                       child: Text(
-                        buyerName.isNotEmpty ? buyerName[0].toUpperCase() : 'C',
+                        supplierName.isNotEmpty ? supplierName[0].toUpperCase() : 'S',
                         style: AppTextStyles.button.copyWith(
                           color: Colors.white,
                           fontSize: screenWidth * 0.04,
@@ -123,7 +158,7 @@ class _SupplierChatListPageState extends State<SupplierChatListPage> {
                       ),
                     ),
                     title: Text(
-                      buyerName,
+                      supplierName,
                       style: AppTextStyles.subtitle.copyWith(
                         fontWeight: FontWeight.w600,
                         fontSize: screenWidth * 0.04,
@@ -199,9 +234,9 @@ class _SupplierChatListPageState extends State<SupplierChatListPage> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => SupplierChatPage(
-                              conversationId: conversationId,
-                              buyerName: buyerName, buyerId: '',
+                            builder: (context) => BuyerChatPage(
+                              supplierId: conv['supplierId'],
+                              supplierName: supplierName,
                             ),
                           ),
                         );
@@ -260,9 +295,9 @@ class _SupplierChatListPageState extends State<SupplierChatListPage> {
     if (confirmed == true) {
       try {
         for (final conversationId in _selectedConversations) {
-          await _chatService.hideConversationForSupplier(
+          await _chatService.hideConversationForBuyer(
             conversationId: conversationId,
-            supplierId: user.uid,
+            buyerId: user.uid,
           );
         }
         setState(() {
@@ -351,5 +386,3 @@ class _SupplierChatListPageState extends State<SupplierChatListPage> {
     }
   }
 }
-
-

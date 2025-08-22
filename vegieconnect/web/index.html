@@ -31,6 +31,16 @@
 
   <title>vegieconnect</title>
   <link rel="manifest" href="manifest.json">
+  <script>
+    // Register the Firebase Messaging service worker early to avoid MIME type issues
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('/firebase-messaging-sw.js', {scope: '/firebase-cloud-messaging-push-scope/'}).catch(function(e){
+          console.warn('Service worker registration failed:', e);
+        });
+      });
+    }
+  </script>
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>

@@ -3,8 +3,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../widgets/product_image_widget.dart';
-import '../services/chat_navigation_service.dart';
+import '../widgets/star_rating_widget.dart';
+
 import 'package:vegieconnect/theme.dart'; // For AppColors
+import 'buyer_chat_page.dart';
 import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
 
 class ProductDetailsPage extends StatefulWidget {
@@ -75,6 +77,36 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
                               Icon(Icons.store, color: AppColors.primaryGreen, size: screenWidth * 0.05),
                               SizedBox(width: screenWidth * 0.02),
                               Text(product['supplierName'] ?? 'Unknown Supplier', style: AppTextStyles.body.copyWith(fontSize: screenWidth * 0.04, color: AppColors.textSecondary)),
+                              SizedBox(width: screenWidth * 0.02),
+                              FutureBuilder<QuerySnapshot>(
+                                future: FirebaseFirestore.instance
+                                    .collection('ratings')
+                                    .where('supplierId', isEqualTo: product['sellerId'])
+                                    .get(),
+                                builder: (context, snapshot) {
+                                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                                    return Row(
+                                      children: [
+                                        StarRatingDisplay(rating: 0, size: screenWidth * 0.035),
+                                        SizedBox(width: screenWidth * 0.01),
+                                        Text('(0)', style: AppTextStyles.body.copyWith(fontSize: screenWidth * 0.032, color: AppColors.textSecondary)),
+                                      ],
+                                    );
+                                  }
+                                  
+                                  final ratings = snapshot.data!.docs;
+                                  final totalRating = ratings.fold<double>(0, (sum, doc) => sum + (doc['rating'] ?? 0).toDouble());
+                                  final averageRating = totalRating / ratings.length;
+                                  
+                                  return Row(
+                                    children: [
+                                      StarRatingDisplay(rating: averageRating, size: screenWidth * 0.035),
+                                      SizedBox(width: screenWidth * 0.01),
+                                      Text('(${ratings.length})', style: AppTextStyles.body.copyWith(fontSize: screenWidth * 0.032, color: AppColors.textSecondary)),
+                                    ],
+                                  );
+                                },
+                              ),
                             ],
                           ),
                           SizedBox(height: screenWidth * 0.02),
@@ -138,7 +170,31 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
                                 color: Colors.blue,
                                 boxShape: NeumorphicBoxShape.roundRect(BorderRadius.circular(screenWidth * 0.04)),
                               ),
-                              onPressed: () => _startChatWithSupplier(context, product),
+                              onPressed: () {
+                                final supplierId = product['sellerId'] as String?;
+                                final supplierName = product['supplierName'] as String? ?? 'Supplier';
+                                if (supplierId == null) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Supplier not found for this product.')),
+                                  );
+                                  return;
+                                }
+                                if (FirebaseAuth.instance.currentUser == null) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Please log in to start a chat.')),
+                                  );
+                                  return;
+                                }
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => BuyerChatPage(
+                                      supplierId: supplierId,
+                                      supplierName: supplierName,
+                                    ),
+                                  ),
+                                );
+                              },
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
@@ -312,7 +368,15 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
                             );
                           }
                         },
-                        child: Text('Add to Cart', style: AppTextStyles.button.copyWith(fontSize: screenWidth * 0.045)),
+                        child: Text(
+                          'Add to Cart',
+                          style: AppTextStyles.button.copyWith(
+                            fontSize: screenWidth * 0.045,
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+
                       ),
                     ],
                   ),
@@ -324,9 +388,4 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
     );
   }
 
-  // Start chat with supplier
-  Future<void> _startChatWithSupplier(BuildContext context, Map<String, dynamic> product) async {
-    final chatNavigationService = ChatNavigationService();
-    await chatNavigationService.startChatWithSupplier(context, product);
-  }
-} 
+}

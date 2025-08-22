@@ -1,5 +1,4 @@
 // ignore_for_file: deprecated_member_use
-
 import 'package:flutter/material.dart';
 import 'data/veggies_data.dart';
 import 'veggies_page.dart';
