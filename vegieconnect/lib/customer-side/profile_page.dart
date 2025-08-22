@@ -150,7 +150,11 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   ImageProvider? _getProfileImage(Map<String, dynamic> data) {
-    // Priority: Local image > Network image
+    // Priority: state URL (fresh upload) > Local cached file (mobile) > Network from Firestore
+    if (_avatarUrl != null && _avatarUrl!.isNotEmpty) {
+      return NetworkImage(_avatarUrl!);
+    }
+
     if (_localAvatarPath != null) {
       final file = ImageStorageService.loadImageFromPath(_localAvatarPath!);
       if (file != null) {
@@ -158,8 +162,9 @@ class _ProfilePageState extends State<ProfilePage> {
       }
     }
     
-    if (data['avatarUrl'] != null) {
-      return NetworkImage(data['avatarUrl']);
+    final dynamicUrl = data['avatarUrl'];
+    if (dynamicUrl is String && dynamicUrl.isNotEmpty) {
+      return NetworkImage(dynamicUrl);
     }
     
     return null;
