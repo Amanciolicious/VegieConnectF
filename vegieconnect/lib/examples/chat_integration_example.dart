@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:vegieconnect/customer-side/chat_page.dart';
 import '../services/messaging_service.dart';
 import '../services/chat_navigation_service.dart';
 import '../widgets/unified_chat_widget.dart';
@@ -86,6 +87,17 @@ class _ChatIntegrationExampleState extends State<ChatIntegrationExample> {
     );
   }
 
+  void _startChatFromProduct(product) {
+  final chatNavigationService = ChatNavigationService();
+  chatNavigationService.startChatWithSupplier(
+    context,
+    {
+      'sellerId': product['sellerId'],
+      'supplierName': product['supplierName'],
+    },
+  );
+}
+
   // Example 1: Product Page Chat Button
   Widget _buildProductChatExample() {
     return Column(
@@ -107,7 +119,7 @@ class _ChatIntegrationExampleState extends State<ChatIntegrationExample> {
               const Text('Supplier: Green Valley Farms'),
               const SizedBox(height: 16),
               ElevatedButton.icon(
-                onPressed: () => _startChatFromProduct(),
+                onPressed: () => _startChatFromProduct(_chatNavigationService),
                 icon: const Icon(Icons.chat),
                 label: const Text('Chat with Supplier'),
                 style: ElevatedButton.styleFrom(
@@ -129,24 +141,11 @@ class _ChatIntegrationExampleState extends State<ChatIntegrationExample> {
             color: Colors.grey[100],
             borderRadius: BorderRadius.circular(4),
           ),
-          child: const Text(
-            '''
-ElevatedButton(
-  onPressed: () => _startChatFromProduct(),
-  child: Text('Chat with Supplier'),
-)
-
-void _startChatFromProduct() {
-  final chatNavigationService = ChatNavigationService();
-  chatNavigationService.startChatWithSupplier(
-    context,
-    {
-      'sellerId': product['sellerId'],
-      'supplierName': product['supplierName'],
-    },
-  );
-}
-            ''',
+          child: Text(        
+          ElevatedButton(
+          onPressed: () => _startChatFromProduct(_chatNavigationService),
+  child: const Text('Chat with Supplier')
+  ) as String ,
             style: TextStyle(fontFamily: 'monospace', fontSize: 12),
           ),
         ),
@@ -177,16 +176,15 @@ void _startChatFromProduct() {
             color: Colors.grey[100],
             borderRadius: BorderRadius.circular(4),
           ),
-          child: const Text(
-            '''
+          child: Text(         
 Navigator.push(
   context,
   MaterialPageRoute(
     builder: (_) => const UnifiedChatWidget(userRole: 'supplier'),
   ),
-);
-            ''',
-            style: TextStyle(fontFamily: 'monospace', fontSize: 12),
+) as String
+            ,
+            style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
           ),
         ),
       ],
@@ -216,15 +214,15 @@ Navigator.push(
             color: Colors.grey[100],
             borderRadius: BorderRadius.circular(4),
           ),
-          child: const Text(
-            '''
+          child: Text(
+            
 Navigator.push(
   context,
   MaterialPageRoute(
     builder: (_) => const UnifiedChatWidget(userRole: 'buyer'),
   ),
-);
-            ''',
+) as String
+            ,
             style: TextStyle(fontFamily: 'monospace', fontSize: 12),
           ),
         ),
@@ -288,21 +286,21 @@ Navigator.push(
             borderRadius: BorderRadius.circular(4),
           ),
           child: Text(
-            '''
+            
 StreamBuilder<int>(
-  stream: messagingService.getUnreadMessageCount(),
+  stream: _messagingService.getUnreadMessageCount(),
   builder: (context, snapshot) {
     final unreadCount = snapshot.data ?? 0;
     return Badge(
       label: Text('$unreadCount'),
       child: IconButton(
         icon: Icon(Icons.chat),
-        onPressed: () => _openChatPage(),
+        onPressed: () => ChatPage(supplierId: null,),
       ),
     );
   },
-)
-            ''',
+) as String
+            ,
             style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
           ),
         ),
@@ -311,25 +309,6 @@ StreamBuilder<int>(
   }
 
   // Navigation methods
-  void _startChatFromProduct() {
-    // Simulate product data
-    final product = {
-      'sellerId': 'supplier123',
-      'supplierName': 'Green Valley Farms',
-    };
-
-    // Validate user can chat
-    if (!_chatNavigationService.canChatWithSupplier(product['sellerId']!)) {
-      final error = _chatNavigationService.getChatValidationError(product['sellerId']!);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error ?? 'Cannot start chat')),
-      );
-      return;
-    }
-
-    // Start chat
-    _chatNavigationService.startChatWithSupplier(context, product);
-  }
 
   void _openSupplierChat() {
     Navigator.push(
