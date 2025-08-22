@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
 import 'package:vegieconnect/services/image_storage_service.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:vegieconnect/services/cloudinary_service.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -47,31 +48,49 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _pickAvatar() async {
-    if (kIsWeb) {
-      await _pickImageWeb();
-      return;
-    }
-
     showModalBottomSheet(
       context: context,
       builder: (context) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (!kIsWeb) ...[
+              ListTile(
+                leading: Icon(Icons.photo_library, color: AppColors.primaryGreen),
+                title: Text('Choose from Gallery'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickImageFromSource(ImageSource.gallery);
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.camera_alt, color: AppColors.primaryGreen),
+                title: Text('Take Photo'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickImageFromSource(ImageSource.camera);
+                },
+              ),
+            ],
             ListTile(
-              leading: Icon(Icons.photo_library, color: AppColors.primaryGreen),
-              title: Text('Choose from Gallery'),
-              onTap: () {
+              leading: Icon(Icons.cloud_upload, color: AppColors.primaryGreen),
+              title: Text('Upload via Cloudinary'),
+              onTap: () async {
                 Navigator.pop(context);
-                _pickImageFromSource(ImageSource.gallery);
+                if (kIsWeb) {
+                  await _uploadViaCloudinaryWeb();
+                } else {
+                  await _uploadViaCloudinaryMobile();
+                }
               },
             ),
+            const Divider(height: 1),
             ListTile(
-              leading: Icon(Icons.camera_alt, color: AppColors.primaryGreen),
-              title: Text('Take Photo'),
-              onTap: () {
+              leading: Icon(Icons.link, color: AppColors.primaryGreen),
+              title: Text('Enter Image URL'),
+              onTap: () async {
                 Navigator.pop(context);
-                _pickImageFromSource(ImageSource.camera);
+                await _promptImageUrlInput();
               },
             ),
           ],
@@ -80,15 +99,94 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Future<void> _pickImageWeb() async {
+  Future<void> _uploadViaCloudinaryWeb() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
-
       final bytes = await ImageStorageService.pickImageFromWeb();
       if (bytes == null) return;
+      final url = await CloudinaryService.uploadBytes(bytes, fileName: 'avatar_${user.uid}.jpg');
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).update({'avatarUrl': url});
+      setState(() {
+        _avatarUrl = url;
+        _localAvatarPath = null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Uploaded to Cloudinary successfully')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Cloudinary upload failed: $e')),
+      );
+    }
+  }
 
-      final url = await ImageStorageService.uploadProfileImage(bytes: bytes, userId: user.uid);
+  Future<void> _uploadViaCloudinaryMobile() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+      final file = await ImageStorageService.pickProfileImage(fromCamera: false);
+      if (file == null) return;
+      final url = await CloudinaryService.uploadFile(file);
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).update({'avatarUrl': url});
+      // Optional: also cache locally
+      final localPath = await ImageStorageService.saveProfileImageFromFile(file, user.uid);
+      await ImageStorageService.deleteOldProfileImages(user.uid);
+      setState(() {
+        _avatarUrl = url;
+        _localAvatarPath = localPath;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Uploaded to Cloudinary successfully')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Cloudinary upload failed: $e')),
+      );
+    }
+  }
+
+  Future<void> _promptImageUrlInput() async {
+    final controller = TextEditingController(text: _avatarUrl ?? '');
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Set Profile Image URL'),
+          content: TextField(
+            controller: controller,
+            decoration: const InputDecoration(
+              hintText: 'https://example.com/image.jpg',
+              labelText: 'Image URL',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryGreen),
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Save', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true) {
+      final url = controller.text.trim();
+      final isValid = url.startsWith('http://') || url.startsWith('https://');
+      if (!isValid) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please enter a valid http(s) URL')),
+        );
+        return;
+      }
 
       await FirebaseFirestore.instance
           .collection('users')
@@ -97,15 +195,11 @@ class _ProfilePageState extends State<ProfilePage> {
 
       setState(() {
         _avatarUrl = url;
-        _localAvatarPath = null; // web doesn't use local path
+        _localAvatarPath = null; // prefer URL
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Profile image updated successfully')),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error updating profile picture: $e')),
       );
     }
   }
@@ -120,26 +214,17 @@ class _ProfilePageState extends State<ProfilePage> {
       );
       
       if (imageFile != null) {
-        // Upload to Firebase Storage for cross-platform access
-        final url = await ImageStorageService.uploadProfileImage(file: imageFile, userId: user.uid);
-
-        // Save to local storage for faster reloads on mobile
+        // Save only locally (no Firebase Storage)
         final localPath = await ImageStorageService.saveProfileImageFromFile(imageFile, user.uid);
         await ImageStorageService.deleteOldProfileImages(user.uid);
 
-        // Update Firestore profile
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .update({'avatarUrl': url});
-
         setState(() {
           _localAvatarPath = localPath;
-          _avatarUrl = url;
+          // Keep existing _avatarUrl unchanged; local takes precedence in renderer
         });
 
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Profile image updated successfully')),
+          const SnackBar(content: Text('Profile image saved locally')),
         );
       }
     } catch (e) {

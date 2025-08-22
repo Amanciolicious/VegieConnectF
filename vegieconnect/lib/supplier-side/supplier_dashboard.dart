@@ -9,6 +9,9 @@ import '../authentication/login_page.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:vegieconnect/services/image_storage_service.dart';
 import 'dart:io';
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:vegieconnect/services/cloudinary_service.dart';
 import 'package:vegieconnect/theme.dart'; // For AppColors
 import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
 import 'supplier_chat_list_page.dart';
@@ -58,17 +61,12 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
             Text('Update Profile Picture', style: AppTextStyles.headline),
             const SizedBox(height: 20),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 _buildImageOption(
-                  icon: Icons.camera_alt,
-                  label: 'Camera',
-                  onTap: () => _pickImage(ImageSource.camera),
-                ),
-                _buildImageOption(
-                  icon: Icons.photo_library,
-                  label: 'Gallery',
-                  onTap: () => _pickImage(ImageSource.gallery),
+                  icon: Icons.cloud_upload,
+                  label: 'Cloudinary',
+                  onTap: _uploadViaCloudinary,
                 ),
               ],
             ),
@@ -117,7 +115,8 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
       );
       
       if (image != null && FirebaseAuth.instance.currentUser != null) {
-        await _uploadProfileImage(File(image.path));
+        // Upload picked file to Cloudinary (mobile/desktop)
+        await _uploadToCloudinaryAndSave(file: File(image.path));
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -129,21 +128,64 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
     }
   }
 
-  Future<void> _uploadProfileImage(File imageFile) async {
+  Future<void> _uploadViaCloudinary() async {
+    Navigator.pop(context);
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+      if (kIsWeb) {
+        // Pick bytes on web
+        final Uint8List? bytes = await ImageStorageService.pickImageFromWeb();
+        if (bytes == null) return;
+        await _uploadToCloudinaryAndSave(bytes: bytes);
+      } else {
+        // Pick from gallery on mobile as default
+        final ImagePicker picker = ImagePicker();
+        final XFile? image = await picker.pickImage(
+          source: ImageSource.gallery,
+          maxWidth: 512,
+          maxHeight: 512,
+          imageQuality: 75,
+        );
+        if (image != null) {
+          await _uploadToCloudinaryAndSave(file: File(image.path));
+        }
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Cloudinary upload failed: $e'),
+          backgroundColor: AppColors.accentRed,
+        ),
+      );
+    }
+  }
+
+  Future<void> _uploadToCloudinaryAndSave({File? file, Uint8List? bytes}) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
-    
+
     try {
-      // Save to local storage
-      final localPath = await ImageStorageService.saveProfileImageFromFile(imageFile, user.uid);
-      
-      // Clean up old profile images
-      await ImageStorageService.deleteOldProfileImages(user.uid);
-      
+      String imageUrl;
+      if (kIsWeb) {
+        if (bytes == null) throw ArgumentError('bytes must not be null on web');
+        imageUrl = await CloudinaryService.uploadBytes(bytes, folder: 'vegieconnect/avatars/${user.uid}');
+      } else {
+        if (file == null) throw ArgumentError('file must not be null on mobile');
+        imageUrl = await CloudinaryService.uploadFile(file, folder: 'vegieconnect/avatars/${user.uid}');
+      }
+
+      // Save URL to Firestore
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set(
+        {'avatarUrl': imageUrl},
+        SetOptions(merge: true),
+      );
+
       setState(() {
-        _localProfileImagePath = localPath;
+        // Clear local path to force using network image
+        _localProfileImagePath = null;
       });
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text('Profile picture updated successfully!'),
@@ -161,17 +203,22 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
   }
 
   ImageProvider? _getSupplierProfileImage(Map<String, dynamic>? userData) {
-    // Priority: Local image > Network image
+    // Priority: Cloudinary avatarUrl > legacy profileImageUrl > local image
+    final avatarUrl = userData?['avatarUrl'] as String?;
+    if (avatarUrl != null && avatarUrl.isNotEmpty) {
+      return NetworkImage(avatarUrl);
+    }
+
+    final profileImageUrl = userData?['profileImageUrl'] as String?;
+    if (profileImageUrl != null && profileImageUrl.isNotEmpty) {
+      return NetworkImage(profileImageUrl);
+    }
+
     if (_localProfileImagePath != null) {
       final file = ImageStorageService.loadImageFromPath(_localProfileImagePath!);
       if (file != null) {
         return FileImage(file);
       }
-    }
-    
-    final profileImageUrl = userData?['profileImageUrl'] as String?;
-    if (profileImageUrl != null) {
-      return NetworkImage(profileImageUrl);
     }
     
     return null;
@@ -455,70 +502,67 @@ class _SupplierDashboardState extends State<SupplierDashboard> {
             style: AppTextStyles.headline.copyWith(fontSize: screenWidth * 0.05),
           ),
           SizedBox(height: spacing),
-          SizedBox(
-            height: cardHeight * 2 + spacing, // Two rows of cards
-            child: GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: 2,
-              crossAxisSpacing: spacing,
-              mainAxisSpacing: spacing,
-              childAspectRatio: 1.6, // Adjusted for better fit
-              children: [
-                // Total Products
-                StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('products')
-                      .where('sellerId', isEqualTo: user.uid)
-                      .snapshots(),
-                  builder: (context, snapshot) {
-                    final count = snapshot.hasData ? snapshot.data!.docs.length : 0;
-                    return _buildStatCard(screenWidth, cardRadius, 'Total Products', '$count', Icons.inventory, Colors.blue);
-                  },
-                ),
-                // Active Orders
-                StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('orders')
-                      .where('sellerId', isEqualTo: user.uid)
-                      .where('status', isNotEqualTo: 'completed')
-                      .snapshots(),
-                  builder: (context, snapshot) {
-                    final count = snapshot.hasData ? snapshot.data!.docs.length : 0;
-                    return _buildStatCard(screenWidth, cardRadius, 'Active Orders', '$count', Icons.shopping_cart, Colors.green);
-                  },
-                ),
-                // Revenue
-                StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('orders')
-                      .where('sellerId', isEqualTo: user.uid)
-                      .where('status', isEqualTo: 'completed')
-                      .snapshots(),
-                  builder: (context, snapshot) {
-                    double revenue = 0;
-                    if (snapshot.hasData) {
-                      for (var doc in snapshot.data!.docs) {
-                        final data = doc.data() as Map<String, dynamic>;
-                        revenue += (data['totalPrice'] ?? 0).toDouble();
-                      }
+          GridView.count(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: 2,
+            crossAxisSpacing: spacing,
+            mainAxisSpacing: spacing,
+            childAspectRatio: 1.6, // Adjusted for better fit
+            children: [
+              // Total Products
+              StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('products')
+                    .where('sellerId', isEqualTo: user.uid)
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  final count = snapshot.hasData ? snapshot.data!.docs.length : 0;
+                  return _buildStatCard(screenWidth, cardRadius, 'Total Products', '$count', Icons.inventory, Colors.blue);
+                },
+              ),
+              // Active Orders
+              StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('orders')
+                    .where('sellerId', isEqualTo: user.uid)
+                    .where('status', isNotEqualTo: 'completed')
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  final count = snapshot.hasData ? snapshot.data!.docs.length : 0;
+                  return _buildStatCard(screenWidth, cardRadius, 'Active Orders', '$count', Icons.shopping_cart, Colors.green);
+                },
+              ),
+              // Revenue
+              StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('orders')
+                    .where('sellerId', isEqualTo: user.uid)
+                    .where('status', isEqualTo: 'completed')
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  double revenue = 0;
+                  if (snapshot.hasData) {
+                    for (var doc in snapshot.data!.docs) {
+                      final data = doc.data() as Map<String, dynamic>;
+                      revenue += (data['totalPrice'] ?? 0).toDouble();
                     }
-                    return _buildStatCard(screenWidth, cardRadius, 'Revenue', '₱${revenue.toStringAsFixed(2)}', Icons.attach_money, Colors.green);
-                  },
-                ),
-                // Total Orders
-                StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('orders')
-                      .where('sellerId', isEqualTo: user.uid)
-                      .snapshots(),
-                  builder: (context, snapshot) {
-                    final count = snapshot.hasData ? snapshot.data!.docs.length : 0;
-                    return _buildStatCard(screenWidth, cardRadius, 'Total Orders', '$count', Icons.receipt_long, Colors.orange);
-                  },
-                ),
-              ],
-            ),
+                  }
+                  return _buildStatCard(screenWidth, cardRadius, 'Revenue', '₱${revenue.toStringAsFixed(2)}', Icons.attach_money, Colors.green);
+                },
+              ),
+              // Total Orders
+              StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('orders')
+                    .where('sellerId', isEqualTo: user.uid)
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  final count = snapshot.hasData ? snapshot.data!.docs.length : 0;
+                  return _buildStatCard(screenWidth, cardRadius, 'Total Orders', '$count', Icons.receipt_long, Colors.orange);
+                },
+              ),
+            ],
           ),
         ],
       ),

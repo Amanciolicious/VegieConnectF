@@ -10,6 +10,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:vegieconnect/services/cloudinary_service.dart';
 import 'package:vegieconnect/theme.dart';
 import 'product_details_page.dart';
 import 'buyer_order_history_page.dart';
@@ -70,17 +72,19 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
             Text('Update Profile Picture', style: AppTextStyles.headline),
             const SizedBox(height: 20),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 _buildImageOption(
-                  icon: Icons.camera_alt,
-                  label: 'Camera',
-                  onTap: () => _pickImage(ImageSource.camera),
-                ),
-                _buildImageOption(
-                  icon: Icons.photo_library,
-                  label: 'Gallery',
-                  onTap: () => _pickImage(ImageSource.gallery),
+                  icon: Icons.cloud_upload,
+                  label: 'Upload via Cloudinary',
+                  onTap: () async {
+                    Navigator.pop(context);
+                    if (kIsWeb) {
+                      await _uploadViaCloudinaryWeb();
+                    } else {
+                      await _uploadViaCloudinaryMobile();
+                    }
+                  },
                 ),
               ],
             ),
@@ -129,7 +133,8 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
       );
       
       if (image != null && user != null) {
-        await _uploadProfileImage(File(image.path));
+        // Reuse picker for mobile -> upload to Cloudinary instead of local storage
+        await _uploadToCloudinaryFromPath(image.path);
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -141,28 +146,20 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
     }
   }
 
-  Future<void> _uploadProfileImage(File imageFile) async {
+  Future<void> _uploadToCloudinaryFromPath(String path) async {
     if (user == null) return;
-    
     try {
-      // Show loading indicator
       showDialog(
         context: context,
         barrierDismissible: false,
         builder: (context) => const Center(child: CircularProgressIndicator()),
       );
-
-      // Save image locally using ImageStorageService
-      final savedPath = await ImageStorageService.saveProfileImageFromFile(imageFile, user!.uid);
-
-      // Update user document with local path
+      final url = await CloudinaryService.uploadFile(File(path));
       await FirebaseFirestore.instance
           .collection('users')
           .doc(user!.uid)
-          .update({'profileImageUrl': savedPath});
-
-      Navigator.pop(context); // Close loading dialog
-      
+          .update({'avatarUrl': url});
+      Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text('Profile picture updated successfully!'),
@@ -170,7 +167,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
         ),
       );
     } catch (e) {
-      Navigator.pop(context); // Close loading dialog
+      Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error updating profile picture: $e'),
@@ -178,6 +175,49 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
         ),
       );
     }
+  }
+
+  Future<void> _uploadViaCloudinaryWeb() async {
+    if (user == null) return;
+    try {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(child: CircularProgressIndicator()),
+      );
+      final bytes = await ImageStorageService.pickImageFromWeb();
+      if (bytes == null) {
+        Navigator.pop(context);
+        return;
+      }
+      final url = await CloudinaryService.uploadBytes(bytes, fileName: 'avatar_${user!.uid}.jpg');
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user!.uid)
+          .update({'avatarUrl': url});
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Profile picture updated successfully!'),
+          backgroundColor: AppColors.primaryGreen,
+        ),
+      );
+    } catch (e) {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error updating profile picture: $e'),
+          backgroundColor: AppColors.accentRed,
+        ),
+      );
+    }
+  }
+
+  Future<void> _uploadViaCloudinaryMobile() async {
+    final picker = ImagePicker();
+    final XFile? image = await picker.pickImage(source: ImageSource.gallery, maxWidth: 512, maxHeight: 512, imageQuality: 75);
+    if (image == null) return;
+    await _uploadToCloudinaryFromPath(image.path);
   }
 
   @override
@@ -211,7 +251,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
                     : null,
                   builder: (context, snapshot) {
                     final userData = snapshot.data?.data() as Map<String, dynamic>?;
-                    final profileImageUrl = userData?['profileImageUrl'] as String?;
+                    final avatarUrl = (userData?['avatarUrl'] ?? userData?['profileImageUrl']) as String?;
                     final displayName = userData?['name'] ?? user?.displayName ?? 'Vegie Lover';
                     
                     return Column(
@@ -224,10 +264,10 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
                               CircleAvatar(
                                 radius: 32,
                                 backgroundColor: Colors.white,
-                                backgroundImage: profileImageUrl != null 
-                                  ? NetworkImage(profileImageUrl) 
+                                backgroundImage: avatarUrl != null 
+                                  ? NetworkImage(avatarUrl) 
                                   : null,
-                                child: profileImageUrl == null 
+                                child: avatarUrl == null 
                                   ? Icon(Icons.person, size: 40, color: AppColors.accentGreen)
                                   : null,
                               ),
